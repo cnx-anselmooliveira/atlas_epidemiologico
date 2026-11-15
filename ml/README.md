@@ -65,8 +65,12 @@ Cada promoção grava `atlas.<destino>_at` e `atlas.<destino>_by` na versão. Pa
 
 ```python
 from atlas_ml.data.bigquery import bigquery_client, read_features
-df, summary = read_features(bigquery_client(settings), table="ppgcc-dengue-project.gold.gold_dengue_epi_curve_weekly",
-                            date_column="epi_week_start_date")
+
+df, summary = read_features(
+    bigquery_client(settings),
+    table="ppgcc-dengue-project.gold.gold_dengue_epi_curve_weekly",
+    date_column="epi_week_start_date",
+)
 # summary.data_version → "…gold_dengue_epi_curve_weekly@2026-11-14T06:12:00+00:00"
 ```
 
