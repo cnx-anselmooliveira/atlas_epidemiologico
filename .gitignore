@@ -14,6 +14,10 @@ target/
 dbt_packages/
 logs/
 mlruns/
+mlartifacts/
+airflow/logs/
+.pytest_cache/
+.ruff_cache/
 
 # Segredos e configuração local
 .env
@@ -24,6 +28,8 @@ mlruns/
 *service-account*.json
 *-sa.json
 ppgcc-dengue-project-*.json
+platform/secrets/
+extra_ca.pem
 
 # Sistema / editor
 .DS_Store

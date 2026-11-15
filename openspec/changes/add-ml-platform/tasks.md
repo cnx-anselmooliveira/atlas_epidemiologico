@@ -2,10 +2,10 @@
 
 ## 1. Repositório e fluxo de branches
 
-- [ ] 1.1 Criar as branches `dev` e `hml` a partir de `main` e passar a trabalhar em `dev`; verificar com `git branch -a` e `git rev-parse --abbrev-ref HEAD` = `dev`
-- [ ] 1.2 Criar as pastas `ml/`, `airflow/`, `infra/mlflow/`, `platform/` e `deploy/` em `atlas_epidemiologia/`; ampliar o `.gitignore` (`.env`, `*.json` de service account, `mlruns/`, `.venv/`, `__pycache__/`, `extra_ca.pem`); verificar que `git check-ignore platform/.env chave-sa.json` ignora os dois
-- [ ] 1.3 Criar `platform/.env.example` com todas as variáveis (`GCP_PROJECT`, `MLFLOW_ARTIFACTS_BUCKET`, `MLFLOW_SA_KEY_PATH`, `TRAINING_SA_KEY_PATH`, `POSTGRES_PASSWORD`, `AIRFLOW_ADMIN_PASSWORD`, `EXTRA_CA_PATH`) e documentar o fluxo dev → hml → main e as tags `dev`/`hml`/`X.Y` em `platform/README.md`; verificar que o README lista cada variável do `.env.example`
-- [ ] 1.4 Commit do módulo em `dev` (`chore(platform): estrutura e fluxo de branches`); verificar com `git log -1 --stat`
+- [x] 1.1 Criar as branches `dev` e `hml` a partir de `main` e passar a trabalhar em `dev`; verificar com `git branch -a` e `git rev-parse --abbrev-ref HEAD` = `dev`
+- [x] 1.2 Criar as pastas `ml/`, `airflow/`, `infra/mlflow/`, `platform/` e `deploy/` em `atlas_epidemiologia/`; ampliar o `.gitignore` (`.env`, `*.json` de service account, `mlruns/`, `.venv/`, `__pycache__/`, `extra_ca.pem`); verificar que `git check-ignore platform/.env chave-sa.json` ignora os dois
+- [x] 1.3 Criar `platform/.env.example` com todas as variáveis (`GCP_PROJECT`, `MLFLOW_ARTIFACTS_BUCKET`, `MLFLOW_SA_KEY_PATH`, `TRAINING_SA_KEY_PATH`, `POSTGRES_PASSWORD`, `AIRFLOW_ADMIN_PASSWORD`, `EXTRA_CA_PATH`) e documentar o fluxo dev → hml → main e as tags `dev`/`hml`/`X.Y` em `platform/README.md`; verificar que o README lista cada variável do `.env.example`
+- [x] 1.4 Commit do módulo em `dev` (`chore(platform): estrutura e fluxo de branches`); verificar com `git log -1 --stat`
 
 ## 2. Pacote `atlas_ml`
 
@@ -44,8 +44,8 @@
 
 ## 6. CI e promoção de imagens
 
-- [ ] 6.1 Criar o workflow reutilizável `.github/workflows/_image.yml` na raiz `PPGCC/` (calcula a tag pela origem: branch `dev` → `dev`, `hml` → `hml`, tag `vX.Y` → `X.Y`; verifica que a tag de versão está em `origin/main` e ainda não existe no DockerHub; build com `ATLAS_GIT_SHA`/`ATLAS_IMAGE_TAG`; push; webhook do Portainer para `hml` e `X.Y`); verificar com `actionlint`
-- [ ] 6.2 Criar `ml.yml` (paths `atlas_epidemiologia/ml/**`: ruff + pytest → `_image.yml`), `airflow.yml` (paths `airflow/**` e `ml/**`: teste `DagBag` → `_image.yml`) e `mlflow-server.yml` (paths `infra/mlflow/**`); pull requests só validam; verificar com um PR (sem push) e um push em `dev` publicando as três imagens `:dev`
+- [ ] 6.1 Criar o workflow reutilizável `.github/workflows/_image.yml` na raiz do repositório (calcula a tag pela origem: branch `dev` → `dev`, `hml` → `hml`, tag `vX.Y` → `X.Y`; verifica que a tag de versão está em `origin/main` e ainda não existe no DockerHub; build com `ATLAS_GIT_SHA`/`ATLAS_IMAGE_TAG`; push; webhook do Portainer para `hml` e `X.Y`); verificar com `actionlint`
+- [ ] 6.2 Criar `ml.yml` (paths `ml/**`: ruff + pytest → `_image.yml`), `airflow.yml` (paths `airflow/**` e `ml/**`: teste `DagBag` → `_image.yml`) e `mlflow-server.yml` (paths `infra/mlflow/**`); pull requests só validam; verificar com um PR (sem push) e um push em `dev` publicando as três imagens `:dev`
 - [ ] 6.3 Criar `promotion-guard.yml` (PR com base `hml` exige head `dev`; base `main` exige head `hml`); verificar com um PR `dev → main` falhando e um PR `dev → hml` passando
 - [ ] 6.4 Configurar no GitHub os secrets (`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `PORTAINER_WEBHOOK_*`) e a proteção das branches `hml` e `main` (sem push direto, check `promotion-guard` obrigatório); documentar em `platform/README.md`; verificar que um push direto em `hml` é rejeitado
 - [ ] 6.5 Commit do módulo em `dev` (`ci: publicação de imagens dev/hml/X.Y e guarda de promoção`); verificar o workflow verde no GitHub para o próprio commit

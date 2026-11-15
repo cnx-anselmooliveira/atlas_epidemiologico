@@ -2,7 +2,7 @@
 
 ## Context
 
-- **Repositório.** O git fica na raiz `PPGCC/` (remoto `atlasepidemiologico`, só a branch `main` hoje); o projeto vive em `atlas_epidemiologia/`. Workflows do GitHub Actions ficam em `PPGCC/.github/workflows/`, com filtros de path `atlas_epidemiologia/...`.
+- **Repositório.** O git tem raiz em `atlas_epidemiologia/` (`cnx-anselmooliveira/atlas_epidemiologico`, privado, só `main` hoje). Os workflows do GitHub Actions ficam em `atlas_epidemiologia/.github/workflows/`. `frontend/design-system/` não é versionado.
 - **Dados.** O BigQuery `ppgcc-dengue-project` já tem raw/bronze/silver/gold. Variáveis ambientais ainda não foram ingeridas; só o DEM existe em raw.
 - **Infra.** Uma VPS com Portainer (Swarm) e Traefik (`network_public`, certresolver `letsencryptresolver`). Mais nada roda para ML.
 - **Rede corporativa.** A máquina de dev passa por inspeção TLS (Cloudflare Gateway). O projeto antigo já precisava montar `cloudflare-gateway-ca.pem` nos containers.
@@ -36,7 +36,7 @@ atlas_epidemiologia/
 ├── infra/mlflow/           # Dockerfile do servidor MLflow
 ├── platform/               # compose.dev.yml, .env.example, init do Postgres, scripts
 └── deploy/                 # platform.stack.yml, airflow.stack.yml (VPS)
-PPGCC/.github/workflows/    # ml.yml, airflow.yml, mlflow-server.yml, promotion-guard.yml
+.github/workflows/          # ml.yml, airflow.yml, mlflow-server.yml, promotion-guard.yml
 ```
 `platform/` reúne o compose de dev. `deploy/` segue o padrão já previsto na `decouple-architecture-bigquery`.
 

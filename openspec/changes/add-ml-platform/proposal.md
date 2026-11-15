@@ -60,7 +60,7 @@ Nada disso existe hoje.
   - `atlas_epidemiologia/infra/mlflow/` (imagem);
   - `atlas_epidemiologia/platform/compose.dev.yml`;
   - `atlas_epidemiologia/deploy/` (`mlflow.stack.yml`, `airflow.stack.yml`);
-  - workflows em `.github/workflows/` na raiz do repositório git (`PPGCC/`).
+  - workflows em `.github/workflows/` na raiz do repositório (`atlas_epidemiologia/`).
 - **GCP**:
   - um bucket GCS para artefatos;
   - uma service account do MLflow só com acesso ao bucket;
