@@ -36,11 +36,11 @@
 
 - [x] 5.1 Criar `platform/postgres/init.sql` (bancos `mlflow`, `mlflow_auth` e `airflow`, cada um com o seu usuário e acesso só ao próprio banco); verificar com `psql` que o usuário do MLflow não acessa o banco `airflow`
 - [x] 5.2 Criar `platform/compose.dev.yml` com `postgres`, `mlflow`, `airflow-init`, `airflow-api-server`, `airflow-scheduler`, `airflow-dag-processor` e `airflow-triggerer` (portas em `127.0.0.1`, volume `pgdata`, bind de `ml/` e `airflow/dags/`, health checks, `depends_on` com condição de saúde) e `jupyter` no profile `notebook`; verificar `docker compose -f platform/compose.dev.yml config` sem erros
-- [ ] 5.3 Adicionar a montagem opcional da CA corporativa (`EXTRA_CA_PATH`, `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH`) em MLflow, Airflow e Jupyter; verificar com o bucket configurado um upload de artefato para o GCS a partir da rede corporativa (pendente até o bucket existir — tarefa 7.1)
+- [x] 5.3 Adicionar a montagem opcional da CA corporativa (`EXTRA_CA_PATH`, `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH`) em MLflow, Airflow e Jupyter; verificar com o bucket configurado um upload de artefato para o GCS a partir da rede corporativa (pendente até o bucket existir — tarefa 7.1)
 - [x] 5.4 Criar `platform/dev.ps1` (`up`, `down`, `logs`, `reset`, `notebook`); verificar que `./platform/dev.ps1 up` sobe tudo saudável (`docker compose ps` com todos `healthy`)
 - [x] 5.5 Teste de ponta a ponta local: disparar a DAG `atlas_ml_example_training` pela UI (`127.0.0.1:8080`) e confirmar no MLflow (`127.0.0.1:5000`) a run com as tags `atlas.*`, o modelo registrado e o artefato no volume local de artefatos (ou em `gs://<bucket>/mlflow/dev/` com bucket); verificar também que reiniciar a stack mantém runs e histórico de DAG
 - [x] 5.6 Atualizar `platform/README.md` com o passo a passo de dev (pré-requisitos Docker Desktop, `.env`, chaves, CA, comandos); verificar seguindo o README do zero (`reset` + `up`)
-- [ ] 5.7 Commit do módulo em `dev` (`feat(platform): compose de dev com Postgres, MLflow e Airflow`); verificar com `git log -1 --stat`
+- [x] 5.7 Commit do módulo em `dev` (`feat(platform): compose de dev com Postgres, MLflow e Airflow`); verificar com `git log -1 --stat`
 
 ## 6. CI e promoção de imagens
 
