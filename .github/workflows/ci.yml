@@ -1,0 +1,230 @@
+# Pipeline de testes (spec ci-test-pipeline): portão das branches hml e main.
+# Todos os jobs rodam sem segredos (PRs de fork funcionam igual). O check obrigatório
+# na proteção das branches é o job agregado "ci-ok".
+name: ci
+
+on:
+  push:
+    branches: [hml, main]
+  pull_request:
+    branches: [hml, main]
+  workflow_dispatch:
+  workflow_call: # publicação de imagens e releases só seguem depois deste pipeline
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.10.12"
+  ACTIONLINT_VERSION: "1.7.7"
+  OPENSPEC_VERSION: "2.0.0"
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: ml/uv.lock
+      - name: ruff (pacote ml e DAGs)
+        working-directory: ml
+        run: |
+          uv sync --frozen
+          uv run ruff check . ../airflow/dags ../airflow/tests
+          uv run ruff format --check . ../airflow/dags ../airflow/tests
+      - name: shellcheck
+        run: shellcheck infra/mlflow/entrypoint.sh airflow/config/init.sh platform/postgres/init-databases.sh platform/ci/e2e.sh
+      - name: actionlint
+        run: |
+          bash <(curl -fsSL "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash") "${ACTIONLINT_VERSION}"
+          ./actionlint -color
+      - name: docker compose config
+        run: |
+          printf 'POSTGRES_PASSWORD=ci\nAIRFLOW_ADMIN_PASSWORD=ci\n' > /tmp/ci.env
+          export ATLAS_GIT_SHA="${GITHUB_SHA}"
+          docker compose -f platform/compose.dev.yml --env-file /tmp/ci.env config -q
+          docker compose -f platform/compose.dev.yml -f platform/compose.ca.yml --env-file /tmp/ci.env config -q
+
+  ml-tests:
+    name: ml-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: ml/uv.lock
+      - name: pytest (testes leves, sem rede)
+        working-directory: ml
+        run: |
+          uv sync --frozen
+          uv run pytest -m "not models"
+
+  ml-models-tests:
+    name: ml-models-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: ml/uv.lock
+      - name: pytest -m models (grupo de dependências pesadas)
+        working-directory: ml
+        run: |
+          uv sync --frozen --all-extras
+          set +e
+          uv run pytest -m models
+          rc=$?
+          set -e
+          if [ "$rc" -eq 5 ]; then
+            echo "::notice::Nenhum teste marcado como 'models' ainda (add-dengue-forecast-models)."
+            exit 0
+          fi
+          exit "$rc"
+
+  images:
+    name: images (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: ml, context: ml, file: ml/Dockerfile, target: runtime }
+          - { name: ml-notebook, context: ml, file: ml/Dockerfile, target: notebook }
+          - { name: mlflow, context: infra/mlflow, file: infra/mlflow/Dockerfile, target: "" }
+          - { name: airflow, context: ., file: airflow/Dockerfile, target: "" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: build (sem publicar)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          push: false
+          build-args: |
+            ATLAS_GIT_SHA=${{ github.sha }}
+            ATLAS_IMAGE_TAG=ci
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  dags:
+    name: dags
+    needs: images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: imagem do Airflow (cache do job images)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: airflow/Dockerfile
+          load: true
+          tags: atlas-epidemiologia-airflow:ci
+          build-args: |
+            ATLAS_GIT_SHA=${{ github.sha }}
+            ATLAS_IMAGE_TAG=ci
+          cache-from: type=gha,scope=airflow
+      - name: integridade das DAGs
+        run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_dags.py
+
+  platform-e2e:
+    name: platform-e2e
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: imagem do Airflow (cache do job images)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: airflow/Dockerfile
+          load: true
+          tags: atlas-epidemiologia-airflow:local
+          build-args: |
+            ATLAS_GIT_SHA=${{ github.sha }}
+            ATLAS_IMAGE_TAG=local
+          cache-from: type=gha,scope=airflow
+      - name: imagem do MLflow (cache do job images)
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/mlflow
+          load: true
+          tags: atlas-epidemiologia-mlflow:local
+          build-args: |
+            ATLAS_GIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=mlflow
+      - name: compose → DAG de exemplo → MLflow
+        env:
+          E2E_NO_BUILD: "1"
+          ATLAS_GIT_SHA: ${{ github.sha }}
+        run: bash platform/ci/e2e.sh
+      - name: logs dos serviços (em falha)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: e2e-logs/
+          retention-days: 7
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  openspec:
+    name: openspec
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: validação estrita de todas as mudanças
+        run: npx --yes "@fission-ai/openspec@${OPENSPEC_VERSION}" validate --all --strict
+
+  ci-ok:
+    # Check único exigido na proteção de hml e main. Passa só se TODOS os jobs passaram:
+    # failure, cancelled ou skipped em qualquer job → falha (um job pulado não pode
+    # liberar o merge, p.ex. dags/platform-e2e pulados porque images falhou).
+    name: ci-ok
+    if: always()
+    needs: [lint, ml-tests, ml-models-tests, images, dags, platform-e2e, frontend, openspec]
+    runs-on: ubuntu-latest
+    steps:
+      - name: resultado agregado
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad="$(echo "$NEEDS" | jq -r '[to_entries[] | select(.value.result != "success") | .key] | join(", ")')"
+          if [ -n "$bad" ]; then
+            echo "::error::Jobs sem sucesso: ${bad}"
+            exit 1
+          fi
