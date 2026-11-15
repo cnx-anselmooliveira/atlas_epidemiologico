@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import os
+import sys
 
 os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
+
+# Console do Windows (cp1252) não codifica os emojis que o MLflow imprime ao encerrar a run
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure") and (_stream.encoding or "").lower() not in ("utf-8", "utf8"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
 
 import typer  # noqa: E402
 
