@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Reportar vulnerabilidade de segurança
+    url: https://github.com/cnx-anselmooliveira/atlas_epidemiologico/security/advisories/new
+    about: Reporte privado — não abra issue pública para falhas de segurança.
+  - name: Contato sobre conduta
+    url: https://github.com/cnx-anselmooliveira/atlas_epidemiologico/blob/main/CODE_OF_CONDUCT.md
+    about: Veja no código de conduta como pedir contato reservado com o mantenedor.

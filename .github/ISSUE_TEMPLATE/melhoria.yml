@@ -1,0 +1,28 @@
+name: Propor melhoria
+description: Nova funcionalidade, modelo, fonte de dados ou ajuste.
+title: "[melhoria] "
+labels: ["novidade"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qual problema ou oportunidade?
+      description: O que falta hoje e por que importa (para quem usa o Atlas ou para a pesquisa).
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: O que você propõe
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas consideradas
+  - type: checkboxes
+    id: openspec
+    attributes:
+      label: Planejamento
+      options:
+        - label: Muda comportamento do sistema e deve virar uma mudança OpenSpec (proposta, specs, design e tarefas) antes do código.

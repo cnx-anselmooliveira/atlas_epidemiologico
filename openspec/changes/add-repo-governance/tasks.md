@@ -9,16 +9,16 @@
 
 ## 2. README
 
-- [ ] 2.1 Criar `README.md` na raiz: título, os quatro badges (ci com `?branch=main`, release, docker pulls de `atlas-epidemiologia-ml`, license), sobre, diagrama Mermaid da arquitetura, começo rápido, estrutura de pastas com links, fluxo dev → hml → main, dados e fontes (sem redistribuição), como citar e licença; verificar a renderização com `gh markdown-preview` ou na página da branch `dev`
-- [ ] 2.2 Conferir todos os links relativos do README e dos `*.md` da raiz com `lychee --offline` (via container `lycheeverse/lychee`); verificar zero links quebrados
-- [ ] 2.3 Commit em `dev` (`docs: README do projeto com badges`); verificar `git log -1 --stat`
+- [x] 2.1 Criar `README.md` na raiz: título, os quatro badges (ci com `?branch=main`, release, docker pulls de `atlas-epidemiologia-ml`, license), sobre, diagrama Mermaid da arquitetura, começo rápido, estrutura de pastas com links, fluxo dev → hml → main, dados e fontes (sem redistribuição), como citar e licença; verificar a renderização com `gh markdown-preview` ou na página da branch `dev`
+- [x] 2.2 Conferir todos os links relativos do README e dos `*.md` da raiz com `lychee --offline` (via container `lycheeverse/lychee`); verificar zero links quebrados
+- [x] 2.3 Commit em `dev` (`docs: README do projeto com badges`); verificar `git log -1 --stat`
 
 ## 3. Arquivos de comunidade
 
 - [ ] 3.1 Criar `CONTRIBUTING.md` (pré-requisitos, ambiente, testes, fluxo de branches e PR, commits por assunto, OpenSpec, checks obrigatórios, revisão); verificar seguindo os passos de testes num clone limpo
-- [ ] 3.2 Criar `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1, tradução oficial em português, com o contato da tarefa 1.1); verificar que o texto corresponde à versão 2.1
-- [ ] 3.3 Criar `SECURITY.md` (versões suportadas, reporte privado em Security → Report a vulnerability, prazos de 5 e 15 dias úteis, fora de escopo) e ativar o reporte privado com `gh api -X PUT …/private-vulnerability-reporting`; verificar com `gh api …/private-vulnerability-reporting -q .enabled` = `true`
-- [ ] 3.4 Criar `.github/ISSUE_TEMPLATE/bug.yml`, `melhoria.yml`, `config.yml` (sem issue em branco; segurança → reporte privado), `.github/pull_request_template.md` (checklist) e `.github/CODEOWNERS`; verificar a sintaxe dos formulários abrindo "New issue" na branch padrão depois da promoção
+- [x] 3.2 Criar `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1, tradução oficial em português, com o contato da tarefa 1.1); verificar que o texto corresponde à versão 2.1
+- [x] 3.3 Criar `SECURITY.md` (versões suportadas, reporte privado em Security → Report a vulnerability, prazos de 5 e 15 dias úteis, fora de escopo) e ativar o reporte privado com `gh api -X PUT …/private-vulnerability-reporting`; verificar com `gh api …/private-vulnerability-reporting -q .enabled` = `true`
+- [x] 3.4 Criar `.github/ISSUE_TEMPLATE/bug.yml`, `melhoria.yml`, `config.yml` (sem issue em branco; segurança → reporte privado), `.github/pull_request_template.md` (checklist) e `.github/CODEOWNERS`; verificar a sintaxe dos formulários abrindo "New issue" na branch padrão depois da promoção
 - [ ] 3.5 Commit por assunto em `dev` (`docs: guia de contribuição, código de conduta e política de segurança`; `chore(github): modelos de issue, PR e CODEOWNERS`); verificar `git log --oneline -2`
 
 ## 4. Releases
