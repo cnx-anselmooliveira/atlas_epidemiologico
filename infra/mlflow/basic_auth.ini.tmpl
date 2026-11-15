@@ -1,0 +1,9 @@
+; Configuração da autenticação do MLflow (app basic-auth). Renderizado pelo entrypoint
+; a partir de variáveis de ambiente — nunca versione valores reais.
+[mlflow]
+; Usuário autenticado sem permissão explícita só lê. Anônimo sempre recebe 401.
+default_permission = READ
+database_uri = ${MLFLOW_AUTH_DATABASE_URI}
+admin_username = ${MLFLOW_ADMIN_USERNAME}
+admin_password = ${MLFLOW_ADMIN_PASSWORD}
+authorization_function = mlflow.server.auth:authenticate_request_basic_auth

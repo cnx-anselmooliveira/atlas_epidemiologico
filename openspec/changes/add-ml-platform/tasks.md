@@ -20,9 +20,9 @@
 
 ## 3. Servidor MLflow
 
-- [ ] 3.1 Criar `infra/mlflow/Dockerfile` (`python:3.12-slim`, `mlflow` 3.x fixado, `psycopg2-binary`, `google-cloud-storage`, usuário não root) e `entrypoint.sh` que monta o comando com `--backend-store-uri`, `--artifacts-destination gs://$BUCKET/mlflow/$MLFLOW_INSTALLATION`, `--serve-artifacts` e `--app-name basic-auth` quando `MLFLOW_AUTH=true`; verificar `docker build` e `mlflow --version` na imagem
-- [ ] 3.2 Criar `infra/mlflow/basic_auth.ini.tmpl` (banco `mlflow_auth`, admin a partir de variáveis) e documentar a criação dos usuários `airflow-hml` e `airflow-prod`; verificar subindo a imagem com `MLFLOW_AUTH=true` contra um Postgres local e recebendo HTTP 401 sem credenciais
-- [ ] 3.3 Commit do módulo em `dev` (`feat(mlflow): imagem do servidor MLflow`); verificar com `git log -1`
+- [x] 3.1 Criar `infra/mlflow/Dockerfile` (`python:3.12-slim`, `mlflow` 3.x fixado, `psycopg2-binary`, `google-cloud-storage`, usuário não root) e `entrypoint.sh` que monta o comando com `--backend-store-uri`, `--artifacts-destination gs://$BUCKET/mlflow/$MLFLOW_INSTALLATION`, `--serve-artifacts` e `--app-name basic-auth` quando `MLFLOW_AUTH=true`; verificar `docker build` e `mlflow --version` na imagem
+- [x] 3.2 Criar `infra/mlflow/basic_auth.ini.tmpl` (banco `mlflow_auth`, admin a partir de variáveis) e documentar a criação dos usuários `airflow-hml` e `airflow-prod`; verificar subindo a imagem com `MLFLOW_AUTH=true` contra um Postgres local e recebendo HTTP 401 sem credenciais
+- [x] 3.3 Commit do módulo em `dev` (`feat(mlflow): imagem do servidor MLflow`); verificar com `git log -1`
 
 ## 4. Airflow
 

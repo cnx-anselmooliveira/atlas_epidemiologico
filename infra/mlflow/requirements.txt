@@ -1,0 +1,4 @@
+# Servidor MLflow do Atlas — versões fixadas (atualizar só via PR que passa por dev e hml)
+mlflow[auth]==3.18.0
+psycopg[binary]==3.3.9
+google-cloud-storage==3.7.0
