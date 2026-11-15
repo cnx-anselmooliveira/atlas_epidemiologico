@@ -9,14 +9,14 @@
 
 ## 2. Pacote `atlas_ml`
 
-- [ ] 2.1 Criar `ml/pyproject.toml` (uv, Python 3.12, `mlflow-skinny`, `scikit-learn`, `pandas`, `pyarrow`, `pydantic-settings`, `google-cloud-bigquery`, `db-dtypes`, `typer`; dev: `pytest`, `ruff`) e o pacote `src/atlas_ml/`; verificar que `uv sync` e `uv run atlas-ml --help` funcionam
-- [ ] 2.2 Implementar `config.py` (ambiente restrito a `dev|hml|prod`, URL do MLflow obrigatória, commit e tag da imagem com fallback local `git rev-parse` + `local`); verificar com testes de variável ausente, ambiente inválido e falta de commit
-- [ ] 2.3 Implementar `tracking.atlas_run()`, que exige `atlas.env`, `atlas.git_sha`, `atlas.image_tag` e `atlas.data_version` e falha antes de treinar; verificar com teste usando MLflow em diretório temporário (`file:` URI)
-- [ ] 2.4 Implementar `experiments/example.py` (dados sintéticos com semente, split temporal, HistGradientBoosting, MAE/RMSE, modelo com assinatura, artefato `data_summary.json`) e `atlas-ml train example [--register]`; verificar com teste de que duas execuções com a mesma semente registram a mesma métrica e de que a run contém parâmetros, métricas, modelo e resumo
-- [ ] 2.5 Implementar `data/bigquery.read_features()` com `DataSummary` e `data_version` = `<tabela>@<last_modified>`; verificar com teste usando cliente BigQuery simulado
-- [ ] 2.6 Implementar `registry.promote()` e `atlas-ml promote` com as regras (hml exige run com `atlas.env=hml`; prod exige `atlas.hml_at` e métricas; grava autor e data); verificar com testes de promoção direta recusada, promoção válida e rollback para versão que já teve `@prod`
-- [ ] 2.7 Criar `ml/Dockerfile` (imagem de treino, usuário não root, build args `ATLAS_GIT_SHA`/`ATLAS_IMAGE_TAG`) e `ml/README.md` (uso do CLI, variáveis, convenção de tags `atlas.*`); verificar `docker build` e `docker run … atlas-ml train example` contra um MLflow `file:` no container
-- [ ] 2.8 Commit do módulo em `dev` (`feat(ml): pacote atlas_ml, experimento de exemplo e promoção`); verificar `uv run pytest` verde antes do commit
+- [x] 2.1 Criar `ml/pyproject.toml` (uv, Python 3.12, `mlflow-skinny`, `scikit-learn`, `pandas`, `pyarrow`, `pydantic-settings`, `google-cloud-bigquery`, `db-dtypes`, `typer`; dev: `pytest`, `ruff`) e o pacote `src/atlas_ml/`; verificar que `uv sync` e `uv run atlas-ml --help` funcionam
+- [x] 2.2 Implementar `config.py` (ambiente restrito a `dev|hml|prod`, URL do MLflow obrigatória, commit e tag da imagem com fallback local `git rev-parse` + `local`); verificar com testes de variável ausente, ambiente inválido e falta de commit
+- [x] 2.3 Implementar `tracking.atlas_run()`, que exige `atlas.env`, `atlas.git_sha`, `atlas.image_tag` e `atlas.data_version` e falha antes de treinar; verificar com teste usando MLflow em diretório temporário (`file:` URI)
+- [x] 2.4 Implementar `experiments/example.py` (dados sintéticos com semente, split temporal, HistGradientBoosting, MAE/RMSE, modelo com assinatura, artefato `data_summary.json`) e `atlas-ml train example [--register]`; verificar com teste de que duas execuções com a mesma semente registram a mesma métrica e de que a run contém parâmetros, métricas, modelo e resumo
+- [x] 2.5 Implementar `data/bigquery.read_features()` com `DataSummary` e `data_version` = `<tabela>@<last_modified>`; verificar com teste usando cliente BigQuery simulado
+- [x] 2.6 Implementar `registry.promote()` e `atlas-ml promote` com as regras (hml exige run com `atlas.env=hml`; prod exige `atlas.hml_at` e métricas; grava autor e data); verificar com testes de promoção direta recusada, promoção válida e rollback para versão que já teve `@prod`
+- [x] 2.7 Criar `ml/Dockerfile` (imagem de treino, usuário não root, build args `ATLAS_GIT_SHA`/`ATLAS_IMAGE_TAG`) e `ml/README.md` (uso do CLI, variáveis, convenção de tags `atlas.*`); verificar `docker build` e `docker run … atlas-ml train example` contra um MLflow `file:` no container
+- [x] 2.8 Commit do módulo em `dev` (`feat(ml): pacote atlas_ml, experimento de exemplo e promoção`); verificar `uv run pytest` verde antes do commit
 
 ## 3. Servidor MLflow
 
