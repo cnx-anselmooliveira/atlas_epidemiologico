@@ -2,10 +2,10 @@
 
 ## 1. Decisões pendentes e licença
 
-- [ ] 1.1 Confirmar com o usuário o titular do copyright da licença e o canal de contato do código de conduta (e-mail dedicado do projeto ou outro); registrar as respostas no design; verificar que nenhum e-mail pessoal ou corporativo entra em texto aberto sem autorização
-- [ ] 1.2 Criar `LICENSE` com o texto integral da MIT (formato do choosealicense.com) e `Copyright (c) 2026 <titular>`; verificar, depois que chegar a `main`, que `gh api repos/cnx-anselmooliveira/atlas_epidemiologico/license -q .license.spdx_id` retorna `MIT`
-- [ ] 1.3 Criar `CITATION.cff` (título, autores, licença MIT, URL do repositório, resumo); verificar com `cffconvert --validate` (via `uvx`)
-- [ ] 1.4 Commit em `dev` (`docs: licença MIT e citação`); verificar `git log -1 --stat`
+- [x] 1.1 Confirmar com o usuário o titular do copyright da licença e o canal de contato do código de conduta (e-mail dedicado do projeto ou outro); registrar as respostas no design; verificar que nenhum e-mail pessoal ou corporativo entra em texto aberto sem autorização
+- [x] 1.2 Criar `LICENSE` com o texto integral da MIT (formato do choosealicense.com) e `Copyright (c) 2026 <titular>`; verificar, depois que chegar a `main`, que `gh api repos/cnx-anselmooliveira/atlas_epidemiologico/license -q .license.spdx_id` retorna `MIT`
+- [x] 1.3 Criar `CITATION.cff` (título, autores, licença MIT, URL do repositório, resumo); verificar com `cffconvert --validate` (via `uvx`)
+- [x] 1.4 Commit em `dev` (`docs: licença MIT e citação`); verificar `git log -1 --stat`
 
 ## 2. README
 

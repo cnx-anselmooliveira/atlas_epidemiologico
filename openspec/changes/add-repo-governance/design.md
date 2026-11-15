@@ -113,7 +113,11 @@ Disparado por `push` de tags `v*`. Etapas:
 1. Implementar em `dev` e promover por PR para `hml` e `main`. Os arquivos de comunidade só aparecem na página do repositório quando chegam à branch padrão (`main`).
 2. A primeira Release sai junto com a `v1.0` da `add-ml-platform`, módulo 8.
 
+## Decisões da tarefa 1.1 (respondidas pelo usuário)
+
+- **Titular do copyright:** `UTFPR - Atlas Epidemiológico`, tanto na `LICENSE` quanto no `CITATION.cff`, onde entra como autor institucional (`authors: - name: …`).
+- **Contato do código de conduta:** pelo GitHub, sem e-mail no repositório. Como o GitHub não tem mensagem privada, a pessoa abre uma issue curta com o título "Contato sobre conduta", **sem detalhes do caso**, mencionando `@cnx-anselmooliveira`. O mantenedor então combina um canal reservado. Vulnerabilidades continuam indo pelo reporte privado do `SECURITY.md`.
+
 ## Open Questions
 
-- Nome do titular do copyright e e-mail de contato do código de conduta (tarefa 1.1).
 - Se o badge Docker deve mudar para a imagem do backend quando o site for publicado.
