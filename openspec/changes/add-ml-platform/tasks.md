@@ -26,19 +26,19 @@
 
 ## 4. Airflow
 
-- [ ] 4.1 Criar `airflow/Dockerfile` (`apache/airflow:3.x-python3.12` fixado, venv `/opt/atlas-ml` com o pacote `ml/`, CLI `atlas-ml` no PATH, `apache-airflow-providers-fab`, DAGs copiadas para a imagem, build args de commit e tag); verificar `docker build` e `docker run … atlas-ml --help` e `airflow version` na mesma imagem
-- [ ] 4.2 Escrever a DAG `atlas_ml_example_training` (sem agendamento, `BashOperator` com `atlas-ml train example --register`, `retries=2`, falha se a run não for registrada); verificar com teste `DagBag` (sem erros de import, sem schedule, tarefa e retentativas esperadas)
-- [ ] 4.3 Criar `airflow/config/` com as variáveis de execução (LocalExecutor, `parallelism=4`, sem exemplos, auth manager por ambiente: Simple em dev, FAB na VPS) e o script do `airflow-init` (migração e admin); verificar `airflow config get-value core executor` = `LocalExecutor` na imagem
-- [ ] 4.4 Documentar em `airflow/README.md` como adicionar DAGs, testar localmente e a regra de que DAGs só mudam via repositório; verificar seguindo o passo "adicionar DAG" com uma DAG vazia de teste (removida depois)
-- [ ] 4.5 Commit do módulo em `dev` (`feat(airflow): imagem do Airflow e DAG de treino de exemplo`); verificar o teste `DagBag` verde antes do commit
+- [x] 4.1 Criar `airflow/Dockerfile` (`apache/airflow:3.x-python3.12` fixado, venv `/opt/atlas-ml` com o pacote `ml/`, CLI `atlas-ml` no PATH, `apache-airflow-providers-fab`, DAGs copiadas para a imagem, build args de commit e tag); verificar `docker build` e `docker run … atlas-ml --help` e `airflow version` na mesma imagem
+- [x] 4.2 Escrever a DAG `atlas_ml_example_training` (sem agendamento, `BashOperator` com `atlas-ml train example --register`, `retries=2`, falha se a run não for registrada); verificar com teste `DagBag` (sem erros de import, sem schedule, tarefa e retentativas esperadas)
+- [x] 4.3 Criar `airflow/config/` com as variáveis de execução (LocalExecutor, `parallelism=4`, sem exemplos, auth manager por ambiente: Simple em dev, FAB na VPS) e o script do `airflow-init` (migração e admin); verificar `airflow config get-value core executor` = `LocalExecutor` na imagem
+- [x] 4.4 Documentar em `airflow/README.md` como adicionar DAGs, testar localmente e a regra de que DAGs só mudam via repositório; verificar seguindo o passo "adicionar DAG" com uma DAG vazia de teste (removida depois)
+- [x] 4.5 Commit do módulo em `dev` (`feat(airflow): imagem do Airflow e DAG de treino de exemplo`); verificar o teste `DagBag` verde antes do commit
 
 ## 5. Compose de dev (plataforma local)
 
 - [ ] 5.1 Criar `platform/postgres/init.sql` (bancos `mlflow`, `mlflow_auth` e `airflow`, cada um com o seu usuário e acesso só ao próprio banco); verificar com `psql` que o usuário do MLflow não acessa o banco `airflow`
 - [ ] 5.2 Criar `platform/compose.dev.yml` com `postgres`, `mlflow`, `airflow-init`, `airflow-api-server`, `airflow-scheduler`, `airflow-dag-processor` e `airflow-triggerer` (portas em `127.0.0.1`, volume `pgdata`, bind de `ml/` e `airflow/dags/`, health checks, `depends_on` com condição de saúde) e `jupyter` no profile `notebook`; verificar `docker compose -f platform/compose.dev.yml config` sem erros
-- [ ] 5.3 Adicionar a montagem opcional da CA corporativa (`EXTRA_CA_PATH`, `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH`) em MLflow, Airflow e Jupyter; verificar um upload de artefato para o GCS a partir da rede corporativa
+- [ ] 5.3 Adicionar a montagem opcional da CA corporativa (`EXTRA_CA_PATH`, `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `GRPC_DEFAULT_SSL_ROOTS_FILE_PATH`) em MLflow, Airflow e Jupyter; verificar com o bucket configurado um upload de artefato para o GCS a partir da rede corporativa (pendente até o bucket existir — tarefa 7.1)
 - [ ] 5.4 Criar `platform/dev.ps1` (`up`, `down`, `logs`, `reset`, `notebook`); verificar que `./platform/dev.ps1 up` sobe tudo saudável (`docker compose ps` com todos `healthy`)
-- [ ] 5.5 Teste de ponta a ponta local: disparar a DAG `atlas_ml_example_training` pela UI (`127.0.0.1:8080`) e confirmar no MLflow (`127.0.0.1:5000`) a run com as tags `atlas.*`, o modelo registrado e o artefato em `gs://<bucket>/mlflow/dev/`; verificar também que reiniciar a stack mantém runs e histórico de DAG
+- [ ] 5.5 Teste de ponta a ponta local: disparar a DAG `atlas_ml_example_training` pela UI (`127.0.0.1:8080`) e confirmar no MLflow (`127.0.0.1:5000`) a run com as tags `atlas.*`, o modelo registrado e o artefato no volume local de artefatos (ou em `gs://<bucket>/mlflow/dev/` com bucket); verificar também que reiniciar a stack mantém runs e histórico de DAG
 - [ ] 5.6 Atualizar `platform/README.md` com o passo a passo de dev (pré-requisitos Docker Desktop, `.env`, chaves, CA, comandos); verificar seguindo o README do zero (`reset` + `up`)
 - [ ] 5.7 Commit do módulo em `dev` (`feat(platform): compose de dev com Postgres, MLflow e Airflow`); verificar com `git log -1 --stat`
 

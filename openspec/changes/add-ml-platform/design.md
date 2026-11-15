@@ -53,6 +53,7 @@ Imagem `atlas-epidemiologia-mlflow`, construída sobre `python:3.12-slim` com `m
 `mlflow server --backend-store-uri postgresql://… --artifacts-destination gs://<bucket>/mlflow/<instalação> --serve-artifacts --host 0.0.0.0 --port 5000`
 
 - `<instalação>` é `dev` ou `vps`.
+- **Dev sem bucket:** o padrão do compose de dev é `MLFLOW_ARTIFACTS_DESTINATION=/mlartifacts`, num volume Docker nomeado. Assim a plataforma sobe sem nenhuma chave GCP. Com `MLFLOW_ARTIFACTS_BUCKET` definido no `.env`, o dev passa a usar `gs://<bucket>/mlflow/dev`. Decisão do usuário: começar a estudar antes de o bucket existir.
 - Com `--serve-artifacts`, o cliente fala `mlflow-artifacts:/`. Só o servidor tem a credencial do bucket, montada como arquivo de segredo (`GOOGLE_APPLICATION_CREDENTIALS`).
 - **VPS:** adiciona `--app-name basic-auth`, com o banco de usuários em `mlflow_auth` configurado via `MLFLOW_AUTH_CONFIG_PATH`. Usuários: `admin`, `airflow-hml` e `airflow-prod`. O host é `mlflow.dengue.contovisual.com.br` no Traefik, e os hosts permitidos são configurados para o domínio.
 - **Dev:** sem autenticação, porta publicada só em `127.0.0.1:5000`.
@@ -74,7 +75,7 @@ Imagem `atlas-epidemiologia-airflow`, construída sobre `apache/airflow:3.x-pyth
 - **Serviços:** `postgres`, `mlflow`, `airflow-init`, `airflow-api-server`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-triggerer`. O `jupyter` (imagem de treino + JupyterLab) entra no profile `notebook`.
 - **Portas:** todas publicadas só em `127.0.0.1`. MLflow em 5000, Airflow em 8080, Jupyter em 8888.
 - **Volumes nomeados:** `pgdata`. O código é montado por bind, para editar sem rebuild: `ml/` vira editable install no venv, mais `airflow/dags/`.
-- **Arquivo `.env` (fora do git):** `GCP_PROJECT`, `MLFLOW_ARTIFACTS_BUCKET`, caminho da chave do MLflow, caminho da chave de treino (BigQuery) e senha do Postgres.
+- **Arquivo `.env` (fora do git):** `GCP_PROJECT`, `MLFLOW_ARTIFACTS_BUCKET` (opcional; vazio = volume local), caminho da chave do MLflow (só com bucket), caminho da chave de treino (BigQuery) e senha do Postgres.
 - **CA corporativa:** um `extra_ca.pem` opcional é montado e apontado por `SSL_CERT_FILE`/`REQUESTS_CA_BUNDLE`/`GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` para atravessar a inspeção TLS da rede da empresa. Se o arquivo não existir, fica vazio e inofensivo.
 - **Atalhos:** `make`/script `platform/dev.ps1` com `up`, `down`, `logs`, `reset` e `notebook`, porque o dev é Windows/PowerShell.
 
