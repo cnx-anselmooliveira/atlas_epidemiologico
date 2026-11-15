@@ -22,6 +22,8 @@ COPY --chmod=0755 entrypoint.sh /usr/local/bin/mlflow-entrypoint
 COPY basic_auth.ini.tmpl /etc/mlflow/basic_auth.ini.tmpl
 USER mlflow
 WORKDIR /home/mlflow
+# Destino local de artefatos (dev sem bucket); existe na imagem para o volume herdar o dono
+RUN mkdir -p /home/mlflow/mlartifacts
 EXPOSE 5000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \

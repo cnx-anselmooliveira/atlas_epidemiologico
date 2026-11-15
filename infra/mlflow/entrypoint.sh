@@ -3,8 +3,9 @@
 #
 # Obrigatórias:
 #   MLFLOW_BACKEND_STORE_URI   postgresql://usuario:senha@postgres:5432/mlflow
-#   MLFLOW_ARTIFACTS_BUCKET    bucket GCS (ou MLFLOW_ARTIFACTS_DESTINATION para outro destino)
-#   MLFLOW_INSTALLATION        dev | vps   (prefixo dentro do bucket)
+#   Destino dos artefatos, em ordem de precedência:
+#     MLFLOW_ARTIFACTS_BUCKET + MLFLOW_INSTALLATION (dev|vps) → gs://<bucket>/mlflow/<instalação>
+#     MLFLOW_ARTIFACTS_DESTINATION                            → outro destino (ex.: volume local no dev)
 # Opcionais:
 #   MLFLOW_AUTH=true           liga a autenticação (basic-auth) — exigido na VPS
 #   MLFLOW_AUTH_DATABASE_URI   banco de usuários/permissões (ex.: …/mlflow_auth)
@@ -18,15 +19,16 @@ fail() { echo "mlflow-entrypoint: $*" >&2; exit 1; }
 
 [ -n "${MLFLOW_BACKEND_STORE_URI:-}" ] || fail "MLFLOW_BACKEND_STORE_URI não definida"
 
-if [ -n "${MLFLOW_ARTIFACTS_DESTINATION:-}" ]; then
-  DEST="$MLFLOW_ARTIFACTS_DESTINATION"
-else
-  [ -n "${MLFLOW_ARTIFACTS_BUCKET:-}" ] || fail "MLFLOW_ARTIFACTS_BUCKET não definida"
+if [ -n "${MLFLOW_ARTIFACTS_BUCKET:-}" ]; then
   case "${MLFLOW_INSTALLATION:-}" in
     dev|vps) ;;
     *) fail "MLFLOW_INSTALLATION deve ser dev ou vps (recebido: '${MLFLOW_INSTALLATION:-}')" ;;
   esac
   DEST="gs://${MLFLOW_ARTIFACTS_BUCKET}/mlflow/${MLFLOW_INSTALLATION}"
+elif [ -n "${MLFLOW_ARTIFACTS_DESTINATION:-}" ]; then
+  DEST="$MLFLOW_ARTIFACTS_DESTINATION"
+else
+  fail "defina MLFLOW_ARTIFACTS_BUCKET (GCS) ou MLFLOW_ARTIFACTS_DESTINATION"
 fi
 
 set -- mlflow server \

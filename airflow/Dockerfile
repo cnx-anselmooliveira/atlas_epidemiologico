@@ -35,6 +35,8 @@ ENV AIRFLOW__CORE__EXECUTOR=LocalExecutor \
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK=True \
     MLFLOW_DISABLE_AGENT_HINT=1
 
+# Diretório compartilhado entre componentes (ex.: senha do Simple Auth Manager em dev)
+RUN mkdir -p /opt/airflow/shared && chown airflow:0 /opt/airflow/shared && chmod 2770 /opt/airflow/shared
 COPY --chown=airflow:0 airflow/dags /opt/airflow/dags
 COPY --chown=airflow:0 --chmod=0755 airflow/config/init.sh /opt/atlas/init.sh
 COPY --chown=airflow:0 airflow/tests /opt/atlas/tests

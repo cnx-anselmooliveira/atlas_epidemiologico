@@ -1,0 +1,173 @@
+# Plataforma de ML — desenvolvimento local (Postgres + MLflow + Airflow [+ Jupyter]).
+# Use pelo script:   ./platform/dev.ps1 up        (define ATLAS_GIT_SHA e o .env)
+# Ou direto:         $env:ATLAS_GIT_SHA = git rev-parse HEAD
+#                    docker compose -f platform/compose.dev.yml --env-file platform/.env up -d
+# Portas só em 127.0.0.1: MLflow :5000 · Airflow :8080 · Jupyter :8888 (profile notebook)
+
+name: atlas-platform-dev
+
+x-airflow-common: &airflow-common
+  image: atlas-epidemiologia-airflow:local
+  build:
+    context: ..
+    dockerfile: airflow/Dockerfile
+    args:
+      ATLAS_GIT_SHA: ${ATLAS_GIT_SHA:?defina ATLAS_GIT_SHA (use platform/dev.ps1)}
+      ATLAS_IMAGE_TAG: local
+  env_file:
+    - ../airflow/config/dev.env
+  environment:
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD:?}@postgres:5432/airflow
+    AIRFLOW__API_AUTH__JWT_SECRET: atlas-dev-jwt-secret-somente-local
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-api-server:8080/execution/
+    AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:?}
+    # Tarefas de ML: destino do MLflow e identificação do código em uso
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+    ATLAS_GIT_SHA: ${ATLAS_GIT_SHA:?}
+    ATLAS_IMAGE_TAG: local
+    GCP_PROJECT: ${GCP_PROJECT:-}
+    GOOGLE_APPLICATION_CREDENTIALS: /secrets/training-sa.json
+  volumes:
+    - ../airflow/dags:/opt/airflow/dags            # DAGs ao vivo, sem rebuild
+    - ../ml/src:/opt/atlas-ml-src/src               # atlas_ml editável
+    - airflow-logs:/opt/airflow/logs
+    - airflow-shared:/opt/airflow/shared
+    - ./secrets:/secrets:ro
+  user: "50000:0"
+  restart: unless-stopped
+  depends_on: &airflow-depends
+    postgres:
+      condition: service_healthy
+    airflow-init:
+      condition: service_completed_successfully
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no platform/.env}
+      # Em dev, os usuários de serviço usam a mesma senha do superusuário (só acessível pela rede interna)
+      MLFLOW_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      AIRFLOW_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      AIRFLOW_DATABASES: airflow
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  mlflow:
+    image: atlas-epidemiologia-mlflow:local
+    build:
+      context: ../infra/mlflow
+      args:
+        ATLAS_GIT_SHA: ${ATLAS_GIT_SHA:?}
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql://mlflow:${POSTGRES_PASSWORD}@postgres:5432/mlflow
+      # Sem bucket no .env → volume local; com bucket → gs://<bucket>/mlflow/dev
+      MLFLOW_ARTIFACTS_BUCKET: ${MLFLOW_ARTIFACTS_BUCKET:-}
+      MLFLOW_INSTALLATION: dev
+      MLFLOW_ARTIFACTS_DESTINATION: /home/mlflow/mlartifacts
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/mlflow-sa.json
+      MLFLOW_ALLOWED_HOSTS: localhost,localhost:5000,127.0.0.1,127.0.0.1:5000,mlflow,mlflow:5000
+      MLFLOW_WORKERS: "2"
+    volumes:
+      - mlartifacts:/home/mlflow/mlartifacts
+      - ./secrets:/secrets:ro
+    ports:
+      - "127.0.0.1:5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command: /opt/atlas/init.sh
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  airflow-api-server:
+    <<: *airflow-common
+    command: api-server
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8974/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    depends_on:
+      <<: *airflow-depends
+      mlflow:
+        condition: service_healthy
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 20s
+      retries: 10
+      start_period: 60s
+
+  airflow-triggerer:
+    <<: *airflow-common
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 20s
+      retries: 10
+      start_period: 60s
+
+  jupyter:
+    profiles: ["notebook"]
+    image: atlas-epidemiologia-ml:notebook
+    build:
+      context: ../ml
+      target: notebook
+      args:
+        ATLAS_GIT_SHA: ${ATLAS_GIT_SHA:?}
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      ATLAS_ENV: dev
+      ATLAS_GIT_SHA: ${ATLAS_GIT_SHA:?}
+      GCP_PROJECT: ${GCP_PROJECT:-}
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/training-sa.json
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-atlas}
+    volumes:
+      - ../ml/src:/app/src                          # atlas_ml editável
+      - ../ml/notebooks:/home/atlas/work/notebooks
+      - ./secrets:/secrets:ro
+    ports:
+      - "127.0.0.1:8888:8888"
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  mlartifacts:
+  airflow-logs:
+  airflow-shared:

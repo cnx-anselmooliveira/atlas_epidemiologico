@@ -9,7 +9,7 @@ Imagem do servidor de rastreamento. Os metadados ficam no Postgres. Os artefatos
 | `MLFLOW_BACKEND_STORE_URI` | sim | `postgresql://mlflow:<senha>@postgres:5432/mlflow` |
 | `MLFLOW_ARTIFACTS_BUCKET` | sim* | Bucket GCS. Os artefatos vão para `gs://<bucket>/mlflow/<instalação>/` |
 | `MLFLOW_INSTALLATION` | sim* | `dev` (compose local) ou `vps` |
-| `MLFLOW_ARTIFACTS_DESTINATION` | — | Substitui bucket + instalação (ex.: pasta local em testes) |
+| `MLFLOW_ARTIFACTS_DESTINATION` | — | Usado quando não há bucket (ex.: `/home/mlflow/mlartifacts`, o volume local do dev). Com bucket definido, o GCS tem precedência |
 | `GOOGLE_APPLICATION_CREDENTIALS` | com GCS | Caminho da chave da SA do MLflow (só acesso ao bucket) |
 | `MLFLOW_AUTH` | — | `true` liga a autenticação (exigido na VPS) |
 | `MLFLOW_AUTH_DATABASE_URI` | com auth | Banco de usuários/permissões (`…/mlflow_auth`) |
