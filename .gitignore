@@ -27,7 +27,7 @@ airflow/logs/
 *.key
 *service-account*.json
 *-sa.json
-ppgcc-dengue-project-*.json
+ppgcc-dengue-project*.json
 platform/secrets/
 extra_ca.pem
 
