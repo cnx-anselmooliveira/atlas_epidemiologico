@@ -43,3 +43,6 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 testpaths = ["tests"]
 addopts = "-q"
 filterwarnings = ["ignore::DeprecationWarning", "ignore::FutureWarning"]
+markers = [
+    "models: testes que exigem o grupo de dependências 'models' (CatBoost, PyTorch, PyMC, Chronos)",
+]
