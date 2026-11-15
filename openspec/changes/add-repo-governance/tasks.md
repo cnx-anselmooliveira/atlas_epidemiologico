@@ -25,12 +25,12 @@
 
 - [x] 4.1 Criar `CHANGELOG.md` (Keep a Changelog em português, seção `[Não lançado]` resumindo plataforma de ML, modelos de previsão e CI); verificar o formato das seções
 - [x] 4.2 Criar `.github/release.yml` (categorias por label: novidade, correção, documentação, infra, outras) e as labels no repositório com `gh label create`; verificar com `gh label list`
-- [ ] 4.3 Criar `.github/workflows/release.yml` (tag `v*` → guarda de `main` → `uses: ./.github/workflows/ci.yml` → espaço comentado para a publicação de imagens da `add-ml-platform` → `gh release create --verify-tag --generate-notes` com a lista de `docker pull …:X.Y`); verificar com `actionlint` e com uma tag de teste `v0.0.0-teste` num commit fora de `main` sendo recusada (apagar a tag depois)
-- [ ] 4.4 Commit por assunto em `dev` (`docs: changelog`; `ci: publicação de releases a partir da tag`); verificar `git log --oneline -2`
+- [x] 4.3 Criar `.github/workflows/release.yml` (tag `v*` → guarda de `main` → `uses: ./.github/workflows/ci.yml` → espaço comentado para a publicação de imagens da `add-ml-platform` → `gh release create --verify-tag --generate-notes` com a lista de `docker pull …:X.Y`); verificar com `actionlint` e com uma tag de teste `v0.0.0-teste` num commit fora de `main` sendo recusada (apagar a tag depois)
+- [x] 4.4 Commit por assunto em `dev` (`docs: changelog`; `ci: publicação de releases a partir da tag`); verificar `git log --oneline -2`
 
 ## 5. Metadados, verificação e promoção
 
-- [ ] 5.1 Configurar descrição, site e tópicos com `gh repo edit`; verificar com `gh repo view --json description,homepageUrl,repositoryTopics`
+- [x] 5.1 Configurar descrição, site e tópicos com `gh repo edit`; verificar com `gh repo view --json description,homepageUrl,repositoryTopics`
 - [ ] 5.2 Adicionar o job `links` (lychee `--offline`) ao `ci.yml` (requer a `add-ci-test-pipeline` implementada); verificar com `actionlint` e o job verde no PR
 - [ ] 5.3 Promover por PR `dev → hml → main` e conferir na página do repositório os badges, o "Cite this repository", a licença MIT detectada e `gh api repos/…/community/profile -q .health_percentage` = `100`
 - [ ] 5.4 Commit dos ajustes, se houver, em `dev` (`docs: ajustes da governança após promoção`); verificar `git log -1`
