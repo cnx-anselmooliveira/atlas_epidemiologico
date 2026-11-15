@@ -65,7 +65,10 @@ Alternativa rejeitada: o cliente gravar direto no GCS, que exigiria credencial d
 Imagem `atlas-epidemiologia-airflow`, construída sobre `apache/airflow:3.x-python3.12` (versão exata fixada):
 - **Execução:** LocalExecutor. Componentes `api-server`, `scheduler`, `dag-processor` e `triggerer`, mais um job `airflow-init` (migração do banco e usuário admin).
 - **Isolamento de dependências:** o pacote `atlas_ml` é instalado num **venv separado** (`/opt/atlas-ml`), com o CLI `atlas-ml` no PATH. Assim as restrições de versão do Airflow não colidem com as do MLflow e do scikit-learn. As tarefas chamam o CLI via `BashOperator`. Isso cumpre a regra "mesmo comando em todo lugar" e é a mesma abordagem já escolhida na `decouple-architecture-bigquery` (sem DockerOperator nem socket Docker).
-- **DAGs:** em dev, `airflow/dags/` é montado como volume e alterações aparecem sem rebuild. Na VPS, as DAGs ficam dentro da imagem.
+- **DAGs:** em dev, `airflow/dags/` é montado como volume e alterações aparecem sem rebuild. Na VPS, as DAGs são lidas do **repositório público** com o `GitDagBundle` do Airflow 3 (provider `git`, já incluído na imagem), sem credencial:
+  - `dag_bundle_config_list` aponta para `https://github.com/cnx-anselmooliveira/atlas_epidemiologico.git`, `subdir: airflow/dags` e `tracking_ref: hml` (stack hml) ou `main` (stack prod), com `refresh_interval` de 5 min.
+  - A imagem continua carregando o pacote `atlas_ml` e as dependências; as DAGs saem dela.
+  - Decisão do usuário: o repositório foi tornado público para isso. A alternativa era um token de leitura com o repositório privado.
 - **Autenticação:** em dev, o Simple Auth Manager do Airflow 3 com usuário admin local. Na VPS, o FAB Auth Manager (`apache-airflow-providers-fab`) com login e senha, admin criado pelo `airflow-init` a partir de variáveis da stack.
 - **Configuração:** URL do MLflow, credenciais (`MLFLOW_TRACKING_USERNAME`/`PASSWORD`) e `ATLAS_ENV` entram como variáveis de ambiente da stack, disponíveis às tarefas.
 - **VPS:** duas stacks, `atlas-airflow-hml` (imagem `:hml`, banco `airflow_hml`, host `airflow-hml.…`) e `atlas-airflow-prod` (imagem `:X.Y`, banco `airflow_prod`, host `airflow.…`), geradas do mesmo `deploy/airflow.stack.yml` com variáveis de ambiente.
