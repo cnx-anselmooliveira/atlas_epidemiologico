@@ -15,16 +15,16 @@
 
 ## 3. Arquivos de comunidade
 
-- [ ] 3.1 Criar `CONTRIBUTING.md` (pré-requisitos, ambiente, testes, fluxo de branches e PR, commits por assunto, OpenSpec, checks obrigatórios, revisão); verificar seguindo os passos de testes num clone limpo
+- [x] 3.1 Criar `CONTRIBUTING.md` (pré-requisitos, ambiente, testes, fluxo de branches e PR, commits por assunto, OpenSpec, checks obrigatórios, revisão); verificar seguindo os passos de testes num clone limpo
 - [x] 3.2 Criar `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1, tradução oficial em português, com o contato da tarefa 1.1); verificar que o texto corresponde à versão 2.1
 - [x] 3.3 Criar `SECURITY.md` (versões suportadas, reporte privado em Security → Report a vulnerability, prazos de 5 e 15 dias úteis, fora de escopo) e ativar o reporte privado com `gh api -X PUT …/private-vulnerability-reporting`; verificar com `gh api …/private-vulnerability-reporting -q .enabled` = `true`
 - [x] 3.4 Criar `.github/ISSUE_TEMPLATE/bug.yml`, `melhoria.yml`, `config.yml` (sem issue em branco; segurança → reporte privado), `.github/pull_request_template.md` (checklist) e `.github/CODEOWNERS`; verificar a sintaxe dos formulários abrindo "New issue" na branch padrão depois da promoção
-- [ ] 3.5 Commit por assunto em `dev` (`docs: guia de contribuição, código de conduta e política de segurança`; `chore(github): modelos de issue, PR e CODEOWNERS`); verificar `git log --oneline -2`
+- [x] 3.5 Commit por assunto em `dev` (`docs: guia de contribuição, código de conduta e política de segurança`; `chore(github): modelos de issue, PR e CODEOWNERS`); verificar `git log --oneline -2`
 
 ## 4. Releases
 
-- [ ] 4.1 Criar `CHANGELOG.md` (Keep a Changelog em português, seção `[Não lançado]` resumindo plataforma de ML, modelos de previsão e CI); verificar o formato das seções
-- [ ] 4.2 Criar `.github/release.yml` (categorias por label: novidade, correção, documentação, infra, outras) e as labels no repositório com `gh label create`; verificar com `gh label list`
+- [x] 4.1 Criar `CHANGELOG.md` (Keep a Changelog em português, seção `[Não lançado]` resumindo plataforma de ML, modelos de previsão e CI); verificar o formato das seções
+- [x] 4.2 Criar `.github/release.yml` (categorias por label: novidade, correção, documentação, infra, outras) e as labels no repositório com `gh label create`; verificar com `gh label list`
 - [ ] 4.3 Criar `.github/workflows/release.yml` (tag `v*` → guarda de `main` → `uses: ./.github/workflows/ci.yml` → espaço comentado para a publicação de imagens da `add-ml-platform` → `gh release create --verify-tag --generate-notes` com a lista de `docker pull …:X.Y`); verificar com `actionlint` e com uma tag de teste `v0.0.0-teste` num commit fora de `main` sendo recusada (apagar a tag depois)
 - [ ] 4.4 Commit por assunto em `dev` (`docs: changelog`; `ci: publicação de releases a partir da tag`); verificar `git log --oneline -2`
 

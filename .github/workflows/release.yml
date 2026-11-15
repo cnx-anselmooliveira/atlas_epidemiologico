@@ -1,0 +1,99 @@
+# Publica uma GitHub Release a partir de uma tag vX.Y (ou vX.Y.Z) criada em um commit de main.
+# Ordem: guarda (tag em main + formato) → testes → [imagens X.Y] → release com notas automáticas.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Tag em main e no formato vX.Y
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: A tag precisa apontar para um commit de main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::A tag ${GITHUB_REF_NAME} aponta para ${GITHUB_SHA}, que não está em main. Releases só saem de main (fluxo dev → hml → main)."
+            exit 1
+          fi
+      - name: Versão a partir da tag
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::Tag fora do padrão vX.Y ou vX.Y.Z: ${tag}"
+            exit 1
+          fi
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+  tests:
+    # Release só depois de todos os testes. Quando o pipeline da add-ci-test-pipeline existir,
+    # substitua este job inteiro por:
+    #   tests:
+    #     needs: guard
+    #     uses: ./.github/workflows/ci.yml
+    # Até lá, este job bloqueia qualquer release (não há release sem testes).
+    name: Testes (pipeline ci.yml)
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exige o pipeline de testes
+        run: |
+          if [ -f .github/workflows/ci.yml ]; then
+            echo "::error::O ci.yml já existe: troque este job por 'uses: ./.github/workflows/ci.yml' (ver comentário no release.yml)."
+          else
+            echo "::error::Release bloqueada: o pipeline de testes (.github/workflows/ci.yml, add-ci-test-pipeline) ainda não existe."
+          fi
+          exit 1
+
+  # images:
+  #   Publicação das imagens X.Y (add-ml-platform, módulo 6). Encaixe aqui, entre tests e
+  #   github-release, e acrescente "images" ao needs do job github-release:
+  #   needs: [guard, tests]
+  #   uses: ./.github/workflows/_image.yml   (com a tag ${{ needs.guard.outputs.version }})
+
+  github-release:
+    name: GitHub Release
+    needs: [guard, tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lista de imagens da versão
+        env:
+          VERSION: ${{ needs.guard.outputs.version }}
+        run: |
+          {
+            echo "## Imagens Docker"
+            echo
+            echo '```sh'
+            for img in ml mlflow airflow; do
+              echo "docker pull anselmomendes/atlas-epidemiologia-${img}:${VERSION}"
+            done
+            echo '```'
+          } > images.md
+      - name: Cria a release com notas automáticas
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes-file images.md
