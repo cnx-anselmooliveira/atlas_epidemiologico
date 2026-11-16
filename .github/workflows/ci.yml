@@ -67,7 +67,7 @@ jobs:
         working-directory: ml
         run: |
           uv sync --frozen
-          uv run pytest -m "not models"
+          uv run --frozen pytest -m "not models"
 
   ml-models-tests:
     name: ml-models-tests
@@ -84,7 +84,8 @@ jobs:
         run: |
           uv sync --frozen --all-extras
           set +e
-          uv run pytest -m models
+          # --all-extras também no run: sem ele o uv re-sincroniza e remove o grupo models
+          uv run --frozen --all-extras pytest -m models
           rc=$?
           set -e
           if [ "$rc" -eq 5 ]; then
