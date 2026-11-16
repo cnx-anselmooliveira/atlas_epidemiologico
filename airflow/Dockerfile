@@ -26,6 +26,15 @@ RUN --mount=type=secret,id=extra_ca,required=false \
     && ln -s /opt/atlas-ml/bin/atlas-ml /usr/local/bin/atlas-ml \
     && chown -R airflow:0 /opt/atlas-ml /opt/atlas-ml-src
 
+# dbt (projeto airflow/dags/utfpr_dengue) também num venv próprio, travado pelo uv.lock
+# do projeto. O CLI `dbt` vai para o PATH; o projeto em si chega com as DAGs.
+COPY airflow/dags/utfpr_dengue/pyproject.toml airflow/dags/utfpr_dengue/uv.lock /opt/dbt-src/
+RUN --mount=type=secret,id=extra_ca,required=false \
+    if [ -s /run/secrets/extra_ca ]; then export SSL_CERT_FILE=/run/secrets/extra_ca; fi; \
+    cd /opt/dbt-src && UV_PROJECT_ENVIRONMENT=/opt/dbt uv sync --frozen --no-dev --python /usr/python/bin/python3.12 \
+    && ln -s /opt/dbt/bin/dbt /usr/local/bin/dbt \
+    && chown -R airflow:0 /opt/dbt
+
 # Configuração comum a todos os ambientes (o específico de cada um vem do compose/stack)
 ENV AIRFLOW__CORE__EXECUTOR=LocalExecutor \
     AIRFLOW__CORE__PARALLELISM=4 \
@@ -33,10 +42,15 @@ ENV AIRFLOW__CORE__EXECUTOR=LocalExecutor \
     AIRFLOW__CORE__LOAD_EXAMPLES=False \
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True \
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK=True \
-    MLFLOW_DISABLE_AGENT_HINT=1
+    MLFLOW_DISABLE_AGENT_HINT=1 \
+    DBT_PARTIAL_PARSE=false \
+    DBT_SEND_ANONYMOUS_USAGE_STATS=false
 
 # Diretório compartilhado entre componentes (ex.: senha do Simple Auth Manager em dev)
-RUN mkdir -p /opt/airflow/shared && chown airflow:0 /opt/airflow/shared && chmod 2770 /opt/airflow/shared
+# e diretório dos artefatos do dbt por execução (target/ e logs/ fora da pasta de DAGs)
+RUN mkdir -p /opt/airflow/shared /opt/airflow/dbt-artifacts \
+    && chown airflow:0 /opt/airflow/shared /opt/airflow/dbt-artifacts \
+    && chmod 2770 /opt/airflow/shared /opt/airflow/dbt-artifacts
 COPY --chown=airflow:0 airflow/dags /opt/airflow/dags
 COPY --chown=airflow:0 --chmod=0755 airflow/config/init.sh /opt/atlas/init.sh
 COPY --chown=airflow:0 airflow/tests /opt/atlas/tests

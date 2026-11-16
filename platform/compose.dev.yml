@@ -28,8 +28,12 @@ x-airflow-common: &airflow-common
     ATLAS_IMAGE_TAG: local
     GCP_PROJECT: ${GCP_PROJECT:-}
     GOOGLE_APPLICATION_CREDENTIALS: /secrets/training-sa.json
+    # dbt (DAG process_etl_atlas): mesma service account do treino
+    DBT_BQ_KEYFILE: /secrets/training-sa.json
+    DBT_PARTIAL_PARSE: "false"
   volumes:
     - ../airflow/dags:/opt/airflow/dags            # DAGs ao vivo, sem rebuild
+    - dbt-artifacts:/opt/airflow/dbt-artifacts     # target/ e logs/ do dbt por execução
     - ../ml/src:/opt/atlas-ml-src/src               # atlas_ml editável
     - airflow-logs:/opt/airflow/logs
     - airflow-shared:/opt/airflow/shared
@@ -171,4 +175,5 @@ volumes:
   pgdata:
   mlartifacts:
   airflow-logs:
+  dbt-artifacts:
   airflow-shared:
