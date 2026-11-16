@@ -25,7 +25,7 @@ A comparação SHALL produzir um plano com:
 
 #### Scenario: Nada mudou
 - **WHEN** a verificação do dia não encontra diferença até o fim da janela de espera
-- **THEN** a execução termina como pulada, sem gravar no bucket, sem mexer na bronze e sem disparar a modelagem
+- **THEN** o sync termina sem efeito no bucket e na bronze
 
 #### Scenario: Bucket vazio
 - **WHEN** o landing não tem nenhum arquivo
@@ -44,7 +44,7 @@ Cada arquivo do landing SHALL guardar o ETag e a data de modificação da origem
 
 #### Scenario: Arquivo removido da origem
 - **WHEN** um arquivo anual some da origem
-- **THEN** ele é apagado do landing, os dados daquele ano saem da tabela bronze e a modelagem é acionada
+- **THEN** ele é apagado do landing, os dados daquele ano saem da tabela bronze e a modelagem roda na mesma execução
 
 ### Requirement: Tabela bronze materializada por ano
 Os dados de cada ano SHALL ser carregados do landing numa tabela bronze no BigQuery com:
@@ -62,29 +62,40 @@ A carga de um ano SHALL substituir integralmente os dados daquele ano, sem dupli
 - **THEN** a carga acrescenta a coluna (nula nos outros anos) em vez de falhar
 
 ### Requirement: Validação antes de marcar como carregado
-Antes de marcar a versão de um ano como carregada na bronze, o sistema SHALL conferir:
-- se o número de linhas da partição é igual ao número de registros do arquivo;
-- se as colunas usadas pela modelagem existem: data de notificação, UF e município de notificação e de residência, data de início dos sintomas, classificação final e evolução.
-
-Divergência SHALL falhar a execução sem marcar o ano. A verificação do dia seguinte SHALL tentar carregar de novo.
+Antes de marcar a versão de um ano como carregada na bronze, o sistema SHALL conferir se o número de linhas da partição é igual ao número de registros do arquivo e se as colunas obrigatórias existem. Divergência SHALL falhar a execução sem marcar o ano, e a verificação do dia seguinte SHALL tentar carregar de novo.
 
 #### Scenario: Carga incompleta
-- **WHEN** a partição carregada tem menos linhas que o arquivo, ou falta a coluna `CLASSI_FIN`
+- **WHEN** a partição carregada tem menos linhas que o arquivo, ou não há coluna de classificação final (nem `CLASSI_FIN` nem `CON_CLASSI`)
 - **THEN** a validação falha, o ano não é marcado como carregado e entra de novo no plano do dia seguinte
 
 #### Scenario: Landing atualizado, bronze não
 - **WHEN** o arquivo foi baixado para o landing, mas a carga na bronze falhou
 - **THEN** a próxima verificação detecta que a bronze está atrás do landing e carrega o ano sem baixar de novo
 
-### Requirement: Modelagem acionada após mudança
-Quando pelo menos um ano for carregado na bronze, ou removido dela, o sistema SHALL disparar a DAG de modelagem (`process_etl_atlas`) uma vez por execução.
+### Requirement: Colunas obrigatórias
+As colunas obrigatórias SHALL ser as usadas pela modelagem: data de notificação, UF e município de notificação e de residência, data de início dos sintomas, classificação final e evolução. Os nomes do layout antigo do SINAN (2000–2006) SHALL valer como alternativa.
 
-#### Scenario: Carga concluída
-- **WHEN** as validações dos anos do plano passam
-- **THEN** a `process_etl_atlas` é disparada uma vez
+#### Scenario: Layout antigo
+- **WHEN** o arquivo de 2000 traz `CON_CLASSI` e `CON_EVOLUC` em vez de `CLASSI_FIN` e `EVOLUCAO`
+- **THEN** a validação aceita o ano
+
+### Requirement: Sync e modelagem na mesma execução diária
+A DAG da ETL SHALL rodar uma vez por dia e também SHALL aceitar disparo manual. Em cada execução, o sync do SINAN SHALL rodar antes da modelagem dbt. A modelagem SHALL rodar só quando algum ano tiver sido carregado na bronze ou removido dela, ou quando o disparo pedir para forçar a modelagem. Do contrário, a modelagem SHALL ser pulada, sem custo de BigQuery.
+
+#### Scenario: Dia com dados novos
+- **WHEN** a execução diária carrega uma versão nova de 2026 na bronze
+- **THEN** os grupos do dbt (seed, bronze, silver e gold) rodam na mesma execução, depois do sync
+
+#### Scenario: Dia sem novidade
+- **WHEN** a verificação do dia não encontra diferença entre a origem e o landing
+- **THEN** a execução termina sem gravar no bucket, sem mexer na bronze e com os grupos do dbt pulados
+
+#### Scenario: Forçar a modelagem
+- **WHEN** alguém dispara a DAG manualmente pedindo para forçar a modelagem, e não há dados novos na origem
+- **THEN** a origem é verificada uma vez, sem espera, e o dbt roda
 
 ### Requirement: Contrato da modelagem preservado
-O model bronze de casos do Brasil SHALL ler a tabela bronze do OpenDataSUS e entregar as mesmas colunas e semânticas de antes:
+O model bronze de casos do Brasil SHALL ler a tabela bronze do OpenDataSUS, nos dois layouts do SINAN (2000–2006 e 2007 em diante), e entregar as mesmas colunas e semânticas de antes:
 - UF como sigla;
 - município com o código de 7 dígitos do IBGE;
 - datas como `DATE`;

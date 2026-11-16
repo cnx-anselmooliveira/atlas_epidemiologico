@@ -72,40 +72,54 @@ O zip é o único objeto com o estado; o `.csv` é derivado dele.
 
 A lista da origem cobre de 2000 até o ano corrente. O ano corrente pode ainda não existir em janeiro: um 404 da origem é "ausente", não erro. Mas um 404 num ano que já existia no landing, **com os demais anos respondendo**, conta como remoção. Se a origem inteira falhar (rede), o sensor falha e tenta de novo, sem apagar nada.
 
-### 3. DAG `process_sinan_ingest_atlas`
+### 3. Sync como grupo da `process_etl_atlas` (antes do dbt)
 
 ```
-detectar_diferencas ─┬─► baixar[arquivo] ──┐
-     (sensor)        │                     ├─► carregar_bronze[ano] ─► validar[ano] ─► marcar_carregado[ano] ─┐
-                     ├─► apagar[arquivo] ──┴─► remover_da_bronze[ano] ────────────────────────────────────────┴─► disparar_modelagem
+process_etl_atlas  (@daily, catchup=False, max_active_runs=1, params: forcar_dbt=False)
+
+[sinan]
+  detectar_diferencas ─┬─► baixar[arquivo] ──┐
+       (sensor)        │                     ├─► carregar_bronze[ano] ─► validar[ano] ─► marcar_carregado[ano] ─┐
+                       ├─► apagar[arquivo] ──┴─► remover_da_bronze[ano] ────────────────────────────────────────┤
+                       │                                                                                          ▼
+                       └────────────────────────────────────────────────────────────────────────────────► decidir_dbt
+                                                                                                                  │
+[seed] ─► [bronze] ─► [silver] ─► [gold]   (DbtTaskGroup do Cosmos, sem mudança) ◄───────────────────────────────┘
 ```
-- **Execução:**
-  - `schedule="@daily"`, `catchup=False`, `max_active_runs=1` e `retries=2` (rede);
-  - `baixar`, `apagar`, `carregar_bronze`, `validar`, `marcar_carregado` e `remover_da_bronze` usam *dynamic task mapping*: cada arquivo ou ano aparece como instância própria na UI, e uma lista vazia vira tarefa pulada.
+- **Tudo em Python:** as tarefas usam `@task`, `@task.sensor` e `@task.short_circuit` (chamando `atlas_ingest.sinan`), e o dbt usa o Cosmos. Não há `BashOperator`.
 - **`detectar_diferencas`:** `@task.sensor(mode="reschedule", poke_interval=30 min, timeout=20 h, soft_fail=True)`.
-  - Faz o `HEAD` da origem e a listagem do landing (`GCSHook.list` + metadata).
-  - Devolve `PokeReturnValue(is_done=bool(plano), xcom_value=plano)`.
-  - Sem diferença até o timeout, fica pulada, e nada a jusante roda.
-- **`baixar`:**
-  1. download em streaming para disco temporário;
-  2. contagem dos registros do CSV com o leitor de CSV, que respeita quebras de linha entre aspas;
-  3. upload do `.csv` e depois do `.csv.zip`, com a metadata (sem `bronze_etag`). Assim, o estado só muda quando os dois objetos já estão no lugar.
+  - Faz o `HEAD` da origem e a listagem do landing, e devolve `PokeReturnValue(is_done, xcom_value=plano)`.
+  - **No agendamento diário:** espera até haver diferença (`is_done=bool(plano)`).
+  - **Em disparo manual** (`dag_run.run_type == "manual"`): verifica uma vez e termina (`is_done=True`), mesmo com o plano vazio, para não segurar quem pediu `forcar_dbt`.
+  - Sem diferença até o timeout, fica pulada (`soft_fail`).
+- **Tarefas mapeadas:** `baixar`, `apagar`, `carregar_bronze`, `validar`, `marcar_carregado` e `remover_da_bronze` usam *dynamic task mapping* sobre as listas do plano. Uma lista vazia vira tarefa pulada. Cada arquivo ou ano aparece como instância própria.
+- **`decidir_dbt`:** `@task.short_circuit(trigger_rule="none_failed")`.
+  - Devolve verdadeiro se `params.forcar_dbt` ou se algum ano foi marcado ou removido; do contrário, pula os grupos do dbt.
+  - Com `none_failed`, roda mesmo quando o sensor ficou pulado.
+  - Se uma etapa do sync falhar, não roda, e a execução fica vermelha.
+  - Usa `ignore_downstream_trigger_rules=True`: tudo a jusante (os grupos do Cosmos) é pulado.
+- **Retentativas:** `retries=2` nas tarefas de rede (sensor, baixar, apagar). Os grupos do dbt continuam com `retries=0`.
+- **Sem DAG separada:** a `process_sinan_ingest_atlas` do plano anterior e o `TriggerDagRunOperator` saem.
+- **Alinhamento:** o requisito "Disparo sem configuração" da `add-cosmos-dbt-dags` (sem agendamento e sem parâmetros) é atualizado lá (tarefa 5.2).
 
-  Se o objeto no landing já tem o mesmo `origem_etag` (retentativa), não envia de novo.
+As etapas por ano, do jeito que já estão implementadas e medidas (seção 8):
+- **`baixar`:**
+  1. download em streaming e extração do CSV;
+  2. contagem de registros e colunas, com detecção de encoding: UTF-8, com latin-1 como reserva;
+  3. upload do `.csv` e depois do `.csv.zip`, com a metadata.
+
+  Se o zip já tem o mesmo `origem_etag` e `origem_last_modified`, não envia de novo.
 - **`apagar`:** remove o `.csv.zip` e o `.csv` do landing.
 - **`carregar_bronze`:** duas etapas no BigQuery, ambas atômicas.
-  1. **Staging:** load job do `.csv` do landing para `bronze._stg_sinan_dengue_<ano>`, com o schema do cabeçalho (todas as colunas `STRING`), `skip_leading_rows=1`, `allow_quoted_newlines=True` e `WRITE_TRUNCATE`.
-  2. **Destino:** query job `SELECT *, <ano> AS ano_arquivo, @etag AS arquivo_etag, @uri AS arquivo_uri, CURRENT_TIMESTAMP() AS carregado_em` para a partição `bronze.sinan_dengue_opendatasus$<ano>`, com `WRITE_TRUNCATE` e `ALLOW_FIELD_ADDITION`. Se falhar, a partição antiga fica intacta.
+  1. **Staging:** load job do `.csv` para `bronze._stg_sinan_dengue_<ano>`, com o schema do próprio cabeçalho (todas as colunas `STRING`), `encoding` da metadata, `skip_leading_rows=1`, `allow_quoted_newlines=True` e `WRITE_TRUNCATE`.
+  2. **Destino:** query job para a partição `$<ano>` com `WRITE_TRUNCATE` e `ALLOW_FIELD_ADDITION`, mais as colunas de linhagem. As colunas que a tabela tem e o ano não tem entram como `NULL` (seção 8).
 
   A staging é apagada no fim.
 - **`validar`:**
   - `COUNT(*)` da partição = `registros` da metadata = `output_rows` do load;
-  - colunas obrigatórias presentes: `DT_NOTIFIC`, `SG_UF_NOT`, `ID_MUNICIP`, `SG_UF`, `ID_MN_RESI`, `DT_SIN_PRI`, `CLASSI_FIN` e `EVOLUCAO`.
-- **`marcar_carregado`:** grava `bronze_etag = origem_etag` na metadata do zip. Só depois disso o ano sai do plano dos dias seguintes.
-- **`remover_da_bronze`:** `DELETE` da partição do ano removido, ou expiração da partição.
-- **`disparar_modelagem`:** `TriggerDagRunOperator(trigger_dag_id="process_etl_atlas")`.
-  - `trigger_rule="none_failed_min_one_success"`: roda se algum ano foi marcado ou removido e nada falhou.
-  - Não espera o término da modelagem.
+  - colunas obrigatórias presentes.
+- **`marcar_carregado`:** grava `bronze_etag = origem_etag` na metadata do zip.
+- **`remover_da_bronze`:** `DELETE` da partição do ano removido.
 
 ### 4. Tabela bronze
 - **Tabela:** `bronze.sinan_dengue_opendatasus`, particionada por intervalo inteiro em `ano_arquivo` (2000–2100, passo 1) e clusterizada por `SG_UF_NOT`.
@@ -126,10 +140,12 @@ detectar_diferencas ─┬─► baixar[arquivo] ──┐
 ### 6. dbt: bronze como source e mapeamento DATASUS
 - **Source:** `sinan_opendatasus` (schema `bronze`, tabela `sinan_dengue_opendatasus`), com `loaded_at_field: carregado_em` e freshness (aviso com 10 dias, erro com 30).
 - **`bronze_dengue_brasil`:** escolhe a fonte por `var('sinan_source')`. No ramo OpenDataSUS:
-  - **UF:** `SG_UF_NOT`, `SG_UF` e `COUFINF` (código do IBGE) viram sigla pela dimensão de municípios;
-  - **município:** `ID_MUNICIP`, `ID_MN_RESI` e `COMUNINF` (6 dígitos) viram o código de 7 dígitos pelo join com `bronze_dim_municipio_brasil` em `DIV(municipality_id, 10)`;
+  - **layout por linha:** `CLASSI_FIN IS NOT NULL OR ano_arquivo >= 2007` identifica o SINAN Net; antes disso, as colunas `CON_*` (seção 8);
+  - **UF:** quando o valor é numérico (SINAN Net), o código do IBGE vira sigla pela dimensão de municípios; quando já é sigla (SINAN Windows), fica como está. Vale para notificação, residência e infecção (`COUFINF` / `CON_INF_UF`);
+  - **município:** 6 dígitos (SINAN Net) viram o código de 7 dígitos pelo join com `bronze_dim_municipio_brasil` em `DIV(municipality_id, 10)`; 7 dígitos (SINAN Windows) ficam como estão;
+  - **classificação, evolução e critério:** `COALESCE(CLASSI_FIN, CON_CLASSI)`, `COALESCE(EVOLUCAO, CON_EVOLUC)` e `COALESCE(CRITERIO, CON_CRITER)`;
   - **datas:** `parse_date_any`;
-  - **idade:** `NU_IDADE_N` decodificada para anos;
+  - **idade:** decodificada para anos nos dois formatos: `NU_IDADE_N` (`4xxx`) e `NU_IDADE` (`Axxx`);
   - **demais colunas:** renomeadas para os mesmos nomes de hoje, com a mesma decodificação que a Base dos Dados aplicava, conferida coluna a coluna;
   - **`case_id`:** o mesmo md5 das colunas naturais.
 - **Rollback:** `--vars '{sinan_source: basedosdados}'`.
@@ -139,6 +155,33 @@ detectar_diferencas ─┬─► baixar[arquivo] ──┐
 2. Comparação por ano e UF entre as fontes, registrada em `docs/referencias/sinan-opendatasus.md`.
 3. Padrão trocado para `opendatasus` e `process_etl_atlas` completa.
 
+### 8. Medições do landing (16/11/2026)
+
+| Arquivo | Tempo | Zip | CSV | Registros | Colunas | Encoding |
+|---|---:|---:|---:|---:|---:|---|
+| DENGBR26 | 16 s | 15,9 MB | 137 MB | 489.197 | 121 | UTF-8 |
+| DENGBR24 | 285 s | 187,3 MB | 1.840 MB | 6.564.924 | 121 | UTF-8 |
+| DENGBR13 | 63 s | 41,0 MB | 394 MB | 2.035.119 | 66 | UTF-8 |
+| DENGBR00 | 10 s | 2,6 MB | 39 MB | 172.855 | 107 | UTF-8 |
+
+- **Reenvio:** uma segunda execução com o mesmo ETag não reenviou nada.
+- **Colunas variam muito entre anos** (66 a 121). A tabela bronze acumula a união das colunas (`ALLOW_FIELD_ADDITION`).
+- **Dois layouts do SINAN.** O separador é vírgula e as datas são ISO em todos os anos; o resto muda:
+
+  | Item | 2000–2006 (SINAN Windows) | 2007 em diante (SINAN Net/Online) |
+  |---|---|---|
+  | Colunas | 107 | 63 (2007) a 121 (2024+) |
+  | Classificação final | `CON_CLASSI` | `CLASSI_FIN` |
+  | Evolução | `CON_EVOLUC` | `EVOLUCAO` |
+  | Critério | `CON_CRITER` | `CRITERIO` |
+  | Idade | `NU_IDADE`, ex.: `A021` (A = anos) | `NU_IDADE_N`, ex.: `4021` (4 = anos) |
+  | UF (`SG_UF_NOT`, `SG_UF`) | sigla (`AC`) | código do IBGE (`12`) |
+  | Município (`ID_MUNICIP`, `ID_MN_RESI`) | 7 dígitos | 6 dígitos |
+  | Descartados (classificação 5) | presentes | ausentes nos anos recentes |
+
+  A validação aceita os nomes alternativos de cada coluna obrigatória: classificação = `CLASSI_FIN` **ou** `CON_CLASSI`, evolução = `EVOLUCAO` **ou** `CON_EVOLUC`. O mapeamento do dbt trata os dois layouts (seção 6).
+- **Partições de anos com menos colunas:** o SQL de carga projeta a lista completa da tabela, com `CAST(NULL AS STRING) AS <col>` para as ausentes. Isso não depende de o BigQuery aceitar uma partição com schema menor.
+
 ## Risks / Trade-offs
 
 - **[Sem histórico no landing]** → é escolha do usuário. A versão carregada fica registrada em `arquivo_etag` na bronze. Se a origem publicar algo errado, a recuperação depende de uma nova publicação ou do fallback para a Base dos Dados.
@@ -147,7 +190,8 @@ detectar_diferencas ─┬─► baixar[arquivo] ──┐
 - **[Schema varia entre anos (colunas, encoding, formato de data)]** → tudo como `STRING`, `ALLOW_FIELD_ADDITION` e datas pela `parse_date_any`. A tarefa 2.3 confere os anos 2000, 2013 e 2024.
 - **[Partição com menos colunas que a tabela]** → conferido na carga de 2000 depois de 2026. Se o BigQuery recusar, o SQL completa as colunas ausentes com `NULL` a partir do schema da tabela.
 - **[2024 com 187 MB zipado, mais de 1 GB descompactado]** → streaming para disco temporário e load job a partir do GCS. O tempo é registrado na tarefa 2.2.
-- **[Primeira DAG agendada]** → o sensor em reschedule ocupa o worker só nos pokes, e o `soft_fail` evita execuções vermelhas em dias sem novidade.
+- **[A ETL passa a ser agendada]** → o sensor em reschedule ocupa o worker só nos pokes. O `soft_fail` e o `decidir_dbt` evitam execuções vermelhas e custo de dbt em dias sem novidade. O dbt manual continua possível com `forcar_dbt`.
+- **[Sensor segurando a execução por até 20 h]** → enquanto a execução diária espera, não começa outra (`max_active_runs=1`). Um disparo manual nesse período fica na fila. Por isso o disparo manual verifica a origem só uma vez: assim ele não fica preso esperando.
 - **[Divergência com a Base dos Dados]** → limite de 1% por UF e ano completo, com as diferenças documentadas. Acima disso, o corte não acontece.
 
 ## Migration Plan
