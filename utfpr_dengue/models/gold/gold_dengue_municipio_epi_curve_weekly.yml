@@ -1,0 +1,54 @@
+version: 2
+
+models:
+  - name: gold_dengue_municipio_epi_curve_weekly
+    description: >
+      Curva epidemiológica semanal de casos por MUNICÍPIO — drill-down do
+      mapa estadual no front (clicar numa UF troca pro mapa de calor por
+      município daquela UF). Só Brasil: única fonte com granularidade de
+      município. Grão: UF × município × ano epidemiológico × semana
+      epidemiológica. Fonte Silver: silver_dengue_cases_brasil.
+    columns:
+      - name: state_code
+        description: Sigla da UF do município (notification_state). Identificador, usado pra filtrar por estado.
+      - name: municipality_id
+        description: Código IBGE do município. Identificador.
+      - name: municipality_name
+        description: Nome do município. Dimensão.
+      - name: year
+        description: Ano epidemiológico. Dimensão temporal.
+      - name: epi_week
+        description: Semana epidemiológica. Dimensão temporal.
+      - name: epi_week_start_date
+        description: Data aproximada de início da semana epidemiológica. Dimensão temporal.
+      - name: total_cases
+        description: Métrica. Casos na semana/município.
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP() — estável (mesmo valor) em todas as linhas da mesma execução. Coluna de auditoria/freshness, usada pelo job de exportação pra decidir se precisa baixar a tabela de novo."
+
+semantic_models:
+  - name: gold_dengue_municipio_epi_curve_weekly
+    description: Modelo semântico da curva epidemiológica semanal por município.
+    model: ref('gold_dengue_municipio_epi_curve_weekly')
+    defaults:
+      agg_time_dimension: epi_week_start_date
+    entities:
+      - name: municipality
+        type: foreign
+        expr: municipality_id
+    dimensions:
+      - name: state_code
+        type: categorical
+      - name: municipality_name
+        type: categorical
+      - name: year
+        type: categorical
+      - name: epi_week
+        type: categorical
+      - name: epi_week_start_date
+        type: time
+        type_params:
+          time_granularity: week
+    measures:
+      - name: total_cases
+        agg: sum

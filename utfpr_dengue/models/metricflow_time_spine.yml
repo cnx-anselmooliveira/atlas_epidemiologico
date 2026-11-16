@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: metricflow_time_spine
+    description: >
+      Time spine exigida pelo dbt Semantic Layer (MetricFlow) para resolver
+      métricas com granularidade de tempo. 1 linha por dia, sem gaps.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        description: Data (granularidade dia). Identificador/dimensão temporal.
+        granularity: day

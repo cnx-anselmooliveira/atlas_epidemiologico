@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: gold_dengue_data_quality
+    description: >
+      Indicadores de qualidade e completude dos dados por país e ano:
+      completude de reporte semanal e proporção de métricas indisponíveis
+      por fonte. Grão: país × ano epidemiológico. Fontes Silver:
+      silver_dengue_weekly_cases, silver_dim_country.
+    columns:
+      - name: country_iso3
+        description: Código ISO3 do país. Identificador.
+      - name: country_name
+        description: Nome do país. Dimensão.
+      - name: year
+        description: Ano epidemiológico. Dimensão temporal.
+      - name: row_count
+        description: Métrica. Nº de linhas (combinações admin1×semana) no ano.
+      - name: distinct_weeks_reported
+        description: Métrica. Nº de semanas epidemiológicas distintas reportadas no ano.
+      - name: reporting_completeness_pct
+        description: "Métrica calculada (qualidade de dados). Regra: 100 * distinct_weeks_reported / 53."
+      - name: pct_rows_missing_admin1
+        description: "Métrica calculada (qualidade de dados). Regra: 100 * linhas com admin1_name nulo / row_count."
+      - name: pct_rows_missing_confirmed_cases
+        description: "Métrica calculada (qualidade de dados). Regra: 100 * linhas com confirmed_cases nulo / row_count."
+      - name: pct_rows_missing_severe_cases
+        description: "Métrica calculada (qualidade de dados). Regra: 100 * linhas com severe_cases nulo / row_count."
+      - name: pct_rows_missing_deaths
+        description: "Métrica calculada (qualidade de dados). Regra: 100 * linhas com deaths nulo / row_count."
+      - name: min_epi_week_start_date
+        description: Métrica. Data da semana epidemiológica mais antiga carregada nesse país×ano — usada pra dar precisão de mês ao início do intervalo de cobertura.
+      - name: max_epi_week_start_date
+        description: Métrica. Data da semana epidemiológica mais recente carregada (sinal de frescor/freshness) — usada também pra dar precisão de mês ao fim do intervalo de cobertura.
+      - name: reporting_frequency_days
+        description: Frequência de atualização esperada da fonte, em dias (referência, de silver_dim_country).
+      - name: source_status
+        description: Status da fonte ('national'/'paho_fallback'), de silver_dim_country. Dimensão.
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP() — estável (mesmo valor) em todas as linhas da mesma execução. Coluna de auditoria/freshness, usada pelo job de exportação pra decidir se precisa baixar a tabela de novo."
+
+semantic_models:
+  - name: gold_dengue_data_quality
+    description: Modelo semântico dos indicadores de qualidade e completude dos dados por país e ano.
+    model: ref('gold_dengue_data_quality')
+    entities:
+      - name: country
+        type: foreign
+        expr: country_iso3
+    dimensions:
+      - name: country_name
+        type: categorical
+      - name: year
+        type: categorical
+      - name: source_status
+        type: categorical
+    measures:
+      - name: row_count
+        agg: sum
+      - name: distinct_weeks_reported
+        agg: sum
+      - name: reporting_completeness_pct
+        agg: average
+      - name: pct_rows_missing_admin1
+        agg: average
+      - name: pct_rows_missing_confirmed_cases
+        agg: average
+      - name: pct_rows_missing_severe_cases
+        agg: average
+      - name: pct_rows_missing_deaths
+        agg: average
+      - name: min_epi_week_start_date
+        agg: min
+      - name: max_epi_week_start_date
+        agg: max
+      - name: reporting_frequency_days
+        agg: average

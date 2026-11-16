@@ -1,0 +1,78 @@
+version: 2
+
+models:
+  - name: gold_dengue_alert_level_weekly
+    description: >
+      Nível de alerta semanal por local — proxy simplificado das faixas
+      verde/amarelo/laranja/vermelho do info.dengue.mat.br. NÃO é o MEM
+      (Moving Epidemic Method) oficial: os limiares usados são os percentis
+      50/75/90 do histórico de semanas anteriores do próprio local (não um
+      ajuste log-normal/harmônico por temporada). Locais com menos de 12
+      semanas de histórico anterior recebem alert_level =
+      'insufficient_history'. Grão: país × unidade administrativa nível 1 ×
+      ano epidemiológico × semana epidemiológica (só locais com admin1_name
+      preenchido — PAHO fica de fora). Fonte Silver: silver_dengue_weekly_cases.
+    columns:
+      - name: country_iso3
+        description: Código ISO3 do país. Identificador.
+      - name: country_name
+        description: Nome do país. Dimensão.
+      - name: admin1_name
+        description: UF/departamento/província. Dimensão.
+      - name: year
+        description: Ano epidemiológico. Dimensão temporal.
+      - name: epi_week
+        description: Semana epidemiológica. Dimensão temporal.
+      - name: epi_week_start_date
+        description: Data aproximada de início da semana. Dimensão temporal.
+      - name: total_cases
+        description: Métrica. Casos na semana/local.
+      - name: history_weeks_available
+        description: "Métrica auxiliar. Regra: contagem de semanas anteriores (period_key menor) disponíveis no histórico do local, usada para decidir se há base suficiente para os percentis."
+      - name: historical_p50_cases
+        description: "Métrica calculada. Regra: percentil 50 (mediana) de total_cases nas semanas anteriores do mesmo local."
+      - name: historical_p75_cases
+        description: "Métrica calculada. Regra: percentil 75 de total_cases nas semanas anteriores do mesmo local."
+      - name: historical_p90_cases
+        description: "Métrica calculada. Regra: percentil 90 de total_cases nas semanas anteriores do mesmo local."
+      - name: alert_level
+        description: "Indicador de status calculado. Regra: 'insufficient_history' se history_weeks_available < 12; senão 'red' se total_cases > p90, 'orange' se > p75, 'yellow' se > p50, senão 'green'."
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP() — estável (mesmo valor) em todas as linhas da mesma execução. Coluna de auditoria/freshness, usada pelo job de exportação pra decidir se precisa baixar a tabela de novo."
+
+semantic_models:
+  - name: gold_dengue_alert_level_weekly
+    description: Modelo semântico do nível de alerta semanal por local.
+    model: ref('gold_dengue_alert_level_weekly')
+    defaults:
+      agg_time_dimension: epi_week_start_date
+    entities:
+      - name: country
+        type: foreign
+        expr: country_iso3
+    dimensions:
+      - name: country_name
+        type: categorical
+      - name: admin1_name
+        type: categorical
+      - name: year
+        type: categorical
+      - name: epi_week
+        type: categorical
+      - name: epi_week_start_date
+        type: time
+        type_params:
+          time_granularity: week
+      - name: alert_level
+        type: categorical
+    measures:
+      - name: total_cases
+        agg: sum
+      - name: history_weeks_available
+        agg: sum
+      - name: historical_p50_cases
+        agg: average
+      - name: historical_p75_cases
+        agg: average
+      - name: historical_p90_cases
+        agg: average

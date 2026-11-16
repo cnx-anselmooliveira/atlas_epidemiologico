@@ -1,0 +1,42 @@
+version: 2
+
+models:
+  - name: gold_dim_populacao_admin1
+    description: >
+      População por admin1 (estado/província/departamento) dos 6 países
+      com dado na Gold — usada pra calcular incidência (casos por 1.000
+      habitantes) no mapa de estado/depto, evitando que país populoso
+      pareça sempre "pior" só por volume absoluto. Grão: país × admin1.
+      Fonte: seed_populacao_admin1 (ver comentário no CSV/script gerador
+      pra fonte oficial exata de cada país — anos-base diferentes por
+      país, não é uma leva censitária única).
+    columns:
+      - name: country_iso3
+        description: Código ISO3 do país. Identificador.
+      - name: admin1_name
+        description: Nome do admin1, bate exatamente com admin1_name da Gold (mesma grafia). Identificador.
+      - name: population
+        description: Métrica. População total do admin1 no ano-base da fonte.
+      - name: population_year
+        description: Ano-base da população (varia por país — ver source_name).
+      - name: source_name
+        description: Fonte oficial (censo/projeção) usada pra esse país. Dimensão.
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP()."
+
+semantic_models:
+  - name: gold_dim_populacao_admin1
+    description: Modelo semântico da população por admin1.
+    model: ref('gold_dim_populacao_admin1')
+    entities:
+      - name: country
+        type: foreign
+        expr: country_iso3
+    dimensions:
+      - name: admin1_name
+        type: categorical
+      - name: population_year
+        type: categorical
+    measures:
+      - name: population
+        agg: sum

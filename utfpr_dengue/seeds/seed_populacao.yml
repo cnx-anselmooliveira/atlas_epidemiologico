@@ -1,0 +1,62 @@
+version: 2
+
+seeds:
+  - name: seed_populacao_admin1
+    description: >
+      População por admin1 (estado/província/departamento) dos 6 países
+      com dado na Gold — censo/projeção mais recente disponível por país
+      (ver comentário no topo de scripts/gerar_seed_populacao_admin1.py
+      pra fonte exata de cada um: IBGE 2022 pro Brasil, INDEC Censo 2022
+      pra Argentina, DANE/Wikipedia 2020 pra Colômbia, INEI censo 2025 +
+      Provincia de Lima pro Peru, censo 2022 pro Equador, censo 2024 pra
+      Bolívia). Usado só pra calcular incidência (casos por 1.000
+      habitantes) no mapa — não é uma fonte demográfica oficial unificada,
+      cada país tem ano-base diferente.
+    columns:
+      - name: country_iso3
+        data_tests: [not_null]
+      - name: admin1_name
+        description: Bate exatamente com admin1_name da Gold (ver ADMIN1_REAIS no script gerador).
+        data_tests: [not_null]
+      - name: population
+        data_tests: [not_null]
+      - name: population_year
+      - name: source_name
+
+  - name: seed_populacao_departamento_argentina
+    description: >
+      População por departamento da Argentina — INDEC, Censo Nacional
+      2022 (resultados provisionales, planilhas Cuadro 1.1-1.24 por
+      província, ver scripts/gerar_seed_populacao_departamento_argentina.py).
+      department_name já vem casado (dobra ASCII) contra a grafia
+      canônica de gold_dengue_departamento_epi_curve_weekly_argentina —
+      95% de cobertura (491 de ~520 deptos do Gold têm população; o
+      resto são deptos reais do censo sem nenhum caso de dengue
+      histórico, mesma situação de Huancavelica/Tacna no Peru, ou
+      combinações província×depto inconsistentes na fonte bruta
+      original — ver comentário no model Gold).
+    columns:
+      - name: province_code
+        data_tests: [not_null]
+      - name: department_name
+        data_tests: [not_null]
+      - name: population
+        data_tests: [not_null]
+      - name: population_year
+      - name: source_name
+
+  - name: seed_populacao_municipio_brasil
+    description: >
+      População de todos os 5.570 municípios do Brasil — IBGE, Censo 2022
+      (API SIDRA, tabela 9514, variável 93, nível N6). municipality_id é
+      o código IBGE de 7 dígitos, mesma chave usada em
+      silver_dim_municipio_brasil.municipality_id.
+    columns:
+      - name: municipality_id
+        data_tests: [not_null, unique]
+      - name: municipality_name
+      - name: state_code
+      - name: population
+        data_tests: [not_null]
+      - name: population_year
+      - name: source_name

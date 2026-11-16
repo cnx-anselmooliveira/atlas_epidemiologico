@@ -1,0 +1,159 @@
+version: 2
+
+models:
+  - name: silver_dim_country
+    description: >
+      Dimensão de referência (curada manualmente a partir do README do
+      projeto) dos países da América do Sul cobertos, com status da fonte
+      de dados e frequência de atualização documentada. Grão: 1 linha por
+      país. Não derivada de nenhuma tabela raw.
+    columns:
+      - name: country_iso3
+        description: Código ISO 3166-1 alpha-3 do país. Identificador, chave primária.
+        data_tests: [unique, not_null]
+      - name: country_name
+        description: Nome do país em português. Dimensão.
+      - name: source_status
+        description: "'national' quando há fonte de vigilância nacional carregada, 'paho_fallback' quando o único dado disponível é o agregado do PAHO/ARBO Portal. Status."
+      - name: primary_source_name
+        description: Nome da fonte primária de dados de dengue do país. Dimensão.
+      - name: reporting_frequency_days
+        description: Frequência de atualização da fonte, em dias, conforme documentado no README. Métrica de referência.
+      - name: has_subnational_granularity
+        description: Indica se a fonte nacional permite quebra por unidade administrativa (UF/depto/província); false para países cobertos só pelo PAHO. Status.
+
+  - name: silver_dim_municipio_brasil
+    description: >
+      Dimensão de municípios do Brasil, pass-through padronizado da Bronze.
+      Grão: 1 linha por município. Chave: municipality_id (código IBGE).
+    columns:
+      - name: municipality_id
+        description: Código IBGE do município. Identificador, chave primária.
+        data_tests: [unique, not_null]
+      - name: municipality_name
+        description: Nome do município. Dimensão.
+      - name: state_code
+        description: Sigla da UF. Dimensão.
+      - name: state_name
+        description: Nome da UF. Dimensão.
+      - name: region_name
+        description: Grande região do Brasil. Dimensão.
+      - name: health_region_id
+        description: Código da região de saúde. Identificador.
+      - name: health_region_name
+        description: Nome da região de saúde. Dimensão.
+      - name: metropolitan_region_id
+        description: Código da região metropolitana, quando aplicável. Identificador.
+      - name: metropolitan_region_name
+        description: Região metropolitana, quando aplicável. Dimensão.
+      - name: legal_amazon_flag
+        description: Indica se pertence à Amazônia Legal. Status.
+      - name: centroid_wkt
+        description: Centroide do município em texto WKT. Atributo geográfico.
+
+  - name: silver_dengue_cases_brasil
+    description: >
+      Fato de casos de dengue do Brasil em nível de caso. Grão: 1 linha por
+      caso notificado (case_id). Fonte: bronze_dengue_brasil, enriquecido
+      com nomes de município via silver_dim_municipio_brasil. Mantido
+      separado do fato consolidado semanal por ser a única fonte com
+      detalhe clínico/demográfico de caso individual.
+    columns:
+      - name: case_id
+        description: Chave substituta do caso (herdada da Bronze). Identificador, chave primária.
+        data_tests: [not_null]
+      - name: notification_epi_year
+        description: "Ano epidemiológico da notificação. Regra de cálculo: c.notification_year (coluna `ano` do SINAN) — notification_epi_week só traz o número da semana, não um composto ano-semana."
+      - name: notification_epi_week_number
+        description: Número da semana epidemiológica (1-53) da notificação, cast direto de notification_epi_week. Dimensão temporal.
+      - name: notification_date
+        description: Data de notificação do caso. Dimensão temporal.
+      - name: notification_state
+        description: UF de notificação. Dimensão, chave de relacionamento.
+      - name: notification_municipality_id
+        description: Código IBGE do município de notificação. Identificador, chave estrangeira para silver_dim_municipio_brasil.
+      - name: notification_municipality_name
+        description: Nome do município de notificação (via join com a dimensão). Dimensão.
+      - name: symptom_onset_date
+        description: Data de início dos sintomas. Dimensão temporal.
+      - name: patient_state_residence
+        description: UF de residência do paciente. Dimensão.
+      - name: patient_municipality_residence_id
+        description: Código IBGE do município de residência. Identificador, chave estrangeira.
+      - name: patient_residence_municipality_name
+        description: Nome do município de residência (via join). Dimensão.
+      - name: patient_age
+        description: Idade do paciente. Métrica/dimensão.
+      - name: patient_age_band
+        description: "Faixa etária derivada de patient_age (<1, 1-4, 5-9, 10-14, 15-19, 20-49, 50-64, 65+). Dimensão derivada."
+      - name: patient_sex
+        description: Sexo do paciente. Dimensão.
+      - name: patient_race
+        description: Raça/cor autodeclarada. Dimensão.
+      - name: patient_pregnancy_status
+        description: Situação gestacional, quando aplicável. Dimensão.
+      - name: hospitalized_flag
+        description: Indica internação. Status.
+      - name: hospitalization_date
+        description: Data de internação. Dimensão temporal.
+      - name: case_classification
+        description: Classificação final do caso (código SINAN, sem mapeamento de negócio aplicado — codificação não confirmada). Dimensão/status.
+      - name: confirmation_criteria
+        description: Critério de confirmação do caso. Dimensão.
+      - name: severe_dengue_flag
+        description: Indicador de febre hemorrágica do dengue (código SINAN, sem mapeamento aplicado). Status.
+      - name: autochthonous_case_flag
+        description: Indica caso autóctone. Status.
+      - name: dengue_serotype
+        description: Sorotipo identificado. Dimensão.
+      - name: case_outcome
+        description: Evolução do caso. Status.
+      - name: death_date
+        description: Data de óbito. Dimensão temporal.
+      - name: is_death
+        description: "Métrica derivada booleana: true quando death_date não é nulo. Regra de cálculo: death_date is not null."
+      - name: case_closure_date
+        description: Data de encerramento do caso. Dimensão temporal.
+      - name: case_duration_days
+        description: "Métrica derivada. Regra de cálculo: date_diff(case_closure_date, notification_date, day)."
+
+  - name: silver_dengue_weekly_cases
+    description: >
+      Fato consolidado de casos de dengue de todos os países cobertos.
+      Grão: 1 linha por país × unidade administrativa nível 1 (quando
+      disponível) × ano epidemiológico × semana epidemiológica. Resultado
+      de UNION ALL entre: silver_dengue_cases_brasil (agregado),
+      bronze_dengue_colombia (agregado), bronze_dengue_peru (agregado),
+      bronze_dengue_argentina (passthrough agregado), a combinação de
+      bronze_dengue_equador_weekly_agg + bronze_dengue_equador_cases,
+      bronze_dengue_bolivia (passthrough) e bronze_dengue_paho_americas
+      (des-acumulado). É o principal fato de entrada da camada Gold.
+      Chave natural: (country_iso3, admin1_name, notification_epi_year,
+      notification_epi_week).
+    columns:
+      - name: country_iso3
+        description: Código ISO3 do país. NULL para linhas vindas do fallback PAHO cujo país não tem fonte nacional mapeada em silver_dim_country. Identificador, chave de relacionamento com silver_dim_country.
+      - name: country_name
+        description: Nome do país (em português para fontes nacionais, como reportado pelo PAHO em inglês para o fallback). Dimensão.
+      - name: admin1_code
+        description: Código da unidade administrativa nível 1 (UF/departamento), quando a fonte disponibiliza. Identificador.
+      - name: admin1_name
+        description: Nome da unidade administrativa nível 1. NULL para PAHO (só nível país). Dimensão.
+      - name: notification_epi_year
+        description: Ano epidemiológico. Dimensão temporal.
+      - name: notification_epi_week
+        description: Semana epidemiológica (1-53). Dimensão temporal.
+      - name: epi_week_start_date
+        description: "Data aproximada de início da semana epidemiológica. Regra de cálculo: date_add(date(notification_epi_year,1,1), interval (notification_epi_week-1)*7 day). Aproximação — não reproduz a convenção exata de cada país."
+      - name: total_cases
+        description: Métrica. Total de casos na combinação país×admin1×ano×semana.
+      - name: confirmed_cases
+        description: Métrica. Casos confirmados. NULL onde a fonte não permite derivar com confiança (Brasil, Colômbia, Peru, Argentina, Equador, PAHO — codificação não documentada).
+      - name: severe_cases
+        description: Métrica. Casos de dengue grave. NULL onde não há como derivar com confiança (Brasil, Argentina).
+      - name: deaths
+        description: Métrica. Óbitos. NULL onde não há como derivar com confiança (Peru, Argentina).
+      - name: data_source_priority
+        description: "'national' (fonte de vigilância própria do país) ou 'paho_fallback' (agregado PAHO/ARBO usado por falta de fonte nacional). Status/dimensão."
+      - name: source_model
+        description: Nome do(s) modelo(s) Bronze de origem da linha, para rastreabilidade/auditoria. Dimensão técnica.

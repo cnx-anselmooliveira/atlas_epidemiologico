@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: gold_dengue_departamento_epi_curve_weekly_argentina
+    description: >
+      Curva epidemiológica semanal por departamento da Argentina —
+      drill-down do mapa de província (mesma ideia do drill-down de
+      município do Brasil). Grão: província × departamento × ano
+      epidemiológico × semana epidemiológica. Fonte: bronze_dengue_argentina.
+      department_name é a grafia mais frequente observada por
+      (province_code, department_code) — a fonte bruta varia grafia do
+      mesmo depto entre arquivos de anos diferentes.
+    columns:
+      - name: province_code
+        description: Código INDEC de província, 2 dígitos (mesma chave de seed_dim_provincia_argentina). Identificador.
+      - name: province_name
+        description: Nome oficial da província. Dimensão.
+      - name: department_code
+        description: "Só informativo/lineage (o código mais frequente visto pra esse depto) — NÃO é chave confiável (a fonte bruta usa formatos diferentes do mesmo código entre arquivos de anos distintos). Não use pra join."
+      - name: department_name
+        description: Grafia mais frequente do nome do departamento (moda por província + dobra ASCII do nome — chave real do grão). Dimensão.
+      - name: year
+        description: Ano epidemiológico. Dimensão temporal.
+      - name: epi_week
+        description: Semana epidemiológica (1-53). Dimensão temporal.
+      - name: epi_week_start_date
+        description: Aproximação (ano + (semana-1)*7 dias) — não reproduz a definição exata de semana epidemiológica argentina.
+      - name: total_cases
+        description: Métrica. Soma de casos de dengue (exclui eventos Zika, filtro best-effort por nome do evento) no departamento×semana.
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP()."
+
+semantic_models:
+  - name: gold_dengue_departamento_epi_curve_weekly_argentina
+    description: Modelo semântico da curva epidemiológica por departamento da Argentina.
+    model: ref('gold_dengue_departamento_epi_curve_weekly_argentina')
+    entities:
+      - name: departamento
+        type: primary
+        expr: concat(province_code, '-', department_name)
+    dimensions:
+      - name: province_name
+        type: categorical
+      - name: department_name
+        type: categorical
+      - name: year
+        type: categorical
+      - name: epi_week
+        type: categorical
+    measures:
+      - name: total_cases
+        agg: sum

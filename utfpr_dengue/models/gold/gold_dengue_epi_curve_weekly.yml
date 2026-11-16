@@ -1,0 +1,67 @@
+version: 2
+
+models:
+  - name: gold_dengue_epi_curve_weekly
+    description: >
+      Curva epidemiológica semanal de casos por local (equivalente ao
+      gráfico principal do info.dengue.mat.br), com média móvel de 3
+      semanas e comparação com a mesma semana do ano anterior. Grão: país
+      × unidade administrativa nível 1 (quando disponível) × ano
+      epidemiológico × semana epidemiológica. Fonte Silver:
+      silver_dengue_weekly_cases.
+    columns:
+      - name: country_iso3
+        description: Código ISO3 do país. Identificador.
+      - name: country_name
+        description: Nome do país. Dimensão.
+      - name: admin1_name
+        description: UF/departamento/província. NULL para linhas PAHO (só nível país). Dimensão.
+      - name: year
+        description: Ano epidemiológico. Dimensão temporal.
+      - name: epi_week
+        description: Semana epidemiológica. Dimensão temporal.
+      - name: epi_week_start_date
+        description: Data aproximada de início da semana epidemiológica. Dimensão temporal.
+      - name: total_cases
+        description: Métrica. Casos na semana/local.
+      - name: moving_avg_cases_3w
+        description: "Métrica calculada (tendência). Regra: média de total_cases da semana atual e das 2 anteriores, por local."
+      - name: previous_week_cases
+        description: "Métrica auxiliar. Regra: LAG(total_cases, 1) por local ordenado por ano/semana."
+      - name: same_week_previous_year_cases
+        description: "Métrica calculada (comparação sazonal). Regra: valor de total_cases na mesma semana epidemiológica do ano anterior, por local."
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP() — estável (mesmo valor) em todas as linhas da mesma execução. Coluna de auditoria/freshness, usada pelo job de exportação pra decidir se precisa baixar a tabela de novo."
+
+semantic_models:
+  - name: gold_dengue_epi_curve_weekly
+    description: Modelo semântico da curva epidemiológica semanal por local.
+    model: ref('gold_dengue_epi_curve_weekly')
+    defaults:
+      agg_time_dimension: epi_week_start_date
+    entities:
+      - name: country
+        type: foreign
+        expr: country_iso3
+    dimensions:
+      - name: country_name
+        type: categorical
+      - name: admin1_name
+        type: categorical
+      - name: year
+        type: categorical
+      - name: epi_week
+        type: categorical
+      - name: epi_week_start_date
+        type: time
+        type_params:
+          time_granularity: week
+    measures:
+      - name: total_cases
+        agg: sum
+      - name: moving_avg_cases_3w
+        agg: average
+      - name: previous_week_cases
+        agg: sum
+      - name: same_week_previous_year_cases
+        agg: sum

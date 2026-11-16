@@ -1,0 +1,46 @@
+version: 2
+
+models:
+  - name: gold_dengue_brasil_demographics
+    description: >
+      Distribuição demográfica (sexo × faixa etária) dos casos de dengue no
+      Brasil, com letalidade por grupo. Grão: ano epidemiológico × sexo ×
+      faixa etária. Fonte Silver: silver_dengue_cases_brasil.
+    columns:
+      - name: year
+        description: Ano epidemiológico. Dimensão temporal.
+      - name: patient_sex
+        description: Sexo do paciente. Dimensão.
+      - name: patient_age_band
+        description: Faixa etária do paciente. Dimensão.
+      - name: case_count
+        description: Métrica. Nº de casos no grupo.
+      - name: death_count
+        description: Métrica. Nº de óbitos no grupo.
+      - name: case_fatality_rate_pct
+        description: "Métrica calculada. Regra: 100 * death_count / case_count."
+      - name: pct_of_year_total_cases
+        description: "Métrica calculada (distribuição). Regra: 100 * case_count / soma(case_count) no ano."
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP() — estável (mesmo valor) em todas as linhas da mesma execução. Coluna de auditoria/freshness, usada pelo job de exportação pra decidir se precisa baixar a tabela de novo."
+
+semantic_models:
+  - name: gold_dengue_brasil_demographics
+    description: Modelo semântico da distribuição demográfica dos casos de dengue no Brasil.
+    model: ref('gold_dengue_brasil_demographics')
+    dimensions:
+      - name: year
+        type: categorical
+      - name: patient_sex
+        type: categorical
+      - name: patient_age_band
+        type: categorical
+    measures:
+      - name: case_count
+        agg: sum
+      - name: death_count
+        agg: sum
+      - name: case_fatality_rate_pct
+        agg: average
+      - name: pct_of_year_total_cases
+        agg: average

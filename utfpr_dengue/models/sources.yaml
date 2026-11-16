@@ -1,0 +1,103 @@
+version: 2
+
+sources:
+  - name: raw_uftpr_microdados
+    description: >
+      Microdados de casos de dengue por país, carregados no BigQuery
+      (projeto `ppgcc-dengue-project`, dataset `microdados`) a partir das
+      fontes oficiais de vigilância epidemiológica pelo script
+      `scripts/carregar_bigquery.py` (ver utfpr_dengue/docs/architecture.md
+      e README do projeto para detalhes de cada pipeline de ingestão).
+      Exceto `raw_uftpr_microdados_brasil` (cópia tipada via CTAS de uma
+      tabela BigQuery já existente), as demais tabelas são carregadas com
+      TODAS as colunas como STRING (ver `carregar_arquivos_como_string` no
+      script) — parsing de data/número precisa ser feito na Bronze.
+    database: ppgcc-dengue-project
+    schema: microdados
+    tables:
+      - name: raw_uftpr_microdados_brasil
+        description: >
+          Microdados de dengue do Brasil (SINAN, pacote basedosdados
+          br_ms_sinan.microdados_dengue), nível de caso, 151 colunas.
+          Carregado via CTAS a partir de `bronze.bronze_microdados_dengue`
+          (mesmo projeto BigQuery) — única tabela com tipos nativos
+          preservados (as demais são STRING). Frequência de atualização:
+          diária.
+          Link: https://app.powerbi.com/view?r=eyJrIjoiOGE3MDkzN2EtZDRlMS00MWZkLTkwMWItZTdhMGExOGY0ZGU2IiwidCI6ImE2MmQ2YzdiLTlmNTktNDQ2OS05MzU5LTM1MzcxNDc1OTRiYiIsImMiOjR9
+
+      - name: raw_uftpr_microdados_colombia
+        description: >
+          Microdados de dengue da Colômbia (SIVIGILA), nível de caso, união
+          dos boletins "Dengue" e "Dengue Grave" 2007–2025 (colunas
+          `classificacao` e `arquivo_origem` adicionadas na ingestão para
+          rastreabilidade). Todas as colunas carregadas como STRING.
+          Frequência de atualização: semanal (7 dias).
+          Link: https://portalsinan.saude.gov.br/
+
+      - name: raw_uftpr_microdados_peru
+        description: >
+          Microdados de dengue do Peru (CDC-MINSA / datos abiertos), nível
+          de caso, 2000–2024. Todas as colunas carregadas como STRING.
+          Frequência de atualização: semanal (7 dias).
+          Link: https://app7.dge.gob.pe/maps2/shiny_metaxenicas_web/ e
+          https://www.datosabiertos.gob.pe/search/field_tags/cdc-peru-1539
+
+      - name: raw_uftpr_microdados_argentina
+        description: >
+          Microdados de dengue da Argentina (SNVS/BIV), agregado por
+          departamento × semana epidemiológica × faixa etária × evento.
+          Esquema de colunas varia entre arquivos/anos (união de variantes
+          históricas por nome de coluna, com colunas de mesmo nome em
+          maiúsc./minúsc. já unificadas na ingestão — ver
+          `unificar_colunas_case_insensitivas`). Todas as colunas STRING.
+          Frequência de atualização: semanal (7 dias).
+          Link: https://datos.gob.ar/dataset/vigilancia-de-las-enfermedades-por-virus-del-dengue-y-zika
+
+      - name: raw_uftpr_microdados_equador
+        description: >
+          Microdados de dengue do Equador (SIVE-ALERTA/OBSALUD), união de
+          duas planilhas com grãos distintos, distinguidas pela coluna
+          `hoja_origem`: `DSSA_2021_2024` (agregado semanal por faixa etária/
+          sexo) e `DCSA_DG_2021_2025` (nível de caso, dengue grave). Nomes de
+          coluna sofreram sanitização na ingestão (caracteres inválidos para
+          BigQuery viraram `_` — ver `sanear_nomes_de_coluna`), então os
+          nomes reais podem diferir de espaços/pontuação originais (ex.
+          "Fec. fallec" pode ter virado "Fec_fallec"). Todas as colunas
+          STRING. Frequência de atualização: semanal (7 dias).
+          Link: https://obsalud.org/biblioteca/bases-de-datos-abiertos/base-dengue-descarga/
+
+      - name: raw_uftpr_microdados_bolivia
+        description: >
+          Microdados de dengue da Bolívia (SNIS-VE via PAHO/PLISA), agregado
+          por departamento × semana epidemiológica. Carregado via
+          `autodetect=True` (não pelo loader "tudo STRING"), então mantém os
+          tipos inferidos pelo BigQuery no load do CSV. Frequência de
+          atualização: semanal (7 dias). Ver script de ingestão
+          `baixar_bolivia_dengue.py`.
+          Link: https://ais.paho.org/ha_viz/dengue/subnac/BOL/Reportes_BOL.asp
+
+      - name: raw_uftpr_paho_dengue
+        description: >
+          Dados de dengue de todos os países/territórios das Américas (PAHO/
+          ARBO Portal), agregado por país/subregião × ano × semana
+          epidemiológica. Usado como fallback para países sem fonte
+          nacional confiável (Paraguai, Chile, Uruguai, Venezuela, Guiana,
+          Suriname, Guiana Francesa). "Total of Dengue Cases" é cumulativo
+          dentro do ano civil. Carregado via `autodetect=True` com
+          `column_name_character_map="V2"` (BigQuery normaliza espaços/
+          parênteses/% nos nomes de coluna — os nomes reais das colunas
+          podem diferir levemente do CSV original). Frequência de
+          atualização: semanal (7 dias).
+          Link: https://www.paho.org/en/arbo-portal/dengue-data-and-analysis/dengue-analysis-country
+
+      - name: raw_uftpr_dim_municipio_brasil
+        description: >
+          Dimensão de municípios do Brasil (código IBGE, nome, UF, região de
+          saúde, região metropolitana, Amazônia Legal, centroide em WKT),
+          extraída do mesmo pacote basedosdados usado pelo SINAN
+          (`microdados/brasil_microdados_sinan/br_ms_sinan.duckdb`, tabela
+          `municipios`) e carregada neste dataset por
+          `scripts/carregar_bigquery.py` (`carregar_municipios_brasil`) para
+          poder ser referenciada como source do dbt, junto com as demais
+          tabelas de microdados. Usada só para enriquecer
+          `bronze_dengue_brasil` com nomes de município/UF/região de saúde.
