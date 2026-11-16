@@ -152,7 +152,9 @@ As etapas por ano, do jeito que já estão implementadas e medidas (seção 8):
 
 ### 7. Corte para a nova fonte
 1. Sync inicial com o bucket vazio, ou seja, todos os anos. A variável fica em `basedosdados` durante a comparação.
-2. Comparação por ano e UF entre as fontes, registrada em `docs/referencias/sinan-opendatasus.md`.
+2. Comparação entre as fontes, registrada em `docs/referencias/sinan-opendatasus.md`, com critério por tipo de ano:
+   - **anos fechados (até 2020):** total por UF idêntico, 0%. Em 2000, 2003 e 2013, os totais anuais já batem exatamente;
+   - **anos republicados (2021+):** o OpenDataSUS continua atualizando esses anos depois do retrato da Base dos Dados. Em 2023 houve +9,1%, todo em notificações novas (classes 10, 11 e 0), com inconclusivos e sem classificação idênticos e duplicidade de 0,1%. Por isso o critério é: por UF e classificação, OpenDataSUS ≥ 99% da Base dos Dados. A fonte nova pode ganhar registros, mas não perder.
 3. Padrão trocado para `opendatasus` e `process_etl_atlas` completa.
 
 ### 8. Medições do landing (16/11/2026)
@@ -192,7 +194,7 @@ As etapas por ano, do jeito que já estão implementadas e medidas (seção 8):
 - **[2024 com 187 MB zipado, mais de 1 GB descompactado]** → streaming para disco temporário e load job a partir do GCS. O tempo é registrado na tarefa 2.2.
 - **[A ETL passa a ser agendada]** → o sensor em reschedule ocupa o worker só nos pokes. O `soft_fail` e o `decidir_dbt` evitam execuções vermelhas e custo de dbt em dias sem novidade. O dbt manual continua possível com `forcar_dbt`.
 - **[Sensor segurando a execução por até 20 h]** → enquanto a execução diária espera, não começa outra (`max_active_runs=1`). Um disparo manual nesse período fica na fila. Por isso o disparo manual verifica a origem só uma vez: assim ele não fica preso esperando.
-- **[Divergência com a Base dos Dados]** → limite de 1% por UF e ano completo, com as diferenças documentadas. Acima disso, o corte não acontece.
+- **[Divergência com a Base dos Dados]** → critério por tipo de ano (seção 7): igualdade exata até 2020 e, de 2021 em diante, "não perder registros" (≥ 99% por UF e classificação). Fora disso, o corte não acontece.
 
 ## Migration Plan
 

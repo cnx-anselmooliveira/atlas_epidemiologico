@@ -103,9 +103,13 @@ O model bronze de casos do Brasil SHALL ler a tabela bronze do OpenDataSUS, nos 
 
 As camadas silver e gold SHALL continuar funcionando sem mudança de contrato. A fonte anterior (Base dos Dados) SHALL continuar selecionável por configuração.
 
-#### Scenario: Equivalência com a fonte anterior
+#### Scenario: Equivalência nos anos fechados
 - **WHEN** a modelagem roda com a fonte OpenDataSUS
-- **THEN** para cada ano completo em ambas as fontes, o total de notificações por UF difere em no máximo 1% da fonte Base dos Dados, e as diferenças ficam registradas na documentação
+- **THEN** em cada ano até 2020, o total de notificações por UF é idêntico ao da fonte Base dos Dados
+
+#### Scenario: Anos recentes republicados
+- **WHEN** a modelagem roda com a fonte OpenDataSUS
+- **THEN** em cada ano a partir de 2021, o total por UF e classificação final é maior ou igual a 99% do da fonte Base dos Dados (a fonte nova pode ganhar registros, mas não perder), e as diferenças ficam registradas na documentação
 
 #### Scenario: Rollback
 - **WHEN** a variável de fonte é definida como `basedosdados`
