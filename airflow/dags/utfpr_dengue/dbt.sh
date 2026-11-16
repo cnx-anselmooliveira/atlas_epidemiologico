@@ -14,4 +14,7 @@ export DBT_TARGET_PATH="${DBT_TARGET_PATH:-$repo/.dbt-local/target}"
 export DBT_LOG_PATH="${DBT_LOG_PATH:-$repo/.dbt-local/logs}"
 export DBT_PACKAGES_INSTALL_PATH="${DBT_PACKAGES_INSTALL_PATH:-$repo/.dbt-local/dbt_packages}"
 export DBT_SEND_ANONYMOUS_USAGE_STATS=false
+# venv do uv fora da pasta de DAGs: o Cosmos calcula um hash da pasta do projeto a cada
+# leitura da DAG, e um .venv aqui dentro deixaria isso lento demais (montagem do Windows)
+export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-$repo/.dbt-local/venv}"
 exec uv run --native-tls --project "$here" dbt "$@" --project-dir "$here" --profiles-dir "$here"

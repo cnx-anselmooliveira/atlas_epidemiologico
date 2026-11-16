@@ -42,25 +42,36 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     && ln -s /opt/dbt/bin/dbt /usr/local/bin/dbt \
     && chown -R airflow:0 /opt/dbt
 
-# Configuração comum a todos os ambientes (o específico de cada um vem do compose/stack)
+# Configuração comum a todos os ambientes (o específico de cada um vem do compose/stack).
+# DAGBAG_IMPORT_TIMEOUT=120 e DAG_FILE_PROCESSOR_TIMEOUT=180 (este precisa ser maior): as DAGs
+# do Cosmos rodam `dbt ls` na leitura (sem cache, ~60 s); depois o cache do Cosmos evita repetir
 ENV AIRFLOW__CORE__EXECUTOR=LocalExecutor \
     AIRFLOW__CORE__PARALLELISM=4 \
     AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG=4 \
     AIRFLOW__CORE__LOAD_EXAMPLES=False \
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True \
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK=True \
+    AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT=120 \
+    AIRFLOW__DAG_PROCESSOR__DAG_FILE_PROCESSOR_TIMEOUT=180 \
     MLFLOW_DISABLE_AGENT_HINT=1 \
     DBT_PARTIAL_PARSE=false \
     DBT_SEND_ANONYMOUS_USAGE_STATS=false \
     HF_HOME=/opt/airflow/hf-cache \
     NUMBA_CACHE_DIR=/tmp/numba-cache
 
-# Diretório compartilhado entre componentes (ex.: senha do Simple Auth Manager em dev),
-# artefatos do dbt por execução (target/ e logs/ fora da pasta de DAGs) e cache do
-# Hugging Face (checkpoint do Chronos)
-RUN mkdir -p /opt/airflow/shared /opt/airflow/dbt-artifacts /opt/airflow/hf-cache \
-    && chown airflow:0 /opt/airflow/shared /opt/airflow/dbt-artifacts /opt/airflow/hf-cache \
-    && chmod 2770 /opt/airflow/shared /opt/airflow/dbt-artifacts /opt/airflow/hf-cache
+# Diretório compartilhado entre componentes (ex.: senha do Simple Auth Manager em dev) e
+# cache do Hugging Face (checkpoint do Chronos)
+RUN mkdir -p /opt/airflow/shared /opt/airflow/hf-cache \
+    && chown airflow:0 /opt/airflow/shared /opt/airflow/hf-cache \
+    && chmod 2770 /opt/airflow/shared /opt/airflow/hf-cache
+
+# Cosmos (DAGs do dbt e plugin de dbt docs) precisa estar no Python do próprio Airflow;
+# fixar apache-airflow impede o pip de trocar a versão do Airflow. O dbt segue em /opt/dbt.
+USER airflow
+RUN --mount=type=secret,id=extra_ca,required=false,uid=50000 \
+    if [ -s /run/secrets/extra_ca ]; then export PIP_CERT=/run/secrets/extra_ca; fi; \
+    pip install --no-cache-dir "apache-airflow==${AIRFLOW_VERSION}" "astronomer-cosmos==1.16.0"
+USER root
 COPY --chown=airflow:0 airflow/dags /opt/airflow/dags
 COPY --chown=airflow:0 --chmod=0755 airflow/config/init.sh /opt/atlas/init.sh
 COPY --chown=airflow:0 airflow/tests /opt/atlas/tests

@@ -28,12 +28,15 @@ x-airflow-common: &airflow-common
     ATLAS_IMAGE_TAG: local
     GCP_PROJECT: ${GCP_PROJECT:-}
     GOOGLE_APPLICATION_CREDENTIALS: /secrets/training-sa.json
-    # dbt (DAG process_etl_atlas): mesma service account do treino
+    # dbt (DAGs process_etl_atlas e process_dbt_docs_atlas, via Cosmos): mesma service account do treino
     DBT_BQ_KEYFILE: /secrets/training-sa.json
     DBT_PARTIAL_PARSE: "false"
+    # Connection do GCS (dbt docs): só o caminho da chave montada, nunca o conteúdo
+    AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: '{"conn_type": "google_cloud_platform", "extra": {"key_path": "/secrets/training-sa.json", "project": "ppgcc-dengue-project"}}'
+    # Plugin de dbt docs do Cosmos: lê a documentação publicada pela process_dbt_docs_atlas
+    AIRFLOW__COSMOS__DBT_DOCS_PROJECTS: '{"atlas": {"dir": "gs://ppgcc-bucket/dbt_docs/dev", "conn_id": "google_cloud_default", "index": "index.html", "name": "dbt Docs (Atlas)"}}'
   volumes:
     - ../airflow/dags:/opt/airflow/dags            # DAGs ao vivo, sem rebuild
-    - dbt-artifacts:/opt/airflow/dbt-artifacts     # target/ e logs/ do dbt por execução
     - hf-cache:/opt/airflow/hf-cache               # checkpoint do Chronos (HF_HOME da imagem)
     - ../ml/src:/opt/atlas-ml-src/src               # atlas_ml editável
     - airflow-logs:/opt/airflow/logs
@@ -179,6 +182,5 @@ volumes:
   pgdata:
   mlartifacts:
   airflow-logs:
-  dbt-artifacts:
   hf-cache:
   airflow-shared:
