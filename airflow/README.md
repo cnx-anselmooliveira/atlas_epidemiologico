@@ -42,6 +42,7 @@ As tarefas herdam o ambiente do container (`MLFLOW_TRACKING_URI`, `ATLAS_ENV`, `
 |---|---|---|
 | `atlas_ml_example_training` | manual | `atlas-ml train example --register`. Falha se a run não for registrada no MLflow; 2 retentativas |
 | `process_etl_atlas` | manual | Atualiza a modelagem dbt (`dags/utfpr_dengue/`) no BigQuery: `dbt_debug → dbt_deps → dbt_seed → dbt_bronze → dbt_silver → dbt_gold → dbt_report`. Parâmetros opcionais `select`, `exclude` e `full_refresh`; sem configuração, roda o projeto inteiro. Uma etapa falhando interrompe as seguintes e deixa a execução vermelha (`dbt_status`). Sem retentativas |
+| `atlas_dengue_forecast_br` | manual | Previsão de dengue por UF: `prepare → 5 modelos-base (baseline bayesiano, Chronos, CatBoost, SVR, LSTM) → ensemble → compare`, com no máximo 3 tarefas em paralelo e 1 retentativa. Parâmetros opcionais `window`, `horizon` e `seed`. Todas as runs no MLflow (`atlas/dengue-forecast-br`) com a tag `atlas.pipeline_run` = run_id da DAG; modelos registrados como `atlas-br-<modelo>` |
 
 ### process_etl_atlas
 
