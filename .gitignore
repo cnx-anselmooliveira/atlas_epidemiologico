@@ -36,3 +36,6 @@ extra_ca.pem
 .DS_Store
 Thumbs.db
 .idea/
+
+# Artefatos do dbt rodado localmente (airflow/dags/utfpr_dengue/dbt.sh|ps1)
+.dbt-local/
