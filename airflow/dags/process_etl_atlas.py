@@ -63,8 +63,8 @@ def stage_env(stage: str, layer: list[str] | None = None) -> dict[str, str]:
     if layer is not None:
         env |= {
             "DBT_LAYER": " ".join(layer),
-            "DBT_SELECT_ARG": "{{ params.select }}",
-            "DBT_EXCLUDE_ARG": "{{ params.exclude }}",
+            "DBT_SELECT_ARG": "{{ params.select or '' }}",
+            "DBT_EXCLUDE_ARG": "{{ params.exclude or '' }}",
             "DBT_FULL_REFRESH_ARG": "{{ 'true' if params.full_refresh else '' }}",
         }
     return env
@@ -169,14 +169,17 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     tags=["atlas", "dbt", "etl"],
+    # Todos opcionais: disparar sem configuração roda o projeto inteiro
     params={
         "select": Param(
-            "",
-            type="string",
-            description="Seletores do dbt (vazio = projeto inteiro). Ex.: +gold_x",
+            None,
+            type=["null", "string"],
+            description="Opcional. Seletores do dbt (vazio = projeto inteiro). Ex.: +gold_x",
         ),
-        "exclude": Param("", type="string", description="Seletores a excluir."),
-        "full_refresh": Param(False, type="boolean", description="Recria tabelas incrementais do zero."),
+        "exclude": Param(None, type=["null", "string"], description="Opcional. Seletores a excluir."),
+        "full_refresh": Param(
+            False, type="boolean", description="Opcional. Recria tabelas incrementais do zero."
+        ),
     },
     # Teste falhando não deve repetir sozinho: quem decide é a pessoa
     default_args={"owner": "atlas", "retries": 0},

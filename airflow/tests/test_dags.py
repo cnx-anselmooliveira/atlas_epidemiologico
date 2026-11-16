@@ -57,7 +57,8 @@ def test_etl_estrutura():
 def test_etl_parametros_e_caminhos():
     dag = _dagbag().dags["process_etl_atlas"]
     params = dag.params
-    assert params["select"] == "" and params["exclude"] == "" and params["full_refresh"] is False
+    # parâmetros opcionais: disparo sem configuração roda o projeto inteiro
+    assert params["select"] is None and params["exclude"] is None and params["full_refresh"] is False
     layers = {
         "dbt_seed": "resource_type:seed",
         "dbt_bronze": "path:models/bronze",
