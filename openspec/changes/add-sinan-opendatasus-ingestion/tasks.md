@@ -2,7 +2,7 @@
 
 ## 1. Plano do sync (sem rede)
 
-- [ ] 1.1 Criar `airflow/dags/atlas_ingest/__init__.py` e `sinan.py`:
+- [x] 1.1 Criar `airflow/dags/atlas_ingest/__init__.py` e `sinan.py`:
   - `url_arquivo`;
   - `listar_origem`, com `HEAD` de 2000 até o ano corrente, 404 como ausente e falha geral como erro;
   - `listar_landing`, com os objetos `.csv.zip` e a metadata `origem_etag`, `origem_last_modified`, `registros` e `bronze_etag`;
@@ -10,7 +10,7 @@
   - `contar_registros_csv`.
 
   Acrescentar `atlas_ingest/` ao `airflow/dags/.airflowignore`. Verificar com `ruff`.
-- [ ] 1.2 Testes unitários do plano em `airflow/tests/test_sinan_ingest.py`:
+- [x] 1.2 Testes unitários do plano em `airflow/tests/test_sinan_ingest.py`:
   - bucket vazio (tudo a baixar);
   - ETag igual (nada);
   - ETag diferente;
@@ -21,7 +21,7 @@
   - CSV com campo entre aspas contendo quebra de linha.
 
   Verificar rodando dentro da imagem.
-- [ ] 1.3 Commit em `dev` (`feat(ingest): plano de sync do SINAN OpenDataSUS`); verificar `git log -1 --stat`
+- [x] 1.3 Commit em `dev` (`feat(ingest): plano de sync do SINAN OpenDataSUS`); verificar `git log -1 --stat`
 
 ## 2. Landing como espelho
 

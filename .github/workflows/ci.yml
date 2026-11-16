@@ -146,6 +146,8 @@ jobs:
           -e DBT_BQ_KEYFILE=/tmp/chave-ficticia.json
           -e AIRFLOW__COSMOS__ENABLE_CACHE_DBT_LS=False
           atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_dags.py
+      - name: plano de sync do SINAN (sem rede)
+        run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_sinan_ingest.py
 
   platform-e2e:
     name: platform-e2e
