@@ -1,6 +1,10 @@
 # Sobreposição opcional: confiar na CA da inspeção TLS da rede corporativa.
 # Aplicada automaticamente pelo dev.ps1 quando EXTRA_CA_PATH está no .env.
 # certs/ca-bundle.pem = CAs públicas da imagem + a CA corporativa (gerado pelo dev.ps1).
+#
+# Vale em dois momentos:
+#   - build: o bundle vira o secret `extra_ca` dos Dockerfiles (uv sync baixa pacotes);
+#   - execução: SSL_CERT_FILE & cia. nos containers (BigQuery, GCS, Hugging Face).
 
 x-ca: &ca
   volumes:
@@ -11,11 +15,20 @@ x-ca: &ca
     CURL_CA_BUNDLE: /etc/atlas/ca-bundle.pem
     GRPC_DEFAULT_SSL_ROOTS_FILE_PATH: /etc/atlas/ca-bundle.pem
 
+x-ca-build: &ca-build
+  <<: *ca
+  build:
+    secrets: [extra_ca]
+
 services:
   mlflow: *ca
-  airflow-init: *ca
-  airflow-api-server: *ca
-  airflow-scheduler: *ca
-  airflow-dag-processor: *ca
-  airflow-triggerer: *ca
-  jupyter: *ca
+  airflow-init: *ca-build
+  airflow-api-server: *ca-build
+  airflow-scheduler: *ca-build
+  airflow-dag-processor: *ca-build
+  airflow-triggerer: *ca-build
+  jupyter: *ca-build
+
+secrets:
+  extra_ca:
+    file: ./certs/ca-bundle.pem
