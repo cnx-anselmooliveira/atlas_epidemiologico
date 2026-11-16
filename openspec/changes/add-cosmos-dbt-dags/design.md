@@ -117,6 +117,16 @@ O plugin roda no `api-server` e lê o bucket com a mesma Connection. Nas stacks 
 - **Docs:** uma única tarefa `DbtDocsGCSOperator`, com bucket e pasta `dbt_docs/<ATLAS_ENV>`.
 - **Saem:** os testes antigos de `dbt_report` e `dbt_status`.
 
+## Atualização: sync do SINAN e agendamento
+
+A mudança `add-sinan-opendatasus-ingestion` acrescentou à `process_etl_atlas`:
+- o grupo `sinan` antes dos grupos do dbt;
+- a tarefa `decidir_dbt` (short-circuit);
+- `schedule="@daily"`;
+- o parâmetro opcional `forcar_dbt`.
+
+Os grupos do Cosmos não mudaram. O requisito "Disparo sem configuração" virou "Execução diária com sync antes do dbt".
+
 ## Medições da implementação
 
 - **Tempo de leitura da `process_etl_atlas`:**

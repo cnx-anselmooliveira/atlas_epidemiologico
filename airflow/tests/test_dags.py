@@ -62,21 +62,26 @@ def _layer_of(task_id: str) -> str:
     return task_id.split(".", 1)[0]
 
 
+def _dbt_task_ids(dag):
+    return [t for t in dag.task_ids if _layer_of(t) in ETL_LAYERS]
+
+
 def test_etl_cosmos_grupos_em_cadeia():
     dag = _dagbag().dags["process_etl_atlas"]
-    assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
     assert dag.max_active_runs == 1
-    assert not dag.params, "a ETL não tem parâmetros"
-    assert {_layer_of(t) for t in dag.task_ids} == set(ETL_LAYERS)
-    for task in dag.tasks:
-        assert task.retries == 0, f"{task.task_id} não pode ter retentativa"
+    dbt = _dbt_task_ids(dag)
+    assert {_layer_of(t) for t in dbt} == set(ETL_LAYERS)
+    for task_id in dbt:
+        assert dag.get_task(task_id).retries == 0, f"{task_id} não pode ter retentativa"
     # cada camada só depende da anterior (ou dela mesma)
     order = {layer: i for i, layer in enumerate(ETL_LAYERS)}
     crossings = set()
-    for task in dag.tasks:
-        for up in task.upstream_task_ids:
-            a, b = order[_layer_of(up)], order[_layer_of(task.task_id)]
-            assert a <= b, f"{up} -> {task.task_id} volta de camada"
+    for task_id in dbt:
+        for up in dag.get_task(task_id).upstream_task_ids:
+            if _layer_of(up) not in order:
+                continue
+            a, b = order[_layer_of(up)], order[_layer_of(task_id)]
+            assert a <= b, f"{up} -> {task_id} volta de camada"
             if a < b:
                 crossings.add((a, b))
     assert crossings == {(0, 1), (1, 2), (2, 3)}, crossings
@@ -84,14 +89,59 @@ def test_etl_cosmos_grupos_em_cadeia():
 
 def test_etl_cosmos_cobre_cada_model_uma_vez():
     dag = _dagbag().dags["process_etl_atlas"]
+    dbt = _dbt_task_ids(dag)
     for node, expected in _project_nodes().items():
         layers = {
-            _layer_of(t)
-            for t in dag.task_ids
-            if t.split(".")[1] == node or t.split(".")[1].startswith(node + "_")
+            _layer_of(t) for t in dbt if t.split(".")[1] == node or t.split(".")[1].startswith(node + "_")
         }
         assert layers == {expected}, f"{node}: esperado em {expected}, encontrado em {layers}"
-    assert any(t.startswith("gold.gold_dengue_casos_provaveis_uf_semanal") for t in dag.task_ids)
+    assert any(t.startswith("gold.gold_dengue_casos_provaveis_uf_semanal") for t in dbt)
+
+
+SINAN = [
+    "sinan.detectar_diferencas",
+    "sinan.lista_baixar",
+    "sinan.baixar",
+    "sinan.apagar",
+    "sinan.carregar_bronze",
+    "sinan.validar",
+    "sinan.marcar_carregado",
+    "sinan.remover_da_bronze",
+]
+
+
+def test_etl_diaria_com_sync_do_sinan_antes_do_dbt():
+    dag = _dagbag().dags["process_etl_atlas"]
+    assert "@daily" in str(dag.schedule) or "daily" in str(dag.timetable.summary).lower(), (
+        dag.timetable.summary
+    )
+    assert dag.catchup is False
+    assert dag.params["forcar_dbt"] is False
+    assert set(SINAN) <= set(dag.task_ids)
+    sensor = dag.get_task("sinan.detectar_diferencas")
+    assert sensor.mode == "reschedule" and sensor.soft_fail is True
+    # tarefas por arquivo/ano são mapeadas
+    for t in (
+        "sinan.baixar",
+        "sinan.apagar",
+        "sinan.carregar_bronze",
+        "sinan.validar",
+        "sinan.marcar_carregado",
+        "sinan.remover_da_bronze",
+    ):
+        from airflow.sdk.definitions.mappedoperator import MappedOperator
+
+        assert isinstance(dag.get_task(t), MappedOperator), t
+    # landing antes da bronze; bronze antes da decisão; decisão antes do dbt
+    assert {"sinan.baixar", "sinan.apagar"} <= dag.get_task("sinan.carregar_bronze").upstream_task_ids
+    assert "sinan.apagar" in dag.get_task("sinan.remover_da_bronze").upstream_task_ids
+    decidir = dag.get_task("decidir_dbt")
+    assert {"sinan.marcar_carregado", "sinan.remover_da_bronze"} <= decidir.upstream_task_ids
+    assert decidir.trigger_rule == "none_failed" and decidir.ignore_downstream_trigger_rules is True
+    roots_seed = [t for t in decidir.downstream_task_ids if _layer_of(t) == "seed"]
+    assert roots_seed, "decidir_dbt precisa vir antes do grupo seed"
+    for t in ("sinan.carregar_bronze", "sinan.remover_da_bronze"):
+        assert dag.get_task(t).trigger_rule == "none_failed", t
 
 
 def test_docs_dag():

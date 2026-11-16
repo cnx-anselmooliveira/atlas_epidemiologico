@@ -25,12 +25,16 @@ A falha de um model ou de um teste SHALL falhar a tarefa daquele model. Tarefas 
 - **THEN** a tarefa daquele model fica com falha, as tarefas que dependem dele na gold não rodam, e a execução fica vermelha
 - **AND** o nome do model que falhou aparece na própria tarefa, sem precisar procurar no log
 
-### Requirement: Disparo sem configuração
-A DAG SHALL ter `schedule=None`, no máximo uma execução ativa e nenhum parâmetro obrigatório. O disparo SHALL rodar o projeto inteiro. Para refazer só parte da modelagem, SHALL bastar limpar (clear) as tarefas ou o grupo desejado.
+### Requirement: Execução diária com sync antes do dbt
+A DAG `process_etl_atlas` SHALL rodar diariamente e aceitar disparo manual, com no máximo uma execução ativa. Antes da modelagem, SHALL rodar o sync dos dados de origem (mudança `add-sinan-opendatasus-ingestion`). A modelagem SHALL ser pulada quando o sync não trouxer dados novos, a menos que o parâmetro opcional `forcar_dbt` seja verdadeiro. Para refazer só parte da modelagem, SHALL bastar limpar (clear) as tarefas ou o grupo desejado.
 
 #### Scenario: Refazer só a gold
 - **WHEN** alguém limpa o grupo `gold` de uma execução já terminada
 - **THEN** só as tarefas da gold rodam de novo
+
+#### Scenario: Forçar a modelagem
+- **WHEN** a DAG é disparada manualmente com `forcar_dbt=true` e não há dados novos na origem
+- **THEN** todos os grupos do dbt rodam
 
 ### Requirement: Projeto e credencial do ambiente, sem escrita na pasta de DAGs
 A execução SHALL usar o projeto dbt que está junto das DAGs e o profile do próprio projeto, com credencial por variável de ambiente. A pasta de DAGs SHALL NOT receber arquivos gerados pela execução, já que pode ser somente leitura no bundle Git.

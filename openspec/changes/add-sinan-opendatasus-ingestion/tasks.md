@@ -68,7 +68,7 @@
 
 ## 5. Sync dentro da `process_etl_atlas` e corte
 
-- [ ] 5.1 Acrescentar à `airflow/dags/process_etl_atlas.py`:
+- [x] 5.1 Acrescentar à `airflow/dags/process_etl_atlas.py`:
   - o grupo `sinan`, todo em `@task` / `@task.sensor`, sem Bash:
     - `detectar_diferencas` em reschedule (30 min, timeout de 20 h, `soft_fail`), verificando uma vez só em disparo manual;
     - `baixar`, `apagar`, `carregar_bronze`, `validar`, `marcar_carregado` e `remover_da_bronze` mapeados;
@@ -82,7 +82,7 @@
   - modo do sensor e `soft_fail`;
   - trigger rule;
   - parâmetro e agendamento.
-- [ ] 5.2 Alinhar a `add-cosmos-dbt-dags`: o requisito "Disparo sem configuração" passa a "diário, com sync do SINAN antes e `forcar_dbt` opcional", e o teste `assert not dag.params` muda para o parâmetro novo; verificar `openspec validate add-cosmos-dbt-dags --strict`
+- [x] 5.2 Alinhar a `add-cosmos-dbt-dags`: o requisito "Disparo sem configuração" passa a "diário, com sync do SINAN antes e `forcar_dbt` opcional", e o teste `assert not dag.params` muda para o parâmetro novo; verificar `openspec validate add-cosmos-dbt-dags --strict`
 - [ ] 5.3 Primeira execução em dev com o bucket parcialmente carregado: os anos que faltam são baixados e todos vão para a bronze, com o dbt ainda em `basedosdados`; registrar tempo total, registros por ano e bytes no landing
 - [ ] 5.4 Execução sem mudança na origem: o sync não faz nada e os grupos do dbt ficam pulados; depois, um disparo manual com `forcar_dbt=true` roda o dbt sem esperar o sensor. Verificar nos estados das tarefas e que o sensor não consultou o BigQuery.
 - [ ] 5.5 Comparar as fontes (teste 4.3 e consultas por ano/UF/classificação) e registrar em `docs/referencias/sinan-opendatasus.md`; com o critério da 4.3 atendido, mudar o padrão de `sinan_source` para `opendatasus` e rodar a `process_etl_atlas` com `forcar_dbt`, com os testes verdes e a gold de casos prováveis chegando à semana mais recente
