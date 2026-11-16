@@ -147,6 +147,43 @@ def test_contar_registros_com_quebra_de_linha_entre_aspas():
     assert n == 2 and colunas == ["DT_NOTIFIC", "OBS"]
 
 
+NET = ["DT_NOTIFIC", "SG_UF_NOT", "ID_MUNICIP", "SG_UF", "ID_MN_RESI", "DT_SIN_PRI", "CLASSI_FIN", "EVOLUCAO"]
+WINDOWS = [c.replace("CLASSI_FIN", "CON_CLASSI").replace("EVOLUCAO", "CON_EVOLUC") for c in NET]
+
+
+def test_validacao_aceita_os_dois_layouts():
+    from atlas_ingest.sinan import validar_contagens
+
+    validar_contagens(2026, 10, 10, 10, NET)
+    validar_contagens(2000, 10, 10, 10, WINDOWS)
+
+
+def test_validacao_falha_por_contagem_ou_coluna():
+    from atlas_ingest.sinan import validar_contagens
+
+    for args, trecho in (
+        ((2026, 10, 10, 9, NET), "contagens divergentes"),
+        ((2026, 10, 10, 10, [c for c in NET if c != "CLASSI_FIN"]), "CLASSI_FIN|CON_CLASSI"),
+    ):
+        try:
+            validar_contagens(*args)
+        except ValueError as exc:
+            assert trecho in str(exc), exc
+        else:
+            raise AssertionError(f"deveria falhar: {trecho}")
+
+
+def test_sql_carga_completa_colunas_e_linhagem():
+    from atlas_ingest.sinan import sql_carga
+
+    destino = ["ano_arquivo", "arquivo_etag", "arquivo_uri", "carregado_em", "SG_UF_NOT", "CLASSI_FIN"]
+    sql = sql_carga("p.bronze._stg_2000", ["SG_UF_NOT", "CON_CLASSI"], destino)
+    assert "`SG_UF_NOT`" in sql and "`CON_CLASSI`" in sql  # coluna nova do ano entra
+    assert "CAST(NULL AS STRING) AS `CLASSI_FIN`" in sql  # coluna da tabela ausente no ano
+    assert "@ano AS ano_arquivo" in sql and "@etag AS arquivo_etag" in sql
+    assert sql.count("ano_arquivo") == 1  # linhagem não é copiada da staging
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in list(globals().items()):

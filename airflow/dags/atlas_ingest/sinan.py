@@ -25,16 +25,20 @@ BASE_URL = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SINAN/Dengue/cs
 PRIMEIRO_ANO = 2000
 PREFIXO_LANDING = "landing/sinan/dengue/"
 TABELA_BRONZE = "sinan_dengue_opendatasus"
-# Colunas que a modelagem (bronze_dengue_brasil) usa; a validação exige todas
+DATASET_BRONZE = "bronze"
+COLUNAS_LINHAGEM = ("ano_arquivo", "arquivo_etag", "arquivo_uri", "carregado_em")
+# Colunas que a modelagem (bronze_dengue_brasil) usa; a validação exige todas. Cada item
+# aceita nomes alternativos: o layout do SINAN Windows (2000-2006) usa CON_CLASSI/CON_EVOLUC
+# no lugar de CLASSI_FIN/EVOLUCAO (SINAN Net, 2007+).
 COLUNAS_OBRIGATORIAS = (
-    "DT_NOTIFIC",
-    "SG_UF_NOT",
-    "ID_MUNICIP",
-    "SG_UF",
-    "ID_MN_RESI",
-    "DT_SIN_PRI",
-    "CLASSI_FIN",
-    "EVOLUCAO",
+    ("DT_NOTIFIC",),
+    ("SG_UF_NOT",),
+    ("ID_MUNICIP",),
+    ("SG_UF",),
+    ("ID_MN_RESI",),
+    ("DT_SIN_PRI",),
+    ("CLASSI_FIN", "CON_CLASSI"),
+    ("EVOLUCAO", "CON_EVOLUC"),
 )
 _NOME = re.compile(r"^DENGBR(\d{2})\.csv\.zip$")
 
@@ -261,3 +265,157 @@ def apagar_do_landing(bucket, nome: str) -> list[str]:
             blob.delete()
             apagados.append(blob.name)
     return apagados
+
+
+# ---------------------------------------------------------------------------------------
+# Tabela bronze (BigQuery)
+# ---------------------------------------------------------------------------------------
+
+
+def colunas_faltando(colunas: list[str]) -> list[str]:
+    """Colunas obrigatórias ausentes (cada item aceita os nomes alternativos)."""
+    presentes = set(colunas)
+    return ["|".join(alts) for alts in COLUNAS_OBRIGATORIAS if not presentes.intersection(alts)]
+
+
+def validar_contagens(ano: int, registros: int, output_rows: int, linhas_particao: int, colunas: list[str]):
+    """Levanta ValueError se a carga do ano não bate com o arquivo do landing."""
+    problemas = []
+    if not registros == output_rows == linhas_particao:
+        problemas.append(
+            f"contagens divergentes: arquivo={registros} load={output_rows} partição={linhas_particao}"
+        )
+    faltando = colunas_faltando(colunas)
+    if faltando:
+        problemas.append(f"colunas obrigatórias ausentes: {', '.join(faltando)}")
+    if problemas:
+        raise ValueError(f"Ano {ano}: " + "; ".join(problemas))
+
+
+def ddl_tabela_bronze(projeto: str, dataset: str = DATASET_BRONZE, tabela: str = TABELA_BRONZE) -> str:
+    """Cria a tabela se não existir: partição por ano do arquivo, cluster pela UF de notificação.
+    As colunas da origem entram depois, por ALLOW_FIELD_ADDITION, conforme cada ano."""
+    return f"""
+CREATE TABLE IF NOT EXISTS `{projeto}.{dataset}.{tabela}` (
+  ano_arquivo INT64 NOT NULL OPTIONS(description="Ano do arquivo DENGBR<aa> de origem"),
+  arquivo_etag STRING OPTIONS(description="ETag da versão do arquivo na origem (OpenDataSUS)"),
+  arquivo_uri STRING OPTIONS(description="Arquivo CSV no landing que gerou a partição"),
+  carregado_em TIMESTAMP OPTIONS(description="Momento da carga da partição"),
+  SG_UF_NOT STRING
+)
+PARTITION BY RANGE_BUCKET(ano_arquivo, GENERATE_ARRAY(2000, 2101, 1))
+CLUSTER BY SG_UF_NOT
+OPTIONS(description="{_DESCRICAO_TABELA}")
+""".strip()
+
+
+_DESCRICAO_TABELA = (
+    "Microdados de dengue do SINAN (OpenDataSUS), sem transformação: colunas de origem como texto, "
+    "uma partição por ano de arquivo. Carregada pela process_etl_atlas a partir de "
+    "gs://<bucket>/landing/sinan/dengue/."
+)
+
+
+def sql_carga(staging: str, colunas_staging: list[str], colunas_destino: list[str]) -> str:
+    """SELECT da staging para a partição do ano: todas as colunas que a tabela já tem ou passa a
+    ter (as ausentes no ano viram NULL), mais as colunas de linhagem (parâmetros @ano, @etag, @uri).
+    Não depende de o BigQuery aceitar uma partição com schema menor que o da tabela."""
+    origem = [c for c in colunas_destino if c not in COLUNAS_LINHAGEM]
+    todas = origem + [c for c in colunas_staging if c not in origem]
+    stg = set(colunas_staging)
+    selects = [f"`{c}`" if c in stg else f"CAST(NULL AS STRING) AS `{c}`" for c in todas]
+    selects += [
+        "@ano AS ano_arquivo",
+        "@etag AS arquivo_etag",
+        "@uri AS arquivo_uri",
+        "CURRENT_TIMESTAMP() AS carregado_em",
+    ]
+    return "SELECT\n  " + ",\n  ".join(selects) + f"\nFROM `{staging}`"
+
+
+def ler_cabecalho_csv(blob, encoding: str = "UTF-8") -> list[str]:
+    """Primeira linha do CSV no landing, sem baixar o arquivo inteiro."""
+    trecho = blob.download_as_bytes(start=0, end=64 * 1024)
+    texto = trecho.decode("latin-1" if encoding.upper().startswith("ISO") else "utf-8", errors="replace")
+    return [c.strip().strip('"') for c in next(csv.reader([texto.splitlines()[0]]))]
+
+
+def carregar_ano_na_bronze(bq, bucket, ano: int, projeto: str) -> dict:
+    """Landing → staging (load job) → partição do ano (query job atômico) → apaga a staging.
+    `bq` = google.cloud.bigquery.Client; devolve as contagens para a validação."""
+    from google.cloud import bigquery
+
+    nome = nome_arquivo(ano)
+    zip_blob = blob_zip(bucket, nome)
+    zip_blob.reload()
+    meta = zip_blob.metadata or {}
+    csv_blob = blob_csv(bucket, nome)
+    uri = f"gs://{bucket.name}/{csv_blob.name}"
+    colunas = ler_cabecalho_csv(csv_blob, meta.get("encoding", "UTF-8"))
+    destino = f"{projeto}.{DATASET_BRONZE}.{TABELA_BRONZE}"
+    staging = f"{projeto}.{DATASET_BRONZE}._stg_sinan_dengue_{ano}"
+
+    bq.query(ddl_tabela_bronze(projeto)).result()
+    load = bq.load_table_from_uri(
+        uri,
+        staging,
+        job_config=bigquery.LoadJobConfig(
+            source_format=bigquery.SourceFormat.CSV,
+            schema=[bigquery.SchemaField(c, "STRING") for c in colunas],
+            skip_leading_rows=1,
+            allow_quoted_newlines=True,
+            encoding=meta.get("encoding", "UTF-8"),
+            write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+        ),
+    )
+    load.result()
+    try:
+        colunas_destino = [f.name for f in bq.get_table(destino).schema]
+        sql = sql_carga(staging, colunas, colunas_destino)
+        cfg = bigquery.QueryJobConfig(
+            destination=f"{destino}${ano}",
+            write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+            schema_update_options=[bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION],
+            query_parameters=[
+                bigquery.ScalarQueryParameter("ano", "INT64", ano),
+                bigquery.ScalarQueryParameter("etag", "STRING", meta.get("origem_etag")),
+                bigquery.ScalarQueryParameter("uri", "STRING", uri),
+            ],
+        )
+        bq.query(sql, job_config=cfg).result()
+    finally:
+        bq.delete_table(staging, not_found_ok=True)
+    linhas = next(
+        iter(bq.query(f"SELECT COUNT(*) AS n FROM `{destino}` WHERE ano_arquivo = {int(ano)}").result())
+    ).n
+    return {
+        "ano": ano,
+        "nome": nome,
+        "etag": meta.get("origem_etag"),
+        "registros": int(meta.get("registros", -1)),
+        "output_rows": int(load.output_rows or 0),
+        "linhas_particao": int(linhas),
+        "colunas": colunas,
+    }
+
+
+def marcar_carregado(bucket, ano: int, etag: str) -> None:
+    """Grava bronze_etag na metadata do zip: a versão saiu do plano dos próximos dias."""
+    blob = blob_zip(bucket, nome_arquivo(ano))
+    blob.reload()
+    meta = dict(blob.metadata or {})
+    if meta.get("origem_etag") != etag:
+        raise ValueError(
+            f"{blob.name}: o landing mudou durante a carga ({meta.get('origem_etag')} != {etag})"
+        )
+    meta["bronze_etag"] = etag
+    blob.metadata = meta
+    blob.patch()
+
+
+def remover_ano_da_bronze(bq, ano: int, projeto: str) -> int:
+    """Apaga a partição de um ano que saiu da origem. Devolve as linhas removidas."""
+    destino = f"{projeto}.{DATASET_BRONZE}.{TABELA_BRONZE}"
+    job = bq.query(f"DELETE FROM `{destino}` WHERE ano_arquivo = {int(ano)}")
+    job.result()
+    return int(job.num_dml_affected_rows or 0)

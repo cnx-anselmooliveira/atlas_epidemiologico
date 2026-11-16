@@ -33,16 +33,16 @@
 
 ## 3. Tabela bronze materializada
 
-- [ ] 3.1 Criar `bronze.sinan_dengue_opendatasus` (particionada por `ano_arquivo`, clusterizada por `SG_UF_NOT`) de forma idempotente na própria DAG; verificar com `bq show` o particionamento
-- [ ] 3.2 Implementar `carregar_bronze`:
+- [x] 3.1 Criar `bronze.sinan_dengue_opendatasus` (particionada por `ano_arquivo`, clusterizada por `SG_UF_NOT`) de forma idempotente na própria DAG; verificar com `bq show` o particionamento
+- [x] 3.2 Implementar `carregar_bronze`:
   1. load job do `.csv` do landing para a staging, com todas as colunas `STRING`;
   2. query job para a partição do ano, com `WRITE_TRUNCATE`, `ALLOW_FIELD_ADDITION` e colunas de linhagem;
   3. remoção da staging.
 
   Verificar carregando 2026 e depois 2000 (schema menor), conferindo que a carga de 2000 não mexe em 2026.
-- [ ] 3.3 Implementar `validar` (contagem da partição = `registros` = `output_rows`; colunas obrigatórias com os nomes alternativos do layout antigo, com teste unitário para 2000 e 2026) e `marcar_carregado` (`bronze_etag` na metadata do zip); verificar com uma validação forçada a falhar que o `bronze_etag` não é gravado e que o plano seguinte inclui o ano em `carregar` sem `baixar`
-- [ ] 3.4 Implementar `remover_da_bronze` (`DELETE` da partição do ano removido); verificar com o ano fictício do teste 2.4 carregado antes numa partição de teste
-- [ ] 3.5 Commit em `dev` (`feat(ingest): tabela bronze do SINAN`); verificar `git log -1 --stat`
+- [x] 3.3 Implementar `validar` (contagem da partição = `registros` = `output_rows`; colunas obrigatórias com os nomes alternativos do layout antigo, com teste unitário para 2000 e 2026) e `marcar_carregado` (`bronze_etag` na metadata do zip); verificar com uma validação forçada a falhar que o `bronze_etag` não é gravado e que o plano seguinte inclui o ano em `carregar` sem `baixar`
+- [x] 3.4 Implementar `remover_da_bronze` (`DELETE` da partição do ano removido); verificar com o ano fictício do teste 2.4 carregado antes numa partição de teste
+- [x] 3.5 Commit em `dev` (`feat(ingest): tabela bronze do SINAN`); verificar `git log -1 --stat`
 
 ## 4. Modelagem sobre a bronze
 
