@@ -57,27 +57,21 @@ utfpr_dengue:
 
 Este profile substitui o que a `add-gold-casos-provaveis-uf` (tarefa 1.2) ia criar em `utfpr_dengue/`, e o alinhamento faz parte das tarefas.
 
-### 3. DAG `atlas_dbt_refresh`
-```python
-DBT_DIR = Path(__file__).parent / "utfpr_dengue"   # funciona no dags-folder e no bundle Git
-ARTIFACTS = "/opt/airflow/dbt-artifacts/{{ run_id | replace(':', '_') }}"
-params = {"select": Param("", type="string"), "exclude": Param("", type="string"),
-          "full_refresh": Param(False, type="boolean")}
-with DAG("atlas_dbt_refresh", schedule=None, max_active_runs=1, catchup=False,
-         default_args={"retries": 0}, params=params, tags=["atlas", "dbt"]):
-    debug  = BashOperator(task_id="dbt_debug",  bash_command=f"dbt debug  {COMMON}")
-    build  = BashOperator(task_id="dbt_build",  bash_command=f"dbt build  {COMMON} {SELECTION}")
-    report = PythonOperator(task_id="dbt_report", python_callable=summarize_run_results,
-                            trigger_rule="all_done")
-    debug >> build >> report
+### 3. DAG `process_etl_atlas`
+Uma tarefa por etapa, na ordem pedida (deps, seed, bronze, silver, gold), com a checagem de conexão na frente:
 ```
-- **`COMMON`:** `--project-dir {DBT_DIR} --profiles-dir {DBT_DIR} --target-path {ARTIFACTS}/target --log-path {ARTIFACTS}/logs`.
-- **`SELECTION`:** montada por template Jinja, só com os parâmetros não vazios (`--select`, `--exclude`, `--full-refresh`). Os valores entram com aspas na linha de comando, sem concatenação insegura.
-- **Variáveis:** `DBT_PROFILES_DIR` não é usada; `--profiles-dir` deixa explícito.
+dbt_debug ► dbt_deps ► dbt_seed ► dbt_bronze ► dbt_silver ► dbt_gold ► dbt_report
+    └──────────┴──────────┴───────────┴────────────┴───────────┴──────► dbt_status
+```
+- **Camadas:** cada uma é um `dbt build` (models + testes) com `--select` da camada: `resource_type:seed`, `path:models/bronze`, `path:models/silver` e `path:models/gold` + `path:models/metricflow_time_spine.sql` (fica na raiz de `models/`, mas é materializado no schema gold). Juntas cobrem os 28 models.
+- **Parâmetros:** `select`, `exclude` e `full_refresh` valem para todas as camadas. Com `select`, cada seletor do usuário é cruzado com o da camada (`path:models/silver,+gold_x`), então cada camada só reconstrói os antecessores que estão nela. Os parâmetros chegam ao bash como variáveis de ambiente (`DBT_SELECT_ARG` etc.) e viram um array de argumentos com `set -f`; nunca são interpolados no texto do comando.
+- **Artefatos por etapa:** `DBT_TARGET_PATH=/opt/airflow/dbt-artifacts/<run_id>/<etapa>/target` e `DBT_LOG_PATH=…/<etapa>/logs`, por variável de ambiente, porque o `dbt debug` não aceita `--target-path`. Um target por etapa porque cada comando sobrescreve o `run_results.json`.
+- **`deps`:** o `dbt_project.yml` usa `packages-install-path: "{{ env_var('DBT_PACKAGES_INSTALL_PATH', 'dbt_packages') }}"`, e a DAG aponta para `…/<run_id>/dbt_packages`, compartilhado pelas etapas. Hoje o projeto não tem pacotes e o `deps` só avisa; quando houver, o `package-lock.yml` deve ser versionado.
 - **Partial parse:** `DBT_PARTIAL_PARSE=false`, porque cada execução usa um target novo.
-- **Retentativas:** `retries=0`. Um build com teste falhando não deve repetir, e quem decide é a pessoa.
-- **`summarize_run_results`:** lê `{ARTIFACTS}/target/run_results.json` e devolve, no log e no XCom, `{"success": n, "error": n, "fail": n, "skipped": n, "warn": n, "failed_nodes": [...], "slowest": [(nó, s)×5]}`. Se o arquivo não existir (o debug falhou), registra isso e termina sem erro adicional.
-- **Artefatos:** `/opt/airflow/dbt-artifacts/` fica num volume no compose de dev, com retenção manual. Na VPS segue a mesma ideia; a limpeza fica para depois.
+- **Retentativas:** `retries=0`. Um teste falhando não deve repetir, e quem decide é a pessoa.
+- **`dbt_report`:** `trigger_rule=all_done`. Lê os `run_results.json` de todas as etapas e devolve, no log e no XCom: contagens por status (total e por etapa), nós que falharam com a etapa, os 5 mais lentos e os bytes processados (`adapter_response.bytes_processed`). Etapas que não rodaram aparecem como "não executada", sem erro adicional.
+- **`dbt_status`:** o Airflow decide o estado da execução pelas tarefas folha. Com o relatório (`all_done`) como folha, uma etapa falha deixaria a execução verde. Por isso `dbt_status` depende de todas as etapas do dbt com `trigger_rule=one_failed` e só levanta erro: fica pulada quando tudo passa e deixa a execução vermelha quando algo falha.
+- **Nome:** `process_etl_atlas`, a pedido do usuário, no lugar do `atlas_dbt_refresh` do planejamento.
 
 ### 4. Higiene da pasta de DAGs
 - **`airflow/dags/.airflowignore`:** contém `utfpr_dengue/`, para o processador de DAGs não varrer o projeto dbt.
@@ -85,7 +79,7 @@ with DAG("atlas_dbt_refresh", schedule=None, max_active_runs=1, catchup=False,
 - **`airflow/tests/test_dags.py`:** novos testes para a DAG:
   - sem agendamento;
   - `max_active_runs=1`;
-  - ordem `dbt_debug → dbt_build → dbt_report`;
+  - ordem `dbt_debug → dbt_deps → dbt_seed → dbt_bronze → dbt_silver → dbt_gold → dbt_report`, todas ligadas à sentinela `dbt_status`;
   - `trigger_rule` do relatório;
   - comandos com `--project-dir` e `--target-path` fora da pasta de DAGs.
   - E também o `.airflowignore` ignorando o dbt: o `DagBag` só tem DAGs de verdade.

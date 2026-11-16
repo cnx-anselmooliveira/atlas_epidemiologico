@@ -7,7 +7,7 @@ Atualizar a modelagem dbt (bronze, silver e gold no BigQuery) pelo Airflow, sob 
 ## ADDED Requirements
 
 ### Requirement: Disparo manual com seleção
-A DAG `atlas_dbt_refresh` SHALL ter `schedule=None`, no máximo uma execução ativa e os parâmetros:
+A DAG `process_etl_atlas` SHALL ter `schedule=None`, no máximo uma execução ativa e os parâmetros:
 - `select`: padrão vazio, que significa o projeto inteiro;
 - `exclude`;
 - `full_refresh`: padrão falso.
@@ -16,28 +16,31 @@ Os parâmetros SHALL ser repassados ao dbt.
 
 #### Scenario: Build parcial
 - **WHEN** a DAG é disparada com `select=+gold_dengue_casos_provaveis_uf_semanal`
-- **THEN** só essa tabela e seus antecedentes são reconstruídos e testados
+- **THEN** cada camada reconstrói e testa só os antecedentes dessa tabela que estão nela, na ordem seed, bronze, silver e gold
 
 #### Scenario: Disparo durante outra execução
 - **WHEN** a DAG é disparada enquanto outra execução dela está em andamento
 - **THEN** a nova execução espera a anterior terminar
 
 ### Requirement: Ordem e regras de falha
-A DAG SHALL executar, em sequência:
-1. a verificação de conexão;
-2. o build (seeds, models e testes na ordem do grafo);
-3. o relatório da execução.
+A DAG SHALL executar, em sequência, uma tarefa por etapa:
+1. a verificação de conexão (`dbt debug`);
+2. `deps`;
+3. `seed` (seeds e seus testes);
+4. bronze, silver e gold, cada camada um `dbt build` (models e testes) restrito à sua pasta;
+5. o relatório da execução.
 
-Uma falha de conexão SHALL impedir o build. Uma falha de model ou teste SHALL falhar a tarefa de build. O relatório SHALL rodar mesmo quando o build falha.
+Uma falha em qualquer etapa SHALL impedir as etapas seguintes. Uma falha de model ou teste SHALL falhar a tarefa da camada. O relatório SHALL rodar mesmo quando uma etapa falha, e a execução da DAG SHALL terminar com falha nesse caso.
 
 #### Scenario: Credencial inválida
 - **WHEN** a chave da service account é inválida
-- **THEN** a tarefa de verificação falha com a mensagem do dbt e o build não é executado
+- **THEN** a tarefa de verificação falha com a mensagem do dbt e nenhuma camada é executada
 
-#### Scenario: Teste de dados falhando
-- **WHEN** um teste do dbt falha durante o build
-- **THEN** a tarefa de build falha
-- **AND** o relatório lista o teste que falhou
+#### Scenario: Teste de dados falhando na silver
+- **WHEN** um teste do dbt falha na camada silver
+- **THEN** a tarefa da silver falha e a gold não é executada
+- **AND** o relatório lista o teste que falhou e a etapa
+- **AND** a execução da DAG fica com falha
 
 ### Requirement: Relatório da execução
 Ao final, a DAG SHALL resumir no log e no retorno da tarefa (XCom):

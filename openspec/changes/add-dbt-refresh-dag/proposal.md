@@ -8,15 +8,16 @@ Hoje a modelagem é atualizada à mão, rodando `dbt` no notebook com um profile
 
 ## What Changes
 
-- **DAG `atlas_dbt_refresh` sem agendamento** (`schedule=None`), disparada manualmente, com uma execução por vez e parâmetros no disparo:
+- **DAG `process_etl_atlas` sem agendamento** (`schedule=None`), disparada manualmente, com uma execução por vez e parâmetros no disparo:
   - `select` (padrão: o projeto inteiro);
   - `exclude`;
   - `full_refresh`.
 - **Tarefas:**
   1. `dbt_debug`: confere a conexão e o profile;
-  2. `dbt_build`: seeds, models e testes na ordem do grafo do dbt;
-  3. `dbt_report`: lê o `run_results.json` e resume quantos nós passaram, falharam ou foram pulados, mais os mais lentos.
-  - Falha de teste ou de model falha a tarefa.
+  2. `dbt_deps`, `dbt_seed`, `dbt_bronze`, `dbt_silver`, `dbt_gold`: uma tarefa por etapa, em sequência; cada camada é um `dbt build` (models e testes) da sua pasta;
+  3. `dbt_report`: lê os `run_results.json` das etapas e resume quantos nós passaram, falharam ou foram pulados, mais os mais lentos e os bytes processados;
+  4. `dbt_status`: sentinela que deixa a execução com falha quando alguma etapa falhou.
+  - Falha de teste ou de model falha a tarefa da camada, e as camadas seguintes não rodam.
 - **dbt instalado na imagem do Airflow** num ambiente separado (`/opt/dbt`), como já acontece com o `atlas_ml`. As versões ficam fixadas num `pyproject.toml` + `uv.lock` do próprio projeto dbt.
 - **`profiles.yml` versionado no projeto dbt**, com projeto GCP, dataset, localização e caminho da chave vindos de variáveis de ambiente. Em dev, a chave é a `platform/secrets/training-sa.json`, já montada nos containers.
 - **Artefatos do dbt fora da pasta de DAGs:** `target/` e logs de cada execução vão para um diretório gravável, separado por execução. Em hml e prod a pasta do bundle Git é só leitura.
@@ -36,7 +37,7 @@ Hoje a modelagem é atualizada à mão, rodando `dbt` no notebook com um profile
 ## Impact
 
 - **Código:**
-  - `airflow/dags/atlas_dbt_refresh.py`;
+  - `airflow/dags/process_etl_atlas.py`;
   - `airflow/dags/.airflowignore`;
   - `airflow/dags/utfpr_dengue/{pyproject.toml,uv.lock,profiles.yml}`;
   - `airflow/Dockerfile` (venv `/opt/dbt`, CLI `dbt`);
