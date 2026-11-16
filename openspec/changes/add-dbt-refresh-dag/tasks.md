@@ -30,7 +30,7 @@
 ## 5. Credencial do BigQuery por Connection do Airflow
 
 - [ ] 5.1 Ler a credencial de uma Connection do Airflow (`atlas_gcp`, tipo Google Cloud, campo Keyfile JSON) cadastrada pela UI e cifrada com a Fernet key: um helper das DAGs grava o JSON num arquivo temporário `0600` só durante a tarefa, aponta `DBT_BQ_KEYFILE`/`GOOGLE_APPLICATION_CREDENTIALS` para ele e apaga no fim; sem a Connection, cai para o arquivo montado (dev). Nenhuma chave em imagem, git, variável do compose ou log; verificar com teste do helper (arquivo `0600`, removido mesmo com falha) e uma execução com a Connection cadastrada
-- [ ] 5.2 Exigir `AIRFLOW__CORE__FERNET_KEY` (segredo da stack) nas stacks de hml/prod e documentar no `airflow/README.md` o cadastro da Connection pela UI (Admin → Connections) e a rotação da chave; verificar que a Connection aparece cifrada no banco (`is_extra_encrypted=true`)
+- [ ] 5.2 Exigir `AIRFLOW__CORE__FERNET_KEY` (segredo da stack) nas stacks de hml/prod; cadastrar pela UI (Admin → Connections) a Connection do BigQuery e a `google_cloud_default` (bucket do dbt docs e plugin do Cosmos) e definir `AIRFLOW__COSMOS__DBT_DOCS_PROJECTS` (`dbt_docs/hml` ou `dbt_docs/prod`), `AIRFLOW__COSMOS__REMOTE_CACHE_DIR` (`cosmos_cache/hml` ou `cosmos_cache/prod`) e `AIRFLOW__COSMOS__REMOTE_CACHE_DIR_CONN_ID=google_cloud_default` (mudança `add-cosmos-dbt-dags`); documentar o cadastro e a rotação da chave no `airflow/README.md`; verificar que as Connections aparecem cifradas no banco (`is_extra_encrypted=true`)
 - [ ] 5.3 Commit (`feat(airflow): credencial do BigQuery por Connection`); verificar `git log -1 --stat`
 
 ## Workflow follow-up

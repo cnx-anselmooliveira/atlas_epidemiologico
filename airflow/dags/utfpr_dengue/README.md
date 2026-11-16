@@ -4,18 +4,9 @@ Modelagem da dengue no BigQuery (`ppgcc-dengue-project`, location US), em camada
 
 ## Como rodar
 
-**Pelo Airflow** (dev, hml, prod): dispare a DAG `process_etl_atlas`. Sem configuração, ela roda o projeto inteiro:
+**Pelo Airflow** (dev, hml, prod): dispare a DAG `process_etl_atlas`. Ela roda pelo **Cosmos**, com os grupos `seed → bronze → silver → gold` e uma tarefa por model, cujos testes rodam logo depois. Não há parâmetros: o disparo roda o projeto inteiro. Para refazer só parte, limpe (clear) a tarefa ou o grupo na UI. Cada tarefa roda numa cópia temporária do projeto, então nada é gravado nesta pasta.
 
-```
-dbt_debug ► dbt_deps ► dbt_seed ► dbt_bronze ► dbt_silver ► dbt_gold ► dbt_report
-```
-
-Parâmetros opcionais:
-- `select`: seletores do dbt, por exemplo `+gold_dengue_casos_provaveis_uf_semanal`. Cada camada roda só o que estiver nela.
-- `exclude`: seletores a excluir.
-- `full_refresh`: recria as tabelas incrementais do zero.
-
-Os artefatos (`target/`, logs, `run_results.json`) ficam em `/opt/airflow/dbt-artifacts/<run_id>/<etapa>/`, nunca nesta pasta.
+A documentação (`dbt docs`) é gerada pela DAG `process_dbt_docs_atlas` e fica no menu de dbt docs do Airflow.
 
 **Localmente:**
 ```bash

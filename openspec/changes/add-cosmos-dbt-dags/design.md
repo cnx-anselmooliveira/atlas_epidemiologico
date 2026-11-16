@@ -11,7 +11,7 @@ O que já existe e foi conferido:
   - o plugin do Airflow 3 lê `[cosmos] dbt_docs_projects`, um JSON `{slug: {dir, conn_id, index, name}}`, que é exatamente o formato do exemplo do usuário.
 - **Bucket:** `ppgcc-bucket`.
   - A service account `mlflow-sa` tem `storage.objectAdmin` nele.
-  - A `training-sa` lê e escreve no BigQuery; a escrita dela no bucket ainda não foi conferida (tarefa 1.2).
+  - A `training-sa` lê e escreve no BigQuery e também escreve no bucket (conferido na tarefa 1.2).
 
 ## Goals / Non-Goals
 
@@ -33,6 +33,8 @@ O que já existe e foi conferido:
 ## Decisions
 
 ### 1. Cosmos no ambiente do Airflow, dbt no venv separado
+
+**Ajuste da implementação:** no Cosmos 1.16, o `RenderConfig` usa por padrão o `InvocationMode.DBT_RUNNER` (dbt no mesmo Python do Airflow), que conflita com um `dbt_executable_path` explícito. A DAG fixa `InvocationMode.SUBPROCESS` no `RenderConfig` e no `ExecutionConfig`, para chamar sempre o binário de `/opt/dbt`.
 O Cosmos é provider/plugin, então precisa do Python do Airflow:
 ```dockerfile
 USER airflow
@@ -97,12 +99,12 @@ O plugin roda no `api-server` e lê o bucket com a mesma Connection. Nas stacks 
   ```yaml
   AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: '{"conn_type": "google_cloud_platform", "extra": {"key_path": "/secrets/<sa>.json"}}'
   ```
-  A chave é a `training-sa`, se ela puder escrever no `ppgcc-bucket` (conferido na tarefa 1.2); senão, a `mlflow-sa`, que já tem `objectAdmin` só nesse bucket.
+  A chave é a **`training-sa`** (`/secrets/training-sa.json`). Na tarefa 1.2, as duas service accounts gravaram e apagaram um objeto em `dbt_docs/dev/`; a `training-sa` foi escolhida por já ser a credencial do dbt, então a DAG de docs usa uma única chave para o BigQuery e o bucket.
 - **VPS:** cadastro pela UI, junto com a Connection de credenciais planejada na seção 5 da `add-dbt-refresh-dag`, que o usuário vai criar depois.
 - **Chaves:** nenhuma chave entra em imagem, código ou log.
 
 ### 6. Leitura das DAGs com `dbt ls`
-- **Tempo de leitura:** o primeiro `dbt ls` leva alguns segundos por grupo (4 grupos). O `AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT` sobe para 120 s no compose e nas stacks. Depois, o cache do Cosmos evita repetir o `dbt ls`.
+- **Tempo de leitura:** o primeiro `dbt ls` leva alguns segundos por grupo (4 grupos). O `AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT` sobe para 120 s na própria imagem, valendo para dev, CI, hml e prod: sem cache, a leitura medida na imagem levou cerca de 60 s, acima dos 30 s padrão. Depois, o cache do Cosmos evita repetir o `dbt ls`.
 - **Credencial:** o `dbt ls` não conecta ao BigQuery, mas o profile exige `DBT_BQ_KEYFILE` definida, o que já acontece em todos os containers.
 - **CI:** no job `dags`, o teste roda a DagBag dentro da imagem com `DBT_BQ_KEYFILE` apontando para um arquivo fictício.
 
@@ -114,6 +116,19 @@ O plugin roda no `api-server` e lê o bucket com a mesma Connection. Nas stacks 
   - `retries=0` e nenhum parâmetro obrigatório.
 - **Docs:** uma única tarefa `DbtDocsGCSOperator`, com bucket e pasta `dbt_docs/<ATLAS_ENV>`.
 - **Saem:** os testes antigos de `dbt_report` e `dbt_status`.
+
+## Medições da implementação
+
+- **Tempo de leitura da `process_etl_atlas`:**
+  - **sem cache:** cerca de 60 s na imagem (4 × `dbt ls`). Por isso subiram o `DAGBAG_IMPORT_TIMEOUT` (120 s) e o `DAG_FILE_PROCESSOR_TIMEOUT` (180 s), este último também na imagem: o padrão de 50 s matava a primeira leitura antes de o cache ser gravado;
+  - **com cache** (4 Variables `cosmos_cache__*`): 1,3 a 1,6 s.
+- **Hash da pasta do projeto:** o Cosmos calcula um hash da pasta do projeto para o cache. Em dev, um `.venv` criado pelo `uv` dentro de `utfpr_dengue/` estourava os 120 s. Os scripts `dbt.sh`/`dbt.ps1` passaram a usar `UV_PROJECT_ENVIRONMENT=.dbt-local/venv`, e a pasta do projeto fica só com arquivos versionados.
+- **Grafo:** 49 tarefas, entre seeds e pares `run`/`test` por model.
+- **Cache do `dbt ls` no bucket, não em Variables.**
+  - **Problema:** a primeira execução com o cache padrão (Variables) levou 23 min, contra 128 s da versão Bash. Dentro das tarefas, no Airflow 3, o `Variable.get` do Cosmos falha em silêncio (o erro da Task SDK vira "Cache miss"), e cada tarefa repetia os 4 `dbt ls` antes de rodar o seu model.
+  - **Solução:** `AIRFLOW__COSMOS__REMOTE_CACHE_DIR=gs://ppgcc-bucket/cosmos_cache/<ambiente>`. O dag-processor grava, e as tarefas leem o mesmo `dbt_ls_cache.json` por grupo. Com o cache remoto, a leitura da DAG leva cerca de 7 s.
+  - **Bug do Cosmos 1.16:** sem `AIRFLOW__COSMOS__REMOTE_CACHE_DIR_CONN_ID`, o padrão por esquema (`gs` → `google_cloud_default`) passa uma função no lugar do nome da Connection. Por isso a Connection é informada explicitamente.
+  - **Custo da escolha:** a leitura da DAG passa a depender do GCS. Uma falha de DNS ou de rede gera erro de importação temporário, que some na leitura seguinte. Em dev, houve falhas intermitentes de DNS no Docker Desktop para `oauth2.googleapis.com`.
 
 ## Risks / Trade-offs
 
@@ -133,4 +148,4 @@ O plugin roda no `api-server` e lê o bucket com a mesma Connection. Nas stacks 
 
 ## Open Questions
 
-- Nenhuma que bloqueie. A service account do bucket é decidida na tarefa 1.2.
+- Nenhuma.

@@ -22,6 +22,18 @@
 - Agendamento e encadeamento com ingestão e modelos: o `schedule` fica para quando a ingestão existir.
 - Execução incremental por mudança: o `state:modified` exigiria artefatos de produção persistidos.
 
+## Atualização: execução pelo Cosmos
+
+A `process_etl_atlas` descrita nas decisões 3 e 5 (tarefas Bash por camada, relatório, sentinela, parâmetros e volume `dbt-artifacts`) foi substituída pela mudança `add-cosmos-dbt-dags`:
+- um `DbtTaskGroup` do Cosmos por camada, com uma tarefa por model;
+- sem parâmetros, relatório nem sentinela.
+
+Continuam valendo:
+- o projeto dentro das DAGs e o `.airflowignore`;
+- o venv do dbt na imagem;
+- o profile por variáveis;
+- a credencial por Connection (seção 5 das tarefas).
+
 ## Decisions
 
 ### 1. dbt num venv próprio da imagem
