@@ -19,7 +19,7 @@
 - [x] 3.1 Abrir o PR `dev → hml` e acompanhar o `ci.yml` até todos os jobs ficarem verdes, corrigindo o que falhar no runner (com um commit por assunto); verificar o check `ci-ok` verde no PR
 - [x] 3.2 Provar que o portão funciona: numa branch temporária com um teste quebrado de propósito, abrir PR para `hml` e ver o `ci-ok` vermelho apontando o job; fechar o PR e apagar a branch; verificar pelo link da execução
 - [x] 3.3 Configurar a proteção de `hml` e `main` via `gh api` (check `ci-ok` obrigatório e `strict`, PR obrigatório com 0 aprovações, `enforce_admins`, sem force-push) e documentar em `platform/README.md`; verificar com `gh api …/protection` e com um `git push` direto em `hml` sendo rejeitado
-- [ ] 3.4 Fazer o merge do PR `dev → hml` com o CI verde; verificar que o push resultante em `hml` dispara o `ci.yml` e termina verde
+- [x] 3.4 Fazer o merge do PR `dev → hml` com o CI verde; verificar que o push resultante em `hml` dispara o `ci.yml` e termina verde
 
 ## 4. Alinhamento com as outras mudanças
 
