@@ -1,0 +1,7 @@
+# Fim de linha LF no repositório e nas cópias de trabalho: scripts e Dockerfiles
+# rodam em containers Linux e quebram com CRLF.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.ico binary
+*.svg text eol=lf

@@ -1,0 +1,10 @@
+# Contexto = raiz do repositório; envia só o que a imagem do Airflow usa
+*
+!ml/pyproject.toml
+!ml/uv.lock
+!ml/README.md
+!ml/src/**
+!airflow/dags/**
+!airflow/config/**
+!airflow/tests/**
+**/__pycache__

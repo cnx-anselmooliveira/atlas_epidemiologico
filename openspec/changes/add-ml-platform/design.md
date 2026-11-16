@@ -2,7 +2,7 @@
 
 ## Context
 
-- **Repositório.** O git fica na raiz `PPGCC/` (remoto `atlasepidemiologico`, só a branch `main` hoje); o projeto vive em `atlas_epidemiologia/`. Workflows do GitHub Actions ficam em `PPGCC/.github/workflows/`, com filtros de path `atlas_epidemiologia/...`.
+- **Repositório.** O git tem raiz em `atlas_epidemiologia/` (`cnx-anselmooliveira/atlas_epidemiologico`, privado, só `main` hoje). Os workflows do GitHub Actions ficam em `atlas_epidemiologia/.github/workflows/`. `frontend/design-system/` não é versionado.
 - **Dados.** O BigQuery `ppgcc-dengue-project` já tem raw/bronze/silver/gold. Variáveis ambientais ainda não foram ingeridas; só o DEM existe em raw.
 - **Infra.** Uma VPS com Portainer (Swarm) e Traefik (`network_public`, certresolver `letsencryptresolver`). Mais nada roda para ML.
 - **Rede corporativa.** A máquina de dev passa por inspeção TLS (Cloudflare Gateway). O projeto antigo já precisava montar `cloudflare-gateway-ca.pem` nos containers.
@@ -36,7 +36,7 @@ atlas_epidemiologia/
 ├── infra/mlflow/           # Dockerfile do servidor MLflow
 ├── platform/               # compose.dev.yml, .env.example, init do Postgres, scripts
 └── deploy/                 # platform.stack.yml, airflow.stack.yml (VPS)
-PPGCC/.github/workflows/    # ml.yml, airflow.yml, mlflow-server.yml, promotion-guard.yml
+.github/workflows/          # ml.yml, airflow.yml, mlflow-server.yml, promotion-guard.yml
 ```
 `platform/` reúne o compose de dev. `deploy/` segue o padrão já previsto na `decouple-architecture-bigquery`.
 
@@ -53,6 +53,7 @@ Imagem `atlas-epidemiologia-mlflow`, construída sobre `python:3.12-slim` com `m
 `mlflow server --backend-store-uri postgresql://… --artifacts-destination gs://<bucket>/mlflow/<instalação> --serve-artifacts --host 0.0.0.0 --port 5000`
 
 - `<instalação>` é `dev` ou `vps`.
+- **Dev sem bucket:** o padrão do compose de dev é `MLFLOW_ARTIFACTS_DESTINATION=/mlartifacts`, num volume Docker nomeado. Assim a plataforma sobe sem nenhuma chave GCP. Com `MLFLOW_ARTIFACTS_BUCKET` definido no `.env`, o dev passa a usar `gs://<bucket>/mlflow/dev`. Decisão do usuário: começar a estudar antes de o bucket existir.
 - Com `--serve-artifacts`, o cliente fala `mlflow-artifacts:/`. Só o servidor tem a credencial do bucket, montada como arquivo de segredo (`GOOGLE_APPLICATION_CREDENTIALS`).
 - **VPS:** adiciona `--app-name basic-auth`, com o banco de usuários em `mlflow_auth` configurado via `MLFLOW_AUTH_CONFIG_PATH`. Usuários: `admin`, `airflow-hml` e `airflow-prod`. O host é `mlflow.dengue.contovisual.com.br` no Traefik, e os hosts permitidos são configurados para o domínio.
 - **Dev:** sem autenticação, porta publicada só em `127.0.0.1:5000`.
@@ -64,7 +65,10 @@ Alternativa rejeitada: o cliente gravar direto no GCS, que exigiria credencial d
 Imagem `atlas-epidemiologia-airflow`, construída sobre `apache/airflow:3.x-python3.12` (versão exata fixada):
 - **Execução:** LocalExecutor. Componentes `api-server`, `scheduler`, `dag-processor` e `triggerer`, mais um job `airflow-init` (migração do banco e usuário admin).
 - **Isolamento de dependências:** o pacote `atlas_ml` é instalado num **venv separado** (`/opt/atlas-ml`), com o CLI `atlas-ml` no PATH. Assim as restrições de versão do Airflow não colidem com as do MLflow e do scikit-learn. As tarefas chamam o CLI via `BashOperator`. Isso cumpre a regra "mesmo comando em todo lugar" e é a mesma abordagem já escolhida na `decouple-architecture-bigquery` (sem DockerOperator nem socket Docker).
-- **DAGs:** em dev, `airflow/dags/` é montado como volume e alterações aparecem sem rebuild. Na VPS, as DAGs ficam dentro da imagem.
+- **DAGs:** em dev, `airflow/dags/` é montado como volume e alterações aparecem sem rebuild. Na VPS, as DAGs são lidas do **repositório público** com o `GitDagBundle` do Airflow 3 (provider `git`, já incluído na imagem), sem credencial:
+  - `dag_bundle_config_list` aponta para `https://github.com/cnx-anselmooliveira/atlas_epidemiologico.git`, `subdir: airflow/dags` e `tracking_ref: hml` (stack hml) ou `main` (stack prod), com `refresh_interval` de 5 min.
+  - A imagem continua carregando o pacote `atlas_ml` e as dependências; as DAGs saem dela.
+  - Decisão do usuário: o repositório foi tornado público para isso. A alternativa era um token de leitura com o repositório privado.
 - **Autenticação:** em dev, o Simple Auth Manager do Airflow 3 com usuário admin local. Na VPS, o FAB Auth Manager (`apache-airflow-providers-fab`) com login e senha, admin criado pelo `airflow-init` a partir de variáveis da stack.
 - **Configuração:** URL do MLflow, credenciais (`MLFLOW_TRACKING_USERNAME`/`PASSWORD`) e `ATLAS_ENV` entram como variáveis de ambiente da stack, disponíveis às tarefas.
 - **VPS:** duas stacks, `atlas-airflow-hml` (imagem `:hml`, banco `airflow_hml`, host `airflow-hml.…`) e `atlas-airflow-prod` (imagem `:X.Y`, banco `airflow_prod`, host `airflow.…`), geradas do mesmo `deploy/airflow.stack.yml` com variáveis de ambiente.
@@ -74,7 +78,7 @@ Imagem `atlas-epidemiologia-airflow`, construída sobre `apache/airflow:3.x-pyth
 - **Serviços:** `postgres`, `mlflow`, `airflow-init`, `airflow-api-server`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-triggerer`. O `jupyter` (imagem de treino + JupyterLab) entra no profile `notebook`.
 - **Portas:** todas publicadas só em `127.0.0.1`. MLflow em 5000, Airflow em 8080, Jupyter em 8888.
 - **Volumes nomeados:** `pgdata`. O código é montado por bind, para editar sem rebuild: `ml/` vira editable install no venv, mais `airflow/dags/`.
-- **Arquivo `.env` (fora do git):** `GCP_PROJECT`, `MLFLOW_ARTIFACTS_BUCKET`, caminho da chave do MLflow, caminho da chave de treino (BigQuery) e senha do Postgres.
+- **Arquivo `.env` (fora do git):** `GCP_PROJECT`, `MLFLOW_ARTIFACTS_BUCKET` (opcional; vazio = volume local), caminho da chave do MLflow (só com bucket), caminho da chave de treino (BigQuery) e senha do Postgres.
 - **CA corporativa:** um `extra_ca.pem` opcional é montado e apontado por `SSL_CERT_FILE`/`REQUESTS_CA_BUNDLE`/`GRPC_DEFAULT_SSL_ROOTS_FILE_PATH` para atravessar a inspeção TLS da rede da empresa. Se o arquivo não existir, fica vazio e inofensivo.
 - **Atalhos:** `make`/script `platform/dev.ps1` com `up`, `down`, `logs`, `reset` e `notebook`, porque o dev é Windows/PowerShell.
 

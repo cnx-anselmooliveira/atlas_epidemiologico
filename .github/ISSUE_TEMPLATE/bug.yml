@@ -1,0 +1,59 @@
+name: Reportar bug
+description: Algo não funciona como deveria.
+title: "[bug] "
+labels: ["correção"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por reportar! **Vulnerabilidades de segurança não devem ser abertas aqui** — use a aba Security → Report a vulnerability.
+  - type: dropdown
+    id: componente
+    attributes:
+      label: Componente
+      options:
+        - Pacote ml / modelos
+        - Airflow / DAGs
+        - MLflow
+        - Plataforma local (platform/)
+        - Site (frontend/)
+        - Dados / BigQuery / dbt
+        - Documentação
+        - Outro
+    validations:
+      required: true
+  - type: input
+    id: versao
+    attributes:
+      label: Versão ou branch
+      description: "Tag (ex.: v1.0), branch (dev, hml, main) ou commit."
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      description: Passos numerados, comandos usados.
+      placeholder: |
+        1. ./platform/dev.ps1 up
+        2. disparar a DAG …
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que era esperado
+    validations:
+      required: true
+  - type: textarea
+    id: observado
+    attributes:
+      label: O que aconteceu
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs e mensagens de erro
+      description: Cole o trecho relevante (sem senhas, tokens ou chaves).
+      render: shell

@@ -1,0 +1,21 @@
+# Sobreposição opcional: confiar na CA da inspeção TLS da rede corporativa.
+# Aplicada automaticamente pelo dev.ps1 quando EXTRA_CA_PATH está no .env.
+# certs/ca-bundle.pem = CAs públicas da imagem + a CA corporativa (gerado pelo dev.ps1).
+
+x-ca: &ca
+  volumes:
+    - ./certs/ca-bundle.pem:/etc/atlas/ca-bundle.pem:ro
+  environment:
+    SSL_CERT_FILE: /etc/atlas/ca-bundle.pem
+    REQUESTS_CA_BUNDLE: /etc/atlas/ca-bundle.pem
+    CURL_CA_BUNDLE: /etc/atlas/ca-bundle.pem
+    GRPC_DEFAULT_SSL_ROOTS_FILE_PATH: /etc/atlas/ca-bundle.pem
+
+services:
+  mlflow: *ca
+  airflow-init: *ca
+  airflow-api-server: *ca
+  airflow-scheduler: *ca
+  airflow-dag-processor: *ca
+  airflow-triggerer: *ca
+  jupyter: *ca

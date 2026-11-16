@@ -7,11 +7,11 @@ Disponibilizar o Airflow como serviço da plataforma, local e na VPS, para dispa
 ## ADDED Requirements
 
 ### Requirement: DAGs vindas do repositório
-As DAGs SHALL ser versionadas no repositório e entregues dentro da imagem do Airflow (VPS) ou montadas do diretório local (dev). Nenhuma DAG SHALL ser editada diretamente no servidor.
+As DAGs SHALL ser versionadas em `airflow/dags/` no repositório público. Na VPS, o Airflow de hml SHALL lê-las diretamente da branch `hml` e o de prod da branch `main`, sem rebuild de imagem. Em dev, SHALL montá-las do diretório local. Nenhuma DAG SHALL ser editada diretamente no servidor.
 
 #### Scenario: Nova DAG em hml
-- **WHEN** uma DAG nova é commitada na branch `hml` e a imagem `hml` é publicada e implantada
-- **THEN** a DAG aparece no Airflow de hml e não aparece no Airflow de prod
+- **WHEN** uma DAG nova chega à branch `hml` por merge de `dev`
+- **THEN** a DAG aparece no Airflow de hml sem nova imagem e não aparece no Airflow de prod
 
 #### Scenario: Edição em dev
 - **WHEN** um arquivo de DAG é alterado no diretório local

@@ -14,12 +14,16 @@ O servidor de rastreamento SHALL guardar experimentos, runs, métricas e registr
 - **THEN** os experimentos e runs registrados antes continuam listados com as mesmas métricas
 
 ### Requirement: Artefatos no armazenamento de objetos via servidor
-Os artefatos SHALL ser gravados no bucket GCS configurado, sob um prefixo por instalação (`dev` local, `vps`). Clientes SHALL enviar e baixar artefatos pelo próprio servidor, sem precisar de credencial do bucket.
+Na VPS, os artefatos SHALL ser gravados no bucket GCS configurado, sob o prefixo `mlflow/vps`. No dev local, SHALL ir para um volume Docker persistente por padrão, ou para o GCS sob `mlflow/dev` quando um bucket for configurado. Clientes SHALL enviar e baixar artefatos pelo próprio servidor, sem credencial do armazenamento.
 
 #### Scenario: Cliente sem credencial do GCS
-- **WHEN** um treino sem nenhuma credencial do GCS registra um arquivo como artefato
+- **WHEN** um treino sem nenhuma credencial do GCS registra um arquivo como artefato no MLflow da VPS
 - **THEN** o upload termina com sucesso
-- **AND** o arquivo aparece no bucket sob o prefixo da instalação
+- **AND** o arquivo aparece no bucket sob `mlflow/vps`
+
+#### Scenario: Dev sem bucket configurado
+- **WHEN** o compose de dev sobe sem `MLFLOW_ARTIFACTS_BUCKET` no `.env`
+- **THEN** o MLflow aceita artefatos e os guarda num volume local que sobrevive ao reinício da stack
 
 ### Requirement: Autenticação na VPS
 O servidor na VPS SHALL exigir autenticação para leitura e escrita e SHALL ser acessível apenas por HTTPS. O servidor de dev local SHALL escutar apenas em `127.0.0.1`.

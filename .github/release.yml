@@ -1,0 +1,17 @@
+# Categorias das notas automáticas das GitHub Releases (gh release create --generate-notes).
+# A categoria vem da label do pull request; sem label, o PR entra em "Outras mudanças".
+changelog:
+  exclude:
+    labels:
+      - ignorar-release
+  categories:
+    - title: Novidades
+      labels: [novidade]
+    - title: Correções
+      labels: [correção]
+    - title: Documentação
+      labels: [documentação]
+    - title: Infraestrutura e CI
+      labels: [infra]
+    - title: Outras mudanças
+      labels: ["*"]
