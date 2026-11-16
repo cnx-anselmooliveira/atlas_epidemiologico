@@ -111,6 +111,8 @@ class ChronosForecast:
     def fit(self, train: Batch, val: Batch) -> None:
         if not self.series:
             raise ValueError("Chronos precisa do painel (use_panel) para montar os contextos.")
+        # carrega o pipeline (e resolve a revisão do checkpoint) antes do registro dos parâmetros
+        _ = self.pipeline
 
     def predict(self, batch: Batch) -> pd.DataFrame:
         contexts = []
