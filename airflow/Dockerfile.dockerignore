@@ -8,3 +8,9 @@
 !airflow/config/**
 !airflow/tests/**
 **/__pycache__
+# Gerados pelo dbt e ambiente local: nunca entram na imagem
+airflow/dags/utfpr_dengue/target
+airflow/dags/utfpr_dengue/logs
+airflow/dags/utfpr_dengue/dbt_packages
+airflow/dags/utfpr_dengue/.venv
+airflow/dags/utfpr_dengue/.user.yml

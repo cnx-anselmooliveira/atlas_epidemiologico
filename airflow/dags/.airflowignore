@@ -1,0 +1,3 @@
+# O processador de DAGs não deve varrer o projeto dbt (models SQL, seeds, .venv local, target/).
+# O padrão funciona tanto na sintaxe glob quanto regexp do Airflow.
+utfpr_dengue/
