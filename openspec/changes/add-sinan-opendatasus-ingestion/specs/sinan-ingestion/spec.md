@@ -2,64 +2,86 @@
 
 ## Purpose
 
-Manter os microdados de dengue do SINAN atualizados no BigQuery a partir do OpenDataSUS, sem intervenção manual, preservando os arquivos originais e alimentando a modelagem existente.
+Manter os microdados de dengue do SINAN atualizados no BigQuery a partir do OpenDataSUS, sem intervenção manual. O landing do bucket é um espelho dos arquivos de origem e alimenta a tabela bronze e a modelagem existente.
 
 ## ADDED Requirements
 
-### Requirement: Detecção de novas versões
-O sistema SHALL verificar periodicamente, sem baixar os arquivos, se algum arquivo anual de dengue do SINAN no OpenDataSUS (2000 até o ano corrente) mudou desde a última carga, comparando o identificador de versão publicado (ETag) e a data de modificação com os registrados na carga anterior. A ingestão SHALL prosseguir só para os anos que mudaram. Quando nada mudou, a execução SHALL terminar sem carregar nada e sem acionar a modelagem.
+### Requirement: Sync diário com a origem
+Uma vez por dia, o sistema SHALL comparar os arquivos anuais de dengue do SINAN no OpenDataSUS (de 2000 até o ano corrente) com o landing do bucket, sem baixar os arquivos. A comparação SHALL usar o ETag e a data de modificação da origem guardados junto de cada arquivo do landing. Quando não houver diferença, a execução SHALL terminar sem efeito.
+
+#### Scenario: Comparação sem download
+- **WHEN** a verificação do dia roda
+- **THEN** a origem é consultada só pelos cabeçalhos dos arquivos, e o landing pela listagem dos objetos com sua metadata
+
+### Requirement: Plano de sync
+A comparação SHALL produzir um plano com:
+- os arquivos a baixar: novos na origem, ou com ETag ou data de modificação diferentes;
+- os arquivos a apagar: presentes no landing e ausentes na origem;
+- os anos a carregar na bronze.
 
 #### Scenario: Arquivo do ano corrente atualizado
-- **WHEN** o OpenDataSUS publica uma nova versão de `DENGBR26.csv.zip` e as dos outros anos não mudam
-- **THEN** só o ano de 2026 é ingerido naquela execução
+- **WHEN** a origem publica uma nova versão de `DENGBR26.csv.zip` e os outros anos não mudam
+- **THEN** o plano tem só 2026 para baixar e carregar
 
-#### Scenario: Nada novo
-- **WHEN** a verificação diária não encontra mudança em nenhum arquivo até o fim da janela de espera
-- **THEN** a execução termina como pulada, sem gravar no bucket, sem mexer na tabela bronze e sem disparar a modelagem
+#### Scenario: Nada mudou
+- **WHEN** a verificação do dia não encontra diferença até o fim da janela de espera
+- **THEN** a execução termina como pulada, sem gravar no bucket, sem mexer na bronze e sem disparar a modelagem
 
-#### Scenario: Primeira execução
-- **WHEN** a tabela de controle está vazia
-- **THEN** todos os anos disponíveis são ingeridos
+#### Scenario: Bucket vazio
+- **WHEN** o landing não tem nenhum arquivo
+- **THEN** todos os anos disponíveis na origem entram no plano para baixar e carregar
 
-### Requirement: Arquivos brutos preservados no landing
-Cada versão ingerida SHALL ser gravada no bucket sem alteração (o zip original), num caminho que identifica o ano e a versão. Versões anteriores SHALL NOT ser sobrescritas. O conteúdo descompactado SHALL ficar ao lado, para a carga.
+### Requirement: Landing como espelho exato
+O landing SHALL conter exatamente os arquivos presentes na origem, cada um na versão atual.
+- Um arquivo alterado na origem SHALL substituir o anterior no landing.
+- Um arquivo que deixou de existir na origem SHALL ser apagado do landing, junto com a versão descompactada.
 
-#### Scenario: Duas versões do mesmo ano
-- **WHEN** o arquivo de 2026 muda duas vezes em dias diferentes
-- **THEN** o landing tem as duas versões em pastas distintas, cada uma identificada pelo seu ETag
+Cada arquivo do landing SHALL guardar o ETag e a data de modificação da origem que o geraram.
+
+#### Scenario: Versão nova substitui a antiga
+- **WHEN** `DENGBR26.csv.zip` muda na origem
+- **THEN** o landing passa a ter só a versão nova desse arquivo, com o ETag novo registrado
+
+#### Scenario: Arquivo removido da origem
+- **WHEN** um arquivo anual some da origem
+- **THEN** ele é apagado do landing, os dados daquele ano saem da tabela bronze e a modelagem é acionada
 
 ### Requirement: Tabela bronze materializada por ano
-Os dados de cada versão SHALL ser carregados no BigQuery numa tabela bronze com:
+Os dados de cada ano SHALL ser carregados do landing numa tabela bronze no BigQuery com:
 - todas as colunas do arquivo de origem, como texto;
-- o ano do arquivo, a versão (ETag), o caminho do arquivo no landing e o momento da carga.
+- o ano, a versão (ETag), o caminho do arquivo e o momento da carga.
 
 A carga de um ano SHALL substituir integralmente os dados daquele ano, sem duplicar, e SHALL NOT alterar os demais anos. Uma carga que falhe no meio SHALL NOT deixar o ano pela metade.
 
 #### Scenario: Recarga do mesmo ano
-- **WHEN** o ano de 2026 é carregado de novo com uma versão nova
-- **THEN** a tabela bronze tem só as linhas da versão nova para 2026, e os outros anos continuam iguais
+- **WHEN** o ano de 2026 é carregado com uma versão nova
+- **THEN** a bronze tem só as linhas da versão nova para 2026, e os outros anos continuam iguais
 
 #### Scenario: Coluna nova na origem
 - **WHEN** o arquivo de um ano traz uma coluna que os anteriores não tinham
 - **THEN** a carga acrescenta a coluna (nula nos outros anos) em vez de falhar
 
-### Requirement: Validação antes de liberar
-Antes de registrar a versão como carregada, o sistema SHALL conferir:
-- se o número de linhas na tabela bronze para aquele ano é igual ao número de registros do arquivo;
+### Requirement: Validação antes de marcar como carregado
+Antes de marcar a versão de um ano como carregada na bronze, o sistema SHALL conferir:
+- se o número de linhas da partição é igual ao número de registros do arquivo;
 - se as colunas usadas pela modelagem existem: data de notificação, UF e município de notificação e de residência, data de início dos sintomas, classificação final e evolução.
 
-Divergência SHALL falhar a execução, sem registrar a versão e sem acionar a modelagem.
+Divergência SHALL falhar a execução sem marcar o ano. A verificação do dia seguinte SHALL tentar carregar de novo.
 
-#### Scenario: Arquivo truncado
-- **WHEN** o arquivo baixado tem menos registros que os carregados ou falta a coluna `CLASSI_FIN`
-- **THEN** a tarefa de validação falha, a versão não é registrada e a próxima verificação tenta de novo
+#### Scenario: Carga incompleta
+- **WHEN** a partição carregada tem menos linhas que o arquivo, ou falta a coluna `CLASSI_FIN`
+- **THEN** a validação falha, o ano não é marcado como carregado e entra de novo no plano do dia seguinte
 
-### Requirement: Modelagem acionada após carga
-Depois de pelo menos um ano carregado e validado, o sistema SHALL disparar a DAG de modelagem (`process_etl_atlas`).
+#### Scenario: Landing atualizado, bronze não
+- **WHEN** o arquivo foi baixado para o landing, mas a carga na bronze falhou
+- **THEN** a próxima verificação detecta que a bronze está atrás do landing e carrega o ano sem baixar de novo
+
+### Requirement: Modelagem acionada após mudança
+Quando pelo menos um ano for carregado na bronze, ou removido dela, o sistema SHALL disparar a DAG de modelagem (`process_etl_atlas`) uma vez por execução.
 
 #### Scenario: Carga concluída
-- **WHEN** a validação de todos os anos alterados passa
-- **THEN** a `process_etl_atlas` é disparada uma vez para aquela ingestão
+- **WHEN** as validações dos anos do plano passam
+- **THEN** a `process_etl_atlas` é disparada uma vez
 
 ### Requirement: Contrato da modelagem preservado
 O model bronze de casos do Brasil SHALL ler a tabela bronze do OpenDataSUS e entregar as mesmas colunas e semânticas de antes:
@@ -79,8 +101,8 @@ As camadas silver e gold SHALL continuar funcionando sem mudança de contrato. A
 - **THEN** a modelagem volta a usar a tabela anterior, sem mudança de código
 
 ### Requirement: Credenciais e custo controlados
-A ingestão SHALL usar a Connection do Airflow para o bucket e o BigQuery, sem chave em código ou imagem. A verificação de versões SHALL NOT baixar os arquivos.
+O sync SHALL usar a Connection do Airflow para o bucket e o BigQuery, sem chave em código ou imagem. A verificação diária SHALL NOT baixar arquivos nem consultar o BigQuery: só requisições de cabeçalho à origem e a listagem de objetos do bucket.
 
 #### Scenario: Verificação diária sem mudança
 - **WHEN** o sensor roda e nada mudou
-- **THEN** só foram feitas requisições de cabeçalho (HEAD), sem download nem consulta paga no BigQuery além da leitura da tabela de controle
+- **THEN** foram feitas só requisições de cabeçalho (HEAD) à origem e uma listagem do landing, sem download e sem consulta ao BigQuery
