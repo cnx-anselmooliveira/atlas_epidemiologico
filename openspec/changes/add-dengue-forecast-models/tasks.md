@@ -40,7 +40,7 @@
 
 ## 7. Chronos
 
-- [ ] 7.1 Implementar `models/chronos/` (`chronos-bolt-small` zero-shot em CPU, previsões em lote por UF e origem, quantis 0,1/0,9 como intervalo de 80%, parâmetros com checkpoint e revisão, pyfunc, README); verificar com teste que usa um pipeline falso (sem download) e uma execução real que baixa o checkpoint para o `hf-cache`
+- [x] 7.1 Implementar `models/chronos/` (`chronos-bolt-small` zero-shot em CPU, previsões em lote por UF e origem, quantis 0,1/0,9 como intervalo de 80%, parâmetros com checkpoint e revisão, pyfunc, README); verificar com teste que usa um pipeline falso (sem download) e uma execução real que baixa o checkpoint para o `hf-cache`
 - [x] 7.2 Commit do módulo em `dev` (`feat(models): Chronos zero-shot`); verificar testes verdes
 
 ## 8. Ensemble e comparação
@@ -52,7 +52,7 @@
 ## 9. DAG e execução de ponta a ponta
 
 - [x] 9.1 Escrever a DAG `atlas_dengue_forecast_br` (prepare → 5 bases em paralelo → ensemble → compare com `all_done`; `max_active_runs=1`, `max_active_tasks=3`, `params` window/horizon/seed, `ATLAS_PIPELINE_RUN`, retries=1); verificar com teste `DagBag` (ordem, regras de disparo, parâmetros)
-- [ ] 9.2 Rodar a DAG no compose de dev contra a gold real e registrar o resultado: as 8 runs com a mesma `atlas.pipeline_run` e `atlas.data_version`, os seis modelos `atlas-br-*` com `@dev`, a run de comparação e os artefatos em `gs://ppgcc-bucket/mlflow/dev/`; anotar tempos por tarefa e as métricas de teste em `docs/referencias/resultados-forecast-br.md`
+- [x] 9.2 Rodar a DAG no compose de dev contra a gold real e registrar o resultado: as 8 runs com a mesma `atlas.pipeline_run` e `atlas.data_version`, os seis modelos `atlas-br-*` com `@dev`, a run de comparação e os artefatos em `gs://ppgcc-bucket/mlflow/dev/`; anotar tempos por tarefa e as métricas de teste em `docs/referencias/resultados-forecast-br.md`
 - [ ] 9.3 Rodar de novo com `horizon=4` e verificar que todas as runs registram `horizon=4`
 - [x] 9.4 Atualizar `ml/README.md` e `airflow/README.md` (novos comandos `atlas-ml forecast …`, DAG, pastas dos modelos); verificar seguindo os comandos documentados
 - [ ] 9.5 Commit do módulo em `dev` (`feat(forecast): DAG atlas_dengue_forecast_br e resultados`); verificar `git log -1 --stat`
