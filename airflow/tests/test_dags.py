@@ -2,16 +2,23 @@
 
     docker run --rm atlas-epidemiologia-airflow:local python /opt/atlas/tests/test_dags.py
 
+As DAGs do Cosmos rodam `dbt ls` na leitura: o profile exige DBT_BQ_KEYFILE definida (o
+`dbt ls` não conecta ao BigQuery, então um caminho fictício basta) e, sem banco, o cache
+do Cosmos fica desligado (AIRFLOW__COSMOS__ENABLE_CACHE_DBT_LS=False).
+
 Também é compatível com pytest (funções test_*).
 """
 
+import functools
 import os
 import sys
 
 DAGS_FOLDER = os.environ.get("ATLAS_DAGS_FOLDER", "/opt/airflow/dags")
 
 
+@functools.lru_cache(maxsize=1)
 def _dagbag():
+    # uma leitura só: as DAGs do Cosmos rodam `dbt ls` ao serem lidas
     try:
         from airflow.dag_processing.dagbag import DagBag
     except ImportError:  # versões anteriores do Airflow 3
@@ -36,98 +43,67 @@ def test_dag_de_exemplo():
     assert "run_id=" in task.bash_command
 
 
-ETL_STEPS = ["dbt_debug", "dbt_deps", "dbt_seed", "dbt_bronze", "dbt_silver", "dbt_gold"]
+ETL_LAYERS = ["seed", "bronze", "silver", "gold"]
 
 
-def test_etl_estrutura():
+def _project_nodes() -> dict[str, str]:
+    """Seeds e models do projeto dbt → camada esperada (pela pasta), lidos do próprio projeto."""
+    from pathlib import Path
+
+    root = Path(DAGS_FOLDER) / "utfpr_dengue"
+    nodes = {p.stem: "seed" for p in (root / "seeds").glob("*.csv")}
+    for p in (root / "models").rglob("*.sql"):
+        rel = p.relative_to(root / "models").parts
+        nodes[p.stem] = rel[0] if len(rel) > 1 else "gold"  # raiz de models/ (time spine) → gold
+    return nodes
+
+
+def _layer_of(task_id: str) -> str:
+    return task_id.split(".", 1)[0]
+
+
+def test_etl_cosmos_grupos_em_cadeia():
     dag = _dagbag().dags["process_etl_atlas"]
     assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
     assert dag.max_active_runs == 1
-    assert set(dag.task_ids) == {*ETL_STEPS, "dbt_report", "dbt_status"}
-    # sequência deps → seed → bronze → silver → gold, cada etapa também ligada à sentinela
-    for upstream, downstream in zip(ETL_STEPS, ETL_STEPS[1:] + ["dbt_report"], strict=True):
-        assert dag.get_task(upstream).downstream_task_ids == {downstream, "dbt_status"}, upstream
-    assert dag.get_task("dbt_status").upstream_task_ids == set(ETL_STEPS)
-    assert dag.get_task("dbt_report").trigger_rule == "all_done"
-    assert dag.get_task("dbt_status").trigger_rule == "one_failed"
+    assert not dag.params, "a ETL não tem parâmetros"
+    assert {_layer_of(t) for t in dag.task_ids} == set(ETL_LAYERS)
     for task in dag.tasks:
         assert task.retries == 0, f"{task.task_id} não pode ter retentativa"
+    # cada camada só depende da anterior (ou dela mesma)
+    order = {layer: i for i, layer in enumerate(ETL_LAYERS)}
+    crossings = set()
+    for task in dag.tasks:
+        for up in task.upstream_task_ids:
+            a, b = order[_layer_of(up)], order[_layer_of(task.task_id)]
+            assert a <= b, f"{up} -> {task.task_id} volta de camada"
+            if a < b:
+                crossings.add((a, b))
+    assert crossings == {(0, 1), (1, 2), (2, 3)}, crossings
 
 
-def test_etl_parametros_e_caminhos():
+def test_etl_cosmos_cobre_cada_model_uma_vez():
     dag = _dagbag().dags["process_etl_atlas"]
-    params = dag.params
-    # parâmetros opcionais: disparo sem configuração roda o projeto inteiro
-    assert params["select"] is None and params["exclude"] is None and params["full_refresh"] is False
-    layers = {
-        "dbt_seed": "resource_type:seed",
-        "dbt_bronze": "path:models/bronze",
-        "dbt_silver": "path:models/silver",
-        "dbt_gold": "path:models/gold",
-    }
-    for task_id, layer in layers.items():
-        task = dag.get_task(task_id)
-        assert "dbt build" in task.bash_command and "--full-refresh" in task.bash_command
-        assert layer in task.env["DBT_LAYER"].split(), (task_id, task.env["DBT_LAYER"])
-        # parâmetros só como variáveis de ambiente, nunca interpolados no comando
-        assert "params." not in task.bash_command
-        assert "params.select" in task.env["DBT_SELECT_ARG"]
-    assert "dbt deps" in dag.get_task("dbt_deps").bash_command
-    targets = set()
-    for task_id in ETL_STEPS:
-        env = dag.get_task(task_id).env
-        assert env["DBT_PROJECT_DIR"].endswith("/utfpr_dengue")
-        assert env["DBT_PROFILES_DIR"] == env["DBT_PROJECT_DIR"]
-        for key in ("DBT_TARGET_PATH", "DBT_LOG_PATH", "DBT_PACKAGES_INSTALL_PATH"):
-            assert env[key].startswith("/opt/airflow/dbt-artifacts/"), env[key]
-            assert not env[key].startswith(DAGS_FOLDER), "artefatos não podem ir para a pasta de DAGs"
-        targets.add(env["DBT_TARGET_PATH"])
-    assert len(targets) == len(ETL_STEPS), "cada etapa precisa do próprio target (run_results.json)"
+    for node, expected in _project_nodes().items():
+        layers = {
+            _layer_of(t)
+            for t in dag.task_ids
+            if t.split(".")[1] == node or t.split(".")[1].startswith(node + "_")
+        }
+        assert layers == {expected}, f"{node}: esperado em {expected}, encontrado em {layers}"
+    assert any(t.startswith("gold.gold_dengue_casos_provaveis_uf_semanal") for t in dag.task_ids)
 
 
-def test_etl_relatorio():
-    import json
-    import tempfile
-    from pathlib import Path
-
-    sys.path.insert(0, DAGS_FOLDER)
-    from process_etl_atlas import summarize_run_results
-
-    base = Path(tempfile.mkdtemp())
-    empty = summarize_run_results(str(base))
-    assert empty["nodes"] == 0 and all(v is None for v in empty["stages"].values())
-
-    def write(stage, results):
-        (base / stage / "target").mkdir(parents=True)
-        payload = {"elapsed_time": 2.0, "results": results}
-        (base / stage / "target" / "run_results.json").write_text(json.dumps(payload))
-
-    write(
-        "bronze",
-        [
-            {
-                "unique_id": "model.a",
-                "status": "success",
-                "execution_time": 3.0,
-                "adapter_response": {"bytes_processed": 2**30},
-            }
-        ],
-    )
-    write(
-        "silver",
-        [
-            {"unique_id": "test.b", "status": "fail", "execution_time": 1.0, "message": "Got 3 results"},
-            {"unique_id": "model.c", "status": "skipped", "execution_time": 0.0},
-        ],
-    )
-    summary = summarize_run_results(str(base))
-    assert (
-        summary["nodes"] == 3 and summary["success"] == 1 and summary["fail"] == 1 and summary["skipped"] == 1
-    )
-    assert summary["failed_nodes"][0]["node"] == "test.b" and summary["failed_nodes"][0]["stage"] == "silver"
-    assert summary["stages"]["gold"] is None and summary["stages"]["bronze"] == {"success": 1}
-    assert summary["slowest"][0] == ("model.a", 3.0)
-    assert summary["gib_processed"] == 1.0 and summary["elapsed_s"] == 4.0
+def test_docs_dag():
+    dag = _dagbag().dags["process_dbt_docs_atlas"]
+    assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
+    assert dag.task_ids == ["dbt_docs_gcs"]
+    task = dag.get_task("dbt_docs_gcs")
+    assert type(task).__name__ == "DbtDocsGCSLocalOperator"
+    assert task.connection_id == "google_cloud_default"
+    assert task.bucket_name == os.environ.get("ATLAS_DBT_DOCS_BUCKET", "ppgcc-bucket")
+    assert task.folder_dir == f"dbt_docs/{os.environ.get('ATLAS_ENV', 'dev')}"
+    assert task.retries == 0
 
 
 FORECAST_BASES = ["baseline_bayes", "chronos", "catboost", "svr", "lstm"]
