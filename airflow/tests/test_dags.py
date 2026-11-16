@@ -130,6 +130,40 @@ def test_etl_relatorio():
     assert summary["gib_processed"] == 1.0 and summary["elapsed_s"] == 4.0
 
 
+FORECAST_BASES = ["baseline_bayes", "chronos", "catboost", "svr", "lstm"]
+
+
+def test_forecast_estrutura_e_regras():
+    dag = _dagbag().dags["atlas_dengue_forecast_br"]
+    assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
+    assert dag.max_active_runs == 1 and dag.max_active_tasks == 3
+    tasks = {f"train_{b}" for b in FORECAST_BASES}
+    assert set(dag.task_ids) == {"prepare", *tasks, "train_ensemble", "compare"}
+    assert dag.get_task("prepare").downstream_task_ids == tasks
+    # o ensemble depende só dos modelos empilhados
+    assert dag.get_task("train_ensemble").upstream_task_ids == {"train_catboost", "train_svr", "train_lstm"}
+    compare = dag.get_task("compare")
+    assert compare.upstream_task_ids == {"train_baseline_bayes", "train_chronos", "train_ensemble"}
+    assert compare.trigger_rule == "all_done"
+    for t in tasks | {"prepare", "train_ensemble"}:
+        assert dag.get_task(t).retries == 1, t
+
+
+def test_forecast_parametros_e_ambiente():
+    dag = _dagbag().dags["atlas_dengue_forecast_br"]
+    assert dag.params["window"] == 12 and dag.params["horizon"] == 1 and dag.params["seed"] == 42
+    for task in dag.tasks:
+        assert task.env["ATLAS_PIPELINE_RUN"] == "{{ run_id }}", task.task_id
+        assert "params." not in task.bash_command, task.task_id
+    cat = dag.get_task("train_catboost")
+    assert "atlas-ml forecast train catboost" in cat.bash_command
+    assert "xcom_pull(task_ids='prepare')" in cat.env["DATASET_RUN"]
+    base_runs = dag.get_task("train_ensemble").env["BASE_RUNS"]
+    for b in ("catboost", "svr", "lstm"):
+        assert f"{b}=" in base_runs and f"train_{b}" in base_runs
+    assert "forecast compare" in dag.get_task("compare").bash_command
+
+
 def test_projeto_dbt_ignorado():
     bag = _dagbag()
     assert not any("utfpr_dengue" in path for path in bag.file_last_changed), "o DagBag varreu o projeto dbt"
