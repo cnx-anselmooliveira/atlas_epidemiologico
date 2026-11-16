@@ -23,8 +23,8 @@
 
 ## 4. Alinhamento com as outras mudanças
 
-- [ ] 4.1 Atualizar as tarefas 6.1 e 6.2 da `add-ml-platform`: os workflows de publicação chamam `./.github/workflows/ci.yml` como primeiro job e só publicam com `needs: tests`, sem repetir ruff/pytest/DagBag; verificar `openspec validate add-ml-platform --strict`; e trocar o job `tests` (bloqueio) do `.github/workflows/release.yml` (add-repo-governance) por `uses: ./.github/workflows/ci.yml`, verificando com `actionlint`
-- [ ] 4.2 Commit em `dev` (`docs(openspec): publicação de imagens depende do CI`); verificar `git log -1`
+- [x] 4.1 Atualizar as tarefas 6.1 e 6.2 da `add-ml-platform`: os workflows de publicação chamam `./.github/workflows/ci.yml` como primeiro job e só publicam com `needs: tests`, sem repetir ruff/pytest/DagBag; verificar `openspec validate add-ml-platform --strict`; e trocar o job `tests` (bloqueio) do `.github/workflows/release.yml` (add-repo-governance) por `uses: ./.github/workflows/ci.yml`, verificando com `actionlint`
+- [x] 4.2 Commit em `dev` (`docs(openspec): publicação de imagens depende do CI`); verificar `git log -1`
 
 ## Workflow follow-up
 
