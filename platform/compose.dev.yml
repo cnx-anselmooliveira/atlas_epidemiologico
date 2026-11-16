@@ -34,6 +34,7 @@ x-airflow-common: &airflow-common
   volumes:
     - ../airflow/dags:/opt/airflow/dags            # DAGs ao vivo, sem rebuild
     - dbt-artifacts:/opt/airflow/dbt-artifacts     # target/ e logs/ do dbt por execução
+    - hf-cache:/opt/airflow/hf-cache               # checkpoint do Chronos (HF_HOME da imagem)
     - ../ml/src:/opt/atlas-ml-src/src               # atlas_ml editável
     - airflow-logs:/opt/airflow/logs
     - airflow-shared:/opt/airflow/shared
@@ -153,8 +154,10 @@ services:
       target: notebook
       args:
         ATLAS_GIT_SHA: ${ATLAS_GIT_SHA:?}
+        ATLAS_ML_EXTRAS: models                     # CatBoost, PyTorch, PyMC, Chronos no notebook
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      HF_HOME: /home/atlas/hf-cache
       ATLAS_ENV: dev
       ATLAS_GIT_SHA: ${ATLAS_GIT_SHA:?}
       GCP_PROJECT: ${GCP_PROJECT:-}
@@ -163,6 +166,7 @@ services:
     volumes:
       - ../ml/src:/app/src                          # atlas_ml editável
       - ../ml/notebooks:/home/atlas/work/notebooks
+      - hf-cache:/home/atlas/hf-cache
       - ./secrets:/secrets:ro
     ports:
       - "127.0.0.1:${JUPYTER_PORT:-8888}:8888"
@@ -176,4 +180,5 @@ volumes:
   mlartifacts:
   airflow-logs:
   dbt-artifacts:
+  hf-cache:
   airflow-shared:
