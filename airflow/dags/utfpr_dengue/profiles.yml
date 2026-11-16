@@ -1,0 +1,22 @@
+# Profile do projeto utfpr_dengue — versionado, sem segredos.
+# Tudo vem de variáveis de ambiente; só DBT_BQ_KEYFILE é obrigatória.
+#   DBT_BQ_KEYFILE    caminho do JSON da service account (dev: platform/secrets/training-sa.json;
+#                     containers: /secrets/training-sa.json)
+#   DBT_GCP_PROJECT   padrão ppgcc-dengue-project
+#   DBT_BQ_DATASET    dataset padrão (os schemas bronze/silver/gold vêm da macro generate_schema_name)
+#   DBT_BQ_LOCATION   padrão US
+#   DBT_THREADS       padrão 4
+utfpr_dengue:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('DBT_GCP_PROJECT', 'ppgcc-dengue-project') }}"
+      dataset: "{{ env_var('DBT_BQ_DATASET', 'ppgcc-dengue-dataset') }}"
+      location: "{{ env_var('DBT_BQ_LOCATION', 'US') }}"
+      keyfile: "{{ env_var('DBT_BQ_KEYFILE') }}"
+      threads: "{{ env_var('DBT_THREADS', '4') | int }}"
+      priority: interactive
+      job_retries: 1
+      job_execution_timeout_seconds: 900
