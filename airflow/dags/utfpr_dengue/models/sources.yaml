@@ -109,3 +109,29 @@ sources:
           a geometria do polígono (GEOGRAPHY). Polígonos do geoBoundaries; para o
           Brasil só há ADM2 (5.556 municípios), com region_id do geoBoundaries,
           que não casa com o código do IBGE (ver silver_relevo_uf_brasil).
+
+  - name: sinan_opendatasus
+    description: >
+      Microdados de dengue do SINAN publicados pelo OpenDataSUS (Ministério da
+      Saúde), carregados pela DAG process_etl_atlas (grupo sinan): o arquivo
+      original fica em gs://ppgcc-bucket/landing/sinan/dengue/ (espelho da
+      origem) e cada ano vira uma partição da tabela bronze, sem transformação.
+    database: ppgcc-dengue-project
+    schema: bronze
+    tables:
+      - name: sinan_dengue_opendatasus
+        description: >
+          Uma linha por notificação, colunas com os nomes originais do DATASUS,
+          todas como texto. Dois layouts: 2000-2006 (SINAN Windows: CON_CLASSI,
+          CON_EVOLUC, NU_IDADE "A021", UF em sigla, município com 7 dígitos) e
+          2007 em diante (SINAN Net: CLASSI_FIN, EVOLUCAO, NU_IDADE_N "4021", UF
+          em código do IBGE, município com 6 dígitos). Colunas de linhagem:
+          ano_arquivo (partição), arquivo_etag, arquivo_uri e carregado_em.
+        columns:
+          - name: ano_arquivo
+            description: Ano do arquivo DENGBR<aa> de origem (partição).
+            data_tests: [not_null]
+          - name: arquivo_etag
+            description: ETag da versão do arquivo na origem.
+          - name: carregado_em
+            description: Momento da carga da partição.

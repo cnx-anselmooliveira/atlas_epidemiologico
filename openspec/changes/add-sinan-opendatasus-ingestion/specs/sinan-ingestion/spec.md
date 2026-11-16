@@ -109,7 +109,11 @@ As camadas silver e gold SHALL continuar funcionando sem mudança de contrato. A
 
 #### Scenario: Anos recentes republicados
 - **WHEN** a modelagem roda com a fonte OpenDataSUS
-- **THEN** em cada ano a partir de 2021, o total por UF e classificação final é maior ou igual a 99% do da fonte Base dos Dados (a fonte nova pode ganhar registros, mas não perder), e as diferenças ficam registradas na documentação
+- **THEN** em cada ano encerrado a partir de 2021, o total por UF e classificação final é maior ou igual a 99% do da fonte Base dos Dados (a fonte nova pode ganhar registros, mas não perder), e as diferenças ficam registradas na documentação
+
+#### Scenario: Ano corrente
+- **WHEN** a comparação inclui o ano corrente, ainda em investigação
+- **THEN** ele fica fora do critério e só é documentado, porque as notificações ainda mudam de classe entre as publicações
 
 #### Scenario: Rollback
 - **WHEN** a variável de fonte é definida como `basedosdados`

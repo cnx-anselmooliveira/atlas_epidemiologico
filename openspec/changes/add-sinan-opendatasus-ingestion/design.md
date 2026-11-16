@@ -138,7 +138,7 @@ As etapas por ano, do jeito que já estão implementadas e medidas (seção 8):
   - DagBag (sensor em reschedule com `soft_fail`, mapeamentos, trigger rule do disparo).
 
 ### 6. dbt: bronze como source e mapeamento DATASUS
-- **Source:** `sinan_opendatasus` (schema `bronze`, tabela `sinan_dengue_opendatasus`), com `loaded_at_field: carregado_em` e freshness (aviso com 10 dias, erro com 30).
+- **Source:** `sinan_opendatasus` (schema `bronze`, tabela `sinan_dengue_opendatasus`), com descrição e as colunas de linhagem. Sem bloco de freshness, a pedido do usuário: a coluna `carregado_em` continua disponível para consulta.
 - **`bronze_dengue_brasil`:** escolhe a fonte por `var('sinan_source')`. No ramo OpenDataSUS:
   - **layout por linha:** `CLASSI_FIN IS NOT NULL OR ano_arquivo >= 2007` identifica o SINAN Net; antes disso, as colunas `CON_*` (seção 8);
   - **UF:** quando o valor é numérico (SINAN Net), o código do IBGE vira sigla pela dimensão de municípios; quando já é sigla (SINAN Windows), fica como está. Vale para notificação, residência e infecção (`COUFINF` / `CON_INF_UF`);
@@ -155,6 +155,7 @@ As etapas por ano, do jeito que já estão implementadas e medidas (seção 8):
 2. Comparação entre as fontes, registrada em `docs/referencias/sinan-opendatasus.md`, com critério por tipo de ano:
    - **anos fechados (até 2020):** total por UF idêntico, 0%. Em 2000, 2003 e 2013, os totais anuais já batem exatamente;
    - **anos republicados (2021+):** o OpenDataSUS continua atualizando esses anos depois do retrato da Base dos Dados. Em 2023 houve +9,1%, todo em notificações novas (classes 10, 11 e 0), com inconclusivos e sem classificação idênticos e duplicidade de 0,1%. Por isso o critério é: por UF e classificação, OpenDataSUS ≥ 99% da Base dos Dados. A fonte nova pode ganhar registros, mas não perder.
+   - **ano corrente:** fica fora do teste e só é documentado, por decisão do usuário. Em 2026, entre o retrato de junho e a publicação de novembro, os registros sem classificação e os inconclusivos caíram muito (ex.: TO, de 5.968 para 690 sem classificação), porque viraram confirmados ou descartados. O total subiu de 398.786 para 489.197.
 3. Padrão trocado para `opendatasus` e `process_etl_atlas` completa.
 
 ### 8. Medições do landing (16/11/2026)

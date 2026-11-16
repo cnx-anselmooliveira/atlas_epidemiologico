@@ -46,8 +46,8 @@
 
 ## 4. Modelagem sobre a bronze
 
-- [ ] 4.1 Declarar a source `sinan_opendatasus` em `models/sources.yaml` (descrição, `loaded_at_field: carregado_em`, freshness com aviso em 10 dias e erro em 30); verificar `dbt source freshness --select source:sinan_opendatasus`
-- [ ] 4.2 Reescrever `bronze_dengue_brasil` com `var('sinan_source', 'basedosdados')` durante a comparação:
+- [x] 4.1 Declarar a source `sinan_opendatasus` em `models/sources.yaml` (descrição e colunas de linhagem; sem bloco de freshness, a pedido do usuário); verificar com `dbt parse` sem avisos
+- [x] 4.2 Reescrever `bronze_dengue_brasil` com `var('sinan_source', 'basedosdados')` durante a comparação:
   - ramo OpenDataSUS, com os dois layouts:
     - UF: código do IBGE → sigla (2007+), sigla mantida (2000–2006);
     - município: 6 → 7 dígitos pela dimensão (2007+), 7 dígitos mantidos (2000–2006);
@@ -58,12 +58,13 @@
   - ramo antigo sem mudança.
 
   Conferir coluna a coluna contra a Base dos Dados em 2003 (layout antigo) e 2023, por amostragem e por distribuição de valores.
-- [ ] 4.3 Teste dbt de equivalência (singular, `severity: warn`), com critério por tipo de ano:
+- [x] 4.3 Teste dbt de equivalência (singular, `severity: warn`), com critério por tipo de ano:
   - até 2020: total por UF idêntico;
-  - 2021 em diante: por UF e classificação, OpenDataSUS ≥ 99% da Base dos Dados.
+  - 2021 em diante: por UF e classificação, OpenDataSUS ≥ 99% da Base dos Dados;
+  - ano corrente: fora do teste, só documentado.
 
   Verificar com as duas fontes carregadas.
-- [ ] 4.4 Commit em `dev` (`feat(dbt): bronze do Brasil a partir do OpenDataSUS`); verificar `git log -1 --stat`
+- [x] 4.4 Commit em `dev` (`feat(dbt): bronze do Brasil a partir do OpenDataSUS`); verificar `git log -1 --stat`
 
 ## 5. Sync dentro da `process_etl_atlas` e corte
 
