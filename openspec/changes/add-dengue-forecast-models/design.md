@@ -71,7 +71,7 @@ Cada `README.md` de modelo traz:
 Assim cada `model.py` só contém o que é específico do modelo.
 
 ### 2. Dataset e snapshot
-- **Consulta:** junta a curva semanal com `country_iso3='BRA' AND admin1_name IS NOT NULL`. A população é a do ano mais próximo, escolhida por `ROW_NUMBER` sobre `ABS(year − population_year)`. A leitura usa `read_features(query=…, source_tables=[epi, pop])`, então a `data_version` registra a geração das duas tabelas.
+- **Consulta:** um `SELECT` simples da `gold_dengue_casos_provaveis_uf_semanal` (mudança `add-gold-casos-provaveis-uf`): `probable_cases` vira `cases`, com a população do ano epidemiológico e o relevo (`mean_elevation_m`, `mean_slope_deg`) como covariáveis estáticas, disponíveis para `cfg.features`. A leitura usa `read_features(query=…, source_tables=[gold])`, então a `data_version` registra a geração da tabela. A curva antiga (`gold_dengue_epi_curve_weekly`) não serve como alvo: soma descartados até 2021 e não depois, o que cria uma quebra de nível em 2022 (`docs/referencias/gold-casos-provaveis-uf.md`).
 - **Painel:**
   - semanas faltantes completadas com zero e `filled=true`;
   - `incidence = cases / population × 1e5`;

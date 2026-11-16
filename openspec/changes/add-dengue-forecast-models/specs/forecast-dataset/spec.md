@@ -7,19 +7,19 @@ Fornecer aos modelos de previsão um painel de incidência de dengue por UF e se
 ## ADDED Requirements
 
 ### Requirement: Painel de incidência a partir da gold do SINAN
-O dataset SHALL ser montado a partir das tabelas gold do Brasil no BigQuery: casos semanais por UF da curva epidêmica e população por UF. A incidência SHALL ser calculada como casos por 100 mil habitantes, usando a população do ano mais próximo disponível. Cada linha SHALL ser única por (UF, data de início da semana).
+O dataset SHALL ser montado a partir da gold `gold_dengue_casos_provaveis_uf_semanal` do BigQuery: casos prováveis (`probable_cases`, notificações não descartadas) por UF de residência e semana do início dos sintomas, com a população da UF no ano epidemiológico. A incidência SHALL ser calculada como casos por 100 mil habitantes. Cada linha SHALL ser única por (UF, data de início da semana). As covariáveis estáticas da gold (`mean_elevation_m`, `mean_slope_deg`) SHALL acompanhar o painel.
 
 #### Scenario: Montagem do painel
 - **WHEN** o dataset é preparado
-- **THEN** existe uma linha por UF e semana epidemiológica, com `cases`, `population` e `incidence`
+- **THEN** existe uma linha por UF e semana epidemiológica, com `cases`, `population`, `incidence` e as covariáveis de relevo
 - **AND** não há duas linhas com a mesma UF e semana
 
 #### Scenario: UF sem população
-- **WHEN** uma UF da curva epidêmica não tem população na tabela de população
+- **WHEN** uma UF da gold não tem população
 - **THEN** a preparação falha listando a UF, em vez de gerar incidência nula ou infinita
 
 ### Requirement: Semanas faltantes explícitas
-Semanas sem registro dentro do período de uma UF SHALL ser incluídas com zero casos e uma marca de preenchimento, de modo que as janelas temporais tenham espaçamento regular.
+Semanas sem registro dentro do período de uma UF SHALL ser incluídas com zero casos e uma marca de preenchimento, de modo que as janelas temporais tenham espaçamento regular. A gold já entrega a série regular; o dataset valida e completa por segurança.
 
 #### Scenario: Buraco na série
 - **WHEN** a gold não tem linha para uma UF numa semana entre a primeira e a última semana dessa UF

@@ -24,7 +24,7 @@
 ## 4. CI e integração
 
 - [ ] 4.1 Adicionar o job `dbt` ao `.github/workflows/ci.yml` (uv sync + `dbt parse` com variáveis fictícias) e incluí-lo no `ci-ok`; verificar com `actionlint` e o job verde num PR para `hml`
-- [ ] 4.2 Atualizar a `add-dengue-forecast-models` (spec `forecast-dataset`, design seção 2 e tarefas 2.2/2.3) para ler `gold_dengue_casos_provaveis_uf_semanal` (`probable_cases`, covariáveis de relevo); verificar `openspec validate add-dengue-forecast-models --strict`
+- [x] 4.2 Atualizar a `add-dengue-forecast-models` (spec `forecast-dataset`, design seção 2 e tarefas 2.2/2.3) para ler `gold_dengue_casos_provaveis_uf_semanal` (`probable_cases`, covariáveis de relevo); verificar `openspec validate add-dengue-forecast-models --strict`
 - [ ] 4.3 Atualizar `airflow/dags/utfpr_dengue/README.md` (como rodar, profile, nova tabela, testes) e o `README.md` raiz (pasta `airflow/dags/utfpr_dengue/` na estrutura); verificar links com lychee
 - [ ] 4.4 Commits por assunto (`ci: dbt parse no pipeline`; `docs(openspec): modelos leem a gold de casos prováveis`; `docs: documentação do projeto dbt`); verificar `git log --oneline -3`
 
