@@ -68,7 +68,7 @@ No Airflow, dispare a DAG `atlas_ml_example_training` e veja a run no MLflow. O 
 | Pasta | O que tem |
 |---|---|
 | [`ml/`](ml/README.md) | Pacote Python `atlas_ml`: CLI `atlas-ml`, treinos, leitura do BigQuery, promoção de modelos e testes |
-| [`airflow/`](airflow/README.md) | Imagem do Airflow e DAGs (`airflow/dags/`) |
+| [`airflow/`](airflow/README.md) | Imagem do Airflow e DAGs (`airflow/dags/`), incluindo o projeto dbt [`airflow/dags/utfpr_dengue/`](airflow/dags/utfpr_dengue/README.md) (bronze, silver e gold no BigQuery) |
 | [`infra/mlflow/`](infra/mlflow/README.md) | Imagem do servidor MLflow (Postgres + GCS, autenticação na VPS) |
 | [`platform/`](platform/README.md) | Compose de desenvolvimento local (Postgres, MLflow, Airflow, Jupyter) |
 | [`deploy/`](deploy/) | Stacks do Portainer para homologação e produção (em construção) |

@@ -19,13 +19,13 @@
 - [x] 3.2 Criar `silver_relevo_uf_brasil` (cruzamento espacial DEM ADM2 × centroides do IBGE, médias ponderadas por área, taxa de casamento); verificar 27 UFs e registrar a taxa de casamento
 - [x] 3.3 Criar `gold_dengue_casos_provaveis_uf_semanal` (+ `.yml` com descrições das colunas e testes genéricos) e os testes singulares (totais vs silver, prováveis ≤ notificados, semanas completas, relevo 27 UFs, `outro` como aviso); verificar `dbt build --select +gold_dengue_casos_provaveis_uf_semanal` com todos os testes verdes
 - [x] 3.4 Comparar a nova tabela com a `gold_dengue_epi_curve_weekly` (totais por ano, picos por UF, fração de descartados, efeito dos fallbacks) e registrar em `docs/referencias/gold-casos-provaveis-uf.md`; verificar a diferença próxima de 22% explicada pelos descartados
-- [ ] 3.5 Commits por assunto (`feat(dbt): agregado de casos por UF e semana e relevo por UF`; `feat(dbt): gold de casos prováveis por UF para modelagem`; `docs: comparação da nova gold com a curva atual`); verificar `git log --oneline -3`
+- [x] 3.5 Commits por assunto (`feat(dbt): agregado de casos por UF e semana e relevo por UF`; `feat(dbt): gold de casos prováveis por UF para modelagem`; `docs: comparação da nova gold com a curva atual`); verificar `git log --oneline -3`
 
 ## 4. CI e integração
 
 - [ ] 4.1 Adicionar o job `dbt` ao `.github/workflows/ci.yml` (uv sync + `dbt parse` com variáveis fictícias) e incluí-lo no `ci-ok`; verificar com `actionlint` e o job verde num PR para `hml`
 - [x] 4.2 Atualizar a `add-dengue-forecast-models` (spec `forecast-dataset`, design seção 2 e tarefas 2.2/2.3) para ler `gold_dengue_casos_provaveis_uf_semanal` (`probable_cases`, covariáveis de relevo); verificar `openspec validate add-dengue-forecast-models --strict`
-- [ ] 4.3 Atualizar `airflow/dags/utfpr_dengue/README.md` (como rodar, profile, nova tabela, testes) e o `README.md` raiz (pasta `airflow/dags/utfpr_dengue/` na estrutura); verificar links com lychee
+- [x] 4.3 Atualizar `airflow/dags/utfpr_dengue/README.md` (como rodar, profile, nova tabela, testes) e o `README.md` raiz (pasta `airflow/dags/utfpr_dengue/` na estrutura); verificar links com lychee
 - [ ] 4.4 Commits por assunto (`ci: dbt parse no pipeline`; `docs(openspec): modelos leem a gold de casos prováveis`; `docs: documentação do projeto dbt`); verificar `git log --oneline -3`
 
 ## Workflow follow-up

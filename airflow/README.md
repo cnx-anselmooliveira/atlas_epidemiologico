@@ -41,3 +41,12 @@ As tarefas herdam o ambiente do container (`MLFLOW_TRACKING_URI`, `ATLAS_ENV`, `
 | DAG | Agendamento | O que faz |
 |---|---|---|
 | `atlas_ml_example_training` | manual | `atlas-ml train example --register`. Falha se a run não for registrada no MLflow; 2 retentativas |
+| `process_etl_atlas` | manual | Atualiza a modelagem dbt (`dags/utfpr_dengue/`) no BigQuery: `dbt_debug → dbt_deps → dbt_seed → dbt_bronze → dbt_silver → dbt_gold → dbt_report`. Parâmetros opcionais `select`, `exclude` e `full_refresh`; sem configuração, roda o projeto inteiro. Uma etapa falhando interrompe as seguintes e deixa a execução vermelha (`dbt_status`). Sem retentativas |
+
+### process_etl_atlas
+
+- **Disparo:** Trigger na UI. Para reconstruir só uma tabela e seus antecessores, use `{"select": "+gold_dengue_casos_provaveis_uf_semanal"}`.
+- **Artefatos:** `/opt/airflow/dbt-artifacts/<run_id>/<etapa>/` (`target/`, logs, `run_results.json`), no volume `dbt-artifacts` em dev. O relatório (`dbt_report`) resume contagens, falhas, nós mais lentos e GiB processados no log e no XCom.
+- **Credencial:** `DBT_BQ_KEYFILE`; em dev, `/secrets/training-sa.json`.
+- **Custo:** o build completo processa cerca de 9 GiB no BigQuery ([detalhes](dags/utfpr_dengue/README.md#custo-e-tempo-do-build-completo)).
+- **Pasta de DAGs:** o projeto dbt fica dentro dela e é ignorado pelo processador de DAGs (`dags/.airflowignore`).
