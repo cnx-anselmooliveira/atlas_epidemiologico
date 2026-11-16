@@ -1,4 +1,4 @@
-"""Painel UF × semana de incidência de dengue a partir da gold do SINAN (spec forecast-dataset)."""
+"""Painel UF × semana de incidência de casos prováveis de dengue (gold do SINAN, spec forecast-dataset)."""
 
 from __future__ import annotations
 
@@ -17,9 +17,9 @@ from atlas_ml.forecast import EXPERIMENT
 from atlas_ml.tracking import atlas_run
 
 GOLD = "ppgcc-dengue-project.gold"
-EPI_TABLE = f"{GOLD}.gold_dengue_epi_curve_weekly"
-POP_TABLE = f"{GOLD}.gold_dim_populacao_admin1"
+CASES_TABLE = f"{GOLD}.gold_dengue_casos_provaveis_uf_semanal"
 PANEL_ARTIFACT = "panel.parquet"
+STATIC_COVARIATES = ["mean_elevation_m", "mean_slope_deg"]
 PANEL_COLUMNS = [
     "uf",
     "uf_code",
@@ -30,29 +30,16 @@ PANEL_COLUMNS = [
     "population",
     "incidence",
     "filled",
+    *STATIC_COVARIATES,
 ]
 
-# Casos por UF e semana + população do ano mais próximo (uma linha por UF/semana)
+# Casos prováveis (notificações não descartadas) por UF de residência e semana do início
+# dos sintomas, com população do ano epidemiológico e relevo da UF. A gold já garante a
+# série regular (27 UFs × todas as semanas); build_panel só valida e completa por segurança.
 QUERY = f"""
-WITH epi AS (
-  SELECT admin1_name AS uf, epi_week_start_date AS week_start, year, epi_week,
-         SUM(total_cases) AS cases
-  FROM `{EPI_TABLE}`
-  WHERE country_iso3 = 'BRA' AND admin1_name IS NOT NULL
-  GROUP BY 1, 2, 3, 4
-),
-pop AS (
-  SELECT admin1_name AS uf, population, population_year
-  FROM `{POP_TABLE}`
-  WHERE country_iso3 = 'BRA'
-)
-SELECT e.uf, e.week_start, e.year, e.epi_week, e.cases, p.population
-FROM epi e
-LEFT JOIN pop p
-  ON p.uf = e.uf
-QUALIFY ROW_NUMBER() OVER (
-  PARTITION BY e.uf, e.week_start ORDER BY ABS(e.year - p.population_year), p.population_year DESC
-) = 1
+SELECT uf, week_start, epi_year AS year, epi_week, probable_cases AS cases, population,
+       {", ".join(STATIC_COVARIATES)}
+FROM `{CASES_TABLE}`
 """
 
 
@@ -60,6 +47,9 @@ def build_panel(raw: pd.DataFrame) -> pd.DataFrame:
     """Normaliza o resultado da consulta num painel regular (semanas faltantes → 0, filled=True)."""
     df = raw.copy()
     df["week_start"] = pd.to_datetime(df["week_start"])
+    for col in STATIC_COVARIATES:
+        if col not in df:
+            df[col] = float("nan")
     missing = sorted(df.loc[df["population"].isna(), "uf"].unique())
     if missing:
         raise ValueError(f"UFs sem população na gold: {', '.join(missing)}")
@@ -76,6 +66,8 @@ def build_panel(raw: pd.DataFrame) -> pd.DataFrame:
         g["uf"] = uf
         g["cases"] = g["cases"].fillna(0).astype("int64")
         g["population"] = g["population"].ffill().bfill()
+        for col in STATIC_COVARIATES:
+            g[col] = g[col].ffill().bfill()
         iso = g.index.isocalendar()
         g["year"] = g["year"].fillna(pd.Series(iso.year.values, index=g.index)).astype("int64")
         g["epi_week"] = g["epi_week"].fillna(pd.Series(iso.week.values, index=g.index)).astype("int64")
@@ -85,6 +77,8 @@ def build_panel(raw: pd.DataFrame) -> pd.DataFrame:
     codes = {uf: i for i, uf in enumerate(sorted(panel["uf"].unique()))}
     panel["uf_code"] = panel["uf"].map(codes).astype("int64")
     panel["population"] = panel["population"].astype("float64")
+    for col in STATIC_COVARIATES:
+        panel[col] = panel[col].astype("float64")
     panel["incidence"] = panel["cases"] / panel["population"] * 1e5
     return panel[PANEL_COLUMNS].sort_values(["uf", "week_start"]).reset_index(drop=True)
 
@@ -107,7 +101,7 @@ def pipeline_tags() -> dict[str, str]:
 
 def prepare(settings: Settings, client: Any) -> str:
     """Lê a gold, monta o painel e registra o snapshot numa run `dataset`. Devolve o run_id."""
-    raw, summary = read_features(client, query=QUERY, source_tables=[EPI_TABLE, POP_TABLE])
+    raw, summary = read_features(client, query=QUERY, source_tables=[CASES_TABLE])
     panel = build_panel(raw)
     with (
         atlas_run(

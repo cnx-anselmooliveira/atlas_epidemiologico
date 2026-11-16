@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from atlas_ml.config import load_settings
-from atlas_ml.forecast.dataset import EPI_TABLE, POP_TABLE, build_panel, load_snapshot, prepare
+from atlas_ml.forecast.dataset import CASES_TABLE, STATIC_COVARIATES, build_panel, load_snapshot, prepare
 
 
 def raw_rows():
@@ -16,7 +16,16 @@ def raw_rows():
             if uf == "B" and d == "2018-01-14":
                 continue
             rows.append(
-                {"uf": uf, "week_start": d, "year": 2018, "epi_week": 1, "cases": c, "population": pop}
+                {
+                    "uf": uf,
+                    "week_start": d,
+                    "year": 2018,
+                    "epi_week": 1,
+                    "cases": c,
+                    "population": pop,
+                    "mean_elevation_m": 100.0 if uf == "A" else 800.0,
+                    "mean_slope_deg": 2.0,
+                }
             )
     return pd.DataFrame(rows)
 
@@ -30,6 +39,9 @@ def test_painel_preenche_semanas_e_calcula_incidencia():
     a = p[(p.uf == "A") & (p.week_start == "2018-01-21")].iloc[0]
     assert a.incidence == pytest.approx(30 / 1_000_000 * 1e5)
     assert p.uf_code.tolist() == [0, 0, 0, 1, 1, 1]
+    # covariáveis estáticas preenchidas também na semana completada
+    assert hole.mean_elevation_m == 800.0
+    assert set(STATIC_COVARIATES) <= set(p.columns)
 
 
 def test_uf_sem_populacao_falha_listando_a_uf():
@@ -59,7 +71,7 @@ def test_prepare_registra_snapshot_e_versao(tracking_uri, monkeypatch):
     assert run.data.tags["atlas.pipeline_run"] == "manual__teste"
     assert run.data.tags["atlas.model_family"] == "dataset"
     version = run.data.tags["atlas.data_version"]
-    assert EPI_TABLE in version and POP_TABLE in version
+    assert CASES_TABLE in version
     panel, v = load_snapshot(run_id)
     assert v == version and len(panel) == 6
-    assert "country_iso3 = 'BRA'" in client.queries[0]
+    assert "probable_cases AS cases" in client.queries[0]

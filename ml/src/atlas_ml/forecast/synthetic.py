@@ -36,6 +36,8 @@ def synthetic_panel(
                     "population": pop,
                     "incidence": cases / pop * 1e5,
                     "filled": False,
+                    "mean_elevation_m": float(rng.uniform(50, 1200)),
+                    "mean_slope_deg": float(rng.uniform(1, 12)),
                 }
             )
         )
