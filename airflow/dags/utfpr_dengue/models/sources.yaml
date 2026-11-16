@@ -101,3 +101,11 @@ sources:
           poder ser referenciada como source do dbt, junto com as demais
           tabelas de microdados. Usada só para enriquecer
           `bronze_dengue_brasil` com nomes de município/UF/região de saúde.
+
+      - name: raw_uftpr_geospatial_copernicus_dem_regions
+        description: >
+          Relevo por região administrativa a partir do Copernicus DEM (GLO-30):
+          elevação mínima, máxima e média, declividade e orientação médias, com
+          a geometria do polígono (GEOGRAPHY). Polígonos do geoBoundaries; para o
+          Brasil só há ADM2 (5.556 municípios), com region_id do geoBoundaries,
+          que não casa com o código do IBGE (ver silver_relevo_uf_brasil).
