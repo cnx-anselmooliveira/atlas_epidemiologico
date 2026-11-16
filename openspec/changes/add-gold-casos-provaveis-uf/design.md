@@ -2,7 +2,7 @@
 
 ## Context
 
-O que foi observado no BigQuery e no projeto dbt `utfpr_dengue/` (trazido do projeto antigo, ainda não versionado):
+O que foi observado no BigQuery e no projeto dbt `airflow/dags/utfpr_dengue/` (trazido do projeto antigo, ainda não versionado):
 
 - **`silver_dengue_cases_brasil`:** tabela, 33,46 milhões de notificações, uma linha por caso. Tem `symptom_onset_date`, `notification_date`, `patient_state_residence`, `notification_state`, `case_classification` (texto cru do SINAN), `severe_dengue_flag`, `is_death` e `autochthonous_case_flag`.
 - **`case_classification`:** a partir de 2013 os códigos vêm com espaço no fim (`"5 "`, `"8 "`, `"1 "`…), e antes sem espaço. Distribuição:
@@ -36,9 +36,9 @@ O que foi observado no BigQuery e no projeto dbt `utfpr_dengue/` (trazido do pro
 ## Decisions
 
 ### 1. Projeto no repositório e execução
-- **Pasta:** o projeto entra em `utfpr_dengue/`, com o nome trazido. A `decouple-architecture-bigquery` previa `dbt/`, e o alinhamento fica registrado lá depois.
-- **`utfpr_dengue/pyproject.toml` + `uv.lock`:** dependências fixadas, `dbt-core` e `dbt-bigquery` (versões resolvidas e travadas no lock). A execução é `uv run --project utfpr_dengue dbt build --project-dir utfpr_dengue --profiles-dir utfpr_dengue`, encapsulada em `utfpr_dengue/dbt.ps1` e `dbt.sh`.
-- **`utfpr_dengue/profiles.yml` versionado:**
+- **Pasta:** o projeto entra em `airflow/dags/utfpr_dengue/`, com o nome trazido. A `decouple-architecture-bigquery` previa `dbt/`, e o alinhamento fica registrado lá depois.
+- **`airflow/dags/utfpr_dengue/pyproject.toml` + `uv.lock`:** dependências fixadas, `dbt-core` e `dbt-bigquery` (versões resolvidas e travadas no lock). A execução é `uv run --project utfpr_dengue dbt build --project-dir utfpr_dengue --profiles-dir airflow/dags/utfpr_dengue`, encapsulada em `airflow/dags/utfpr_dengue/dbt.ps1` e `dbt.sh`.
+- **`airflow/dags/utfpr_dengue/profiles.yml` versionado:**
   ```yaml
   utfpr_dengue:
     target: dev
@@ -91,7 +91,7 @@ Colunas da gold:
 - `gold_generated_at`.
 
 ### 4. População anual por UF
-`utfpr_dengue/scripts/gerar_seed_populacao_uf_anual.py` consulta a API SIDRA do IBGE e grava `seeds/seed_populacao_uf_anual.csv` (`uf, year, population, origin, source`):
+`airflow/dags/utfpr_dengue/scripts/gerar_seed_populacao_uf_anual.py` consulta a API SIDRA do IBGE e grava `seeds/seed_populacao_uf_anual.csv` (`uf, year, population, origin, source`):
 - **censos:** 2000, 2010 e 2022;
 - **estimativas anuais:** tabela 6579, nos anos disponíveis;
 - **anos sem valor entre dois conhecidos:** interpolação linear (`interpolado`);
@@ -114,7 +114,7 @@ O CSV versionado é a fonte da verdade do dbt. O script só é rodado para atual
 
 ### 6. CI
 O `ci.yml` ganha o job `dbt`:
-- `uv sync --frozen` em `utfpr_dengue/`;
+- `uv sync --frozen` em `airflow/dags/utfpr_dengue/`;
 - variáveis fictícias (`DBT_BQ_KEYFILE=/dev/null`);
 - `dbt parse --profiles-dir .`;
 - o job entra em `ci-ok`.
@@ -125,6 +125,13 @@ O `ci.yml` ganha o job `dbt`:
 - **Spec `forecast-dataset`:** o requisito "Painel de incidência a partir da gold do SINAN" passa a citar `gold_dengue_casos_provaveis_uf_semanal` e `probable_cases`. O preenchimento de semanas faltantes vira garantia da gold, e o dataset só valida.
 - **Design (seção 2):** a consulta vira um `SELECT` simples da nova tabela. O painel ganha `mean_elevation_m` e `mean_slope_deg` como covariáveis estáticas disponíveis para `cfg.features`.
 - **Código do módulo 2 (`forecast/dataset.py`, não commitado):** a constante `QUERY` e os testes do cliente simulado são ajustados quando aquele módulo for retomado.
+
+## Ajustes da implementação
+
+- **Pasta e execução:** o projeto ficou em `airflow/dags/utfpr_dengue/` (mudança `add-dbt-refresh-dag`), com `pyproject.toml`/`uv.lock`, `profiles.yml` por variáveis e os scripts `dbt.sh`/`dbt.ps1` (artefatos em `.dbt-local/`, ignorado). Em produção, roda pela DAG `process_etl_atlas`.
+- **Início da série:** a gold começa no ano epidemiológico 2000 (`var('gold_first_epi_year', 2000)`), o primeiro com população no seed. Os poucos casos com início dos sintomas no fim de dezembro de 1999 ficam fora; o teste de totais confere silver → agregado e agregado (a partir de 2000) → gold.
+- **Relevo:** cada polígono do DEM recebe a UF mais frequente entre os centroides do IBGE contidos nele; sem centroide contido, a do centroide mais próximo do centro do polígono. O teste exige ≥ 98% de casamento por contenção no país e ≥ 85% por UF (AP, RO e RR, com poucos polígonos, ficam entre 87% e 93%).
+- **Fonte sem descartados desde 2022:** a classificação 5 some dos microdados a partir de 2022 (621 casos em 2022, zero depois). Os prováveis ficam consistentes em toda a série; a curva atual tem uma quebra de nível em 2022. Detalhes em `docs/referencias/gold-casos-provaveis-uf.md`.
 
 ## Risks / Trade-offs
 

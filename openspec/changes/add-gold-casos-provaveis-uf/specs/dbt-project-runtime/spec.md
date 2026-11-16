@@ -10,7 +10,7 @@ Permitir que qualquer pessoa (ou o CI, ou o Airflow) execute o projeto dbt de fo
 O projeto dbt SHALL ter um `profiles.yml` versionado que lê o projeto GCP, a localização e a credencial de variáveis de ambiente, com o caminho da chave vindo de uma variável e nunca do conteúdo versionado. Executar o dbt SHALL NOT exigir o `~/.dbt/profiles.yml` do usuário.
 
 #### Scenario: Máquina nova
-- **WHEN** alguém clona o repositório, define as variáveis do profile e roda `dbt debug --profiles-dir utfpr_dengue`
+- **WHEN** alguém clona o repositório, define as variáveis do profile e roda `dbt debug --profiles-dir airflow/dags/utfpr_dengue`
 - **THEN** a conexão com o BigQuery é validada sem nenhum arquivo em `~/.dbt/`
 
 ### Requirement: Dependências fixadas

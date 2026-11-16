@@ -23,9 +23,15 @@
 
 ## 4. Alinhamento
 
-- [ ] 4.1 Atualizar a `add-gold-casos-provaveis-uf` (proposta, design e tarefas 1.2, 3.x e 4.1) para o caminho `airflow/dags/utfpr_dengue/`, o profile e a execução desta mudança (o job `dbt parse` do CI aponta para o novo caminho); verificar `openspec validate add-gold-casos-provaveis-uf --strict`
+- [x] 4.1 Atualizar a `add-gold-casos-provaveis-uf` (proposta, design e tarefas 1.2, 3.x e 4.1) para o caminho `airflow/dags/utfpr_dengue/`, o profile e a execução desta mudança (o job `dbt parse` do CI aponta para o novo caminho); verificar `openspec validate add-gold-casos-provaveis-uf --strict`
 - [ ] 4.2 Atualizar `airflow/README.md` (nova DAG, como disparar com `select`, onde ficam os artefatos) e o `README.md` raiz (projeto dbt dentro de `airflow/dags/`); verificar links com lychee
 - [ ] 4.3 Commits por assunto em `dev` (`docs(openspec): projeto dbt dentro das DAGs`; `docs: DAG de atualização do dbt`); verificar `git log --oneline -2`
+
+## 5. Credencial do BigQuery por Connection do Airflow
+
+- [ ] 5.1 Ler a credencial de uma Connection do Airflow (`atlas_gcp`, tipo Google Cloud, campo Keyfile JSON) cadastrada pela UI e cifrada com a Fernet key: um helper das DAGs grava o JSON num arquivo temporário `0600` só durante a tarefa, aponta `DBT_BQ_KEYFILE`/`GOOGLE_APPLICATION_CREDENTIALS` para ele e apaga no fim; sem a Connection, cai para o arquivo montado (dev). Nenhuma chave em imagem, git, variável do compose ou log; verificar com teste do helper (arquivo `0600`, removido mesmo com falha) e uma execução com a Connection cadastrada
+- [ ] 5.2 Exigir `AIRFLOW__CORE__FERNET_KEY` (segredo da stack) nas stacks de hml/prod e documentar no `airflow/README.md` o cadastro da Connection pela UI (Admin → Connections) e a rotação da chave; verificar que a Connection aparece cifrada no banco (`is_extra_encrypted=true`)
+- [ ] 5.3 Commit (`feat(airflow): credencial do BigQuery por Connection`); verificar `git log -1 --stat`
 
 ## Workflow follow-up
 

@@ -2,7 +2,7 @@
 
 ## Why
 
-Os modelos de previsão (`add-dengue-forecast-models`) foram planejados sobre a `gold_dengue_epi_curve_weekly`. A inspeção do BigQuery e do projeto dbt (`utfpr_dengue/`) mostrou que essa tabela não serve como alvo de modelagem:
+Os modelos de previsão (`add-dengue-forecast-models`) foram planejados sobre a `gold_dengue_epi_curve_weekly`. A inspeção do BigQuery e do projeto dbt (`airflow/dags/utfpr_dengue/`) mostrou que essa tabela não serve como alvo de modelagem:
 
 - **Conta todas as notificações, inclusive as descartadas.** A silver semanal faz `count(*)` sem filtrar a classificação, então cerca de **7,2 milhões de descartados (21,6%)** entram na série. O indicador oficial é o de **casos prováveis**: notificações menos descartados.
 - **Usa a semana e a UF de notificação.** O certo para modelar transmissão é a semana do **início dos sintomas** e a UF de **residência**: 131 mil casos têm UF de residência diferente da de notificação.
@@ -14,7 +14,7 @@ Em vez de alterar as tabelas que o site e a API usam, a proposta cria uma **tabe
 
 ## What Changes
 
-- **Projeto dbt `utfpr_dengue/` versionado no repositório**, como trazido do projeto antigo, com `profiles.yml` lendo projeto, localização e credencial de variáveis de ambiente (sem chave em arquivo pessoal) e execução reprodutível via uv.
+- **Projeto dbt `airflow/dags/utfpr_dengue/` versionado no repositório**, como trazido do projeto antigo, com `profiles.yml` lendo projeto, localização e credencial de variáveis de ambiente (sem chave em arquivo pessoal) e execução reprodutível via uv.
 - **Padronização da classificação final do SINAN** (trim + mapeamento documentado: 1–4 e 10–12 confirmados por tipo, 5 descartado, 8 inconclusivo, nulo/0 em investigação), num model intermediário reutilizável.
 - **Nova tabela gold `gold_dengue_casos_provaveis_uf_semanal`**, com grão UF de residência × semana epidemiológica do início dos sintomas, de 2000 até a última semana disponível. Colunas:
   - casos prováveis (alvo);
@@ -45,8 +45,8 @@ Em vez de alterar as tabelas que o site e a API usam, a proposta cria uma **tabe
 ## Impact
 
 - **Código:**
-  - `utfpr_dengue/` (novo no repositório);
-  - models `utfpr_dengue/models/silver/silver_dengue_casos_classificados_brasil.sql`, `silver_relevo_uf_brasil.sql` e `gold/gold_dengue_casos_provaveis_uf_semanal.sql` (+ `.yml`);
+  - `airflow/dags/utfpr_dengue/` (novo no repositório);
+  - models `airflow/dags/utfpr_dengue/models/silver/silver_dengue_casos_classificados_brasil.sql`, `silver_relevo_uf_brasil.sql` e `gold/gold_dengue_casos_provaveis_uf_semanal.sql` (+ `.yml`);
   - macro de semana epidemiológica;
   - seed e script de população anual.
 - **BigQuery:**
