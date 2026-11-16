@@ -72,6 +72,27 @@ Regras:
 - Uma tag de versão (`1.0`, `1.1`…) nunca é sobrescrita. As tags `dev` e `hml` são móveis.
 - Modelos seguem a mesma ordem no registro do MLflow: `@dev` (MLflow local) → `@hml` → `@prod` (MLflow da VPS). Veja [`../ml/README.md`](../ml/README.md).
 
+### Proteção das branches e CI
+
+`hml` e `main` são protegidas no GitHub:
+- mudanças só entram por pull request;
+- o check **`ci-ok`** do workflow [`ci.yml`](../.github/workflows/ci.yml) precisa estar verde, com a branch atualizada em relação ao destino;
+- push direto e force-push são recusados, inclusive para administradores;
+- 0 aprovações obrigatórias, porque há um único mantenedor e o GitHub não permite aprovar o próprio PR.
+
+O `ci.yml` roda em todo PR para `hml`/`main` e em todo push nelas, sem segredos:
+- lint;
+- testes do `ml`;
+- builds das imagens;
+- integridade das DAGs;
+- teste de ponta a ponta;
+- frontend;
+- validação OpenSpec.
+
+O teste de ponta a ponta também roda localmente com `bash platform/ci/e2e.sh`, em portas separadas da plataforma de dev. Em falha, os logs ficam em `e2e-logs/`.
+
+Para conferir ou reaplicar a regra: `gh api repos/cnx-anselmooliveira/atlas_epidemiologico/branches/<hml|main>/protection`.
+
 ## Variáveis (`platform/.env`)
 
 | Variável | Para que serve |
