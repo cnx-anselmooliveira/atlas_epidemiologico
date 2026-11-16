@@ -8,6 +8,7 @@ Cada modelo (atlas_ml/models/<nome>/model.py) só implementa o que é específic
         def predict(self, batch: Batch) -> pd.DataFrame   # y_pred (+ lower/upper) em incidência
         def params(self) -> dict
         def log_model(self, example: Batch) -> str        # devolve o model_uri
+        def use_panel(self, panel) -> None                # opcional: histórico completo por UF
 
 `run_model` cuida do resto: snapshot do dataset, janelas, divisão, ajuste, previsões de
 validação e teste, OOF por blocos (rolling origin), métricas, artefatos e registro
@@ -147,10 +148,14 @@ def run_model(
 ) -> ModelResult:
     """Treina, avalia e registra um modelo a partir do snapshot `dataset_run_id`."""
     panel, data_version = load_snapshot(dataset_run_id)
-    raw = build_windows(drop_immature(panel, cfg), cfg)
+    panel = drop_immature(panel, cfg)
+    raw = build_windows(panel, cfg)
     dates = assign_splits(raw, cfg)
     prep = prepare_batches(raw, cfg)
     model = factory(cfg)
+    # modelos que precisam do histórico longo (ex.: Chronos) recebem o painel já sem semanas imaturas
+    if hasattr(model, "use_panel"):
+        model.use_panel(panel)
 
     with (
         atlas_run(
@@ -165,7 +170,6 @@ def run_model(
         mlflow.log_params(
             {
                 **cfg.as_params(),
-                **{f"model.{k}": v for k, v in model.params().items()},
                 "val_start": str(dates.val_start.date()),
                 "test_start": str(dates.test_start.date()),
                 "n_train": len(prep.train),
@@ -176,6 +180,8 @@ def run_model(
         t0 = time.perf_counter()
         model.fit(prep.train, prep.val)
         fit_seconds = time.perf_counter() - t0
+        # depois do ajuste: alguns valores só existem aqui (melhor iteração, épocas, busca)
+        mlflow.log_params({f"model.{k}": v for k, v in model.params().items()})
 
         pred = pd.concat(
             [predict_frame(model, prep.val, VAL), predict_frame(model, prep.test, "test")],
