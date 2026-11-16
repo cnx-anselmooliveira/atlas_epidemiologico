@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: gold_dengue_casos_provaveis_uf_semanal
+    description: >
+      Casos prováveis de dengue (notificações não descartadas, definição do
+      boletim do Ministério da Saúde) por UF de residência e semana
+      epidemiológica do início dos sintomas, só com dados do SINAN. Série
+      regular: 27 UFs × todas as semanas do período, com zero onde não houve
+      notificação. Traz população do ano epidemiológico, incidência e relevo
+      da UF. Fonte dos modelos de previsão (atlas_ml.forecast). Grão: UF × semana.
+    data_tests:
+      - unique:
+          column_name: "concat(uf, '|', cast(week_start as string))"
+    columns:
+      - name: uf
+        description: Sigla da UF de residência. Identificador.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [AC, AL, AM, AP, BA, CE, DF, ES, GO, MA, MG, MS, MT, PA, PB, PE, PI, PR, RJ, RN, RO, RR, RS, SC, SE, SP, TO]
+      - name: week_start
+        description: Domingo que inicia a semana epidemiológica. Identificador.
+        data_tests: [not_null]
+      - name: epi_year
+        description: Ano epidemiológico (ano da quarta-feira da semana).
+        data_tests: [not_null]
+      - name: epi_week
+        description: Semana epidemiológica (1 a 53); a semana 1 contém o dia 4 de janeiro.
+        data_tests: [not_null]
+      - name: notified_cases
+        description: Total de notificações.
+      - name: probable_cases
+        description: Alvo dos modelos. Notificações que não são 'descartado'.
+        data_tests: [not_null]
+      - name: discarded_cases
+        description: Notificações descartadas (classificação final 5).
+      - name: confirmed_cases
+        description: Confirmadas (1, 2, 3, 4, 10, 11, 12).
+      - name: alarm_cases
+        description: Dengue com sinais de alarme (11) ou com complicações (2).
+      - name: severe_cases
+        description: Dengue grave (12), febre hemorrágica (3) ou síndrome do choque (4).
+      - name: inconclusive_cases
+        description: Inconclusivas (8).
+      - name: investigation_cases
+        description: Sem classificação final (nulo ou 0).
+      - name: other_cases
+        description: Códigos fora do dicionário (monitorado pelo teste warn_classificacao_outro).
+      - name: deaths
+        description: Casos prováveis com data de óbito preenchida.
+      - name: date_fallback_cases
+        description: Casos que usaram a data de notificação no lugar do início dos sintomas.
+      - name: place_fallback_cases
+        description: Casos que usaram a UF de notificação por falta da UF de residência.
+      - name: population
+        description: População residente da UF no ano epidemiológico.
+        data_tests: [not_null]
+      - name: population_year
+        description: Ano da população usada.
+      - name: population_origin
+        description: Origem do valor de população.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [censo, estimativa, interpolado, extrapolado]
+      - name: incidence
+        description: probable_cases / population × 100.000.
+      - name: mean_elevation_m
+        description: Covariável estática. Elevação média da UF (m).
+        data_tests: [not_null]
+      - name: mean_slope_deg
+        description: Covariável estática. Declividade média da UF (graus).
+        data_tests: [not_null]
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP()."
