@@ -24,7 +24,7 @@
   - nenhum parâmetro obrigatório.
 
   Verificar rodando o teste dentro da imagem com a pasta de DAGs somente leitura e `DBT_BQ_KEYFILE` fictício.
-- [ ] 2.3 Commit em `dev` (`feat(airflow): process_etl_atlas com Cosmos`); verificar `git log -1 --stat`
+- [x] 2.3 Commit em `dev` (`feat(airflow): process_etl_atlas com Cosmos`); verificar `git log -1 --stat`
 
 ## 3. Docs no bucket e no Airflow
 
@@ -40,7 +40,7 @@
   1. a `process_etl_atlas` completa: todas as tarefas verdes e nada novo em `airflow/dags/utfpr_dengue/`; anotar o tempo total contra os 128 s da versão anterior no README do dbt;
   2. uma falha forçada: um teste de dados com `severity: error` temporário, conferindo que só a tarefa do model falha, as dependentes ficam `upstream_failed` e a execução fica vermelha; reverter o teste depois;
   3. a `process_dbt_docs_atlas`: conferir `index.html`, `manifest.json` e `catalog.json` em `gs://ppgcc-bucket/dbt_docs/dev/` com o tipo de conteúdo certo, e o menu de docs no Airflow mostrando `gold_dengue_casos_provaveis_uf_semanal` com linhagem.
-- [ ] 3.4 Commits em `dev` (`feat(airflow): DAG process_dbt_docs_atlas`; `test(airflow): DAGs do Cosmos`); verificar `git log --oneline -2`
+- [x] 3.4 Commits em `dev` (`feat(airflow): DAG process_dbt_docs_atlas`; `test(airflow): DAGs do Cosmos`); verificar `git log --oneline -2`
 
 ## 4. Documentação e alinhamento
 

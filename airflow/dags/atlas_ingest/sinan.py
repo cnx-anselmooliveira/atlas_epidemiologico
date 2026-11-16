@@ -178,3 +178,86 @@ def contar_registros_csv(caminho: str, encoding: str = "utf-8") -> tuple[int, li
         leitor = csv.reader(f)
         colunas = [c.strip() for c in next(leitor)]
         return sum(1 for _ in leitor), colunas
+
+
+def contar_com_encoding(caminho: str) -> tuple[int, list[str], str]:
+    """Tenta UTF-8 e cai para latin-1 (anos antigos do DATASUS). Devolve (registros, colunas, encoding)."""
+    try:
+        n, colunas = contar_registros_csv(caminho, "utf-8")
+        return n, colunas, "UTF-8"
+    except UnicodeDecodeError:
+        n, colunas = contar_registros_csv(caminho, "latin-1")
+        return n, colunas, "ISO-8859-1"
+
+
+def blob_zip(bucket, nome: str):
+    return bucket.blob(PREFIXO_LANDING + nome)
+
+
+def blob_csv(bucket, nome: str):
+    return bucket.blob(PREFIXO_LANDING + nome.removesuffix(".zip"))
+
+
+def baixar_para_landing(session, bucket, versao: dict, tmpdir: str, timeout: int = 600) -> dict:
+    """Baixa a versão da origem e substitui o arquivo no landing (zip original + CSV).
+
+    Ordem: CSV primeiro, depois o zip com a metadata. O estado (metadata do zip) só muda
+    quando os dois objetos já estão no lugar. Se o zip já tem o mesmo origem_etag
+    (retentativa), não envia de novo. Devolve o resumo da versão no landing.
+    """
+    import os
+    import time
+    import zipfile
+
+    nome, etag = versao["nome"], versao["etag"]
+    destino_zip = blob_zip(bucket, nome)
+    if destino_zip.exists():
+        destino_zip.reload()
+        meta = destino_zip.metadata or {}
+        if meta.get("origem_etag") == etag and meta.get("origem_last_modified") == versao["last_modified"]:
+            return {"nome": nome, "ano": versao["ano"], "reenviado": False, **meta}
+
+    t0 = time.perf_counter()
+    caminho_zip = os.path.join(tmpdir, nome)
+    with session.get(url_arquivo(versao["ano"]), stream=True, timeout=timeout) as r:
+        r.raise_for_status()
+        with open(caminho_zip, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8 * 1024 * 1024):
+                f.write(chunk)
+    with zipfile.ZipFile(caminho_zip) as z:
+        membros = [m for m in z.namelist() if m.lower().endswith(".csv")]
+        if len(membros) != 1:
+            raise ValueError(f"{nome}: esperado 1 CSV no zip, encontrado {z.namelist()}")
+        caminho_csv = z.extract(membros[0], tmpdir)
+    registros, colunas, encoding = contar_com_encoding(caminho_csv)
+
+    blob_csv(bucket, nome).upload_from_filename(caminho_csv, content_type="text/csv", timeout=timeout)
+    meta = {
+        "origem_etag": etag,
+        "origem_last_modified": versao["last_modified"],
+        "origem_tamanho": str(versao["tamanho"]),
+        "registros": str(registros),
+        "colunas": str(len(colunas)),
+        "encoding": encoding,
+    }
+    destino_zip.metadata = meta  # sem bronze_etag: a versão nova ainda não foi carregada
+    destino_zip.upload_from_filename(caminho_zip, content_type="application/zip", timeout=timeout)
+    return {
+        "nome": nome,
+        "ano": versao["ano"],
+        "reenviado": True,
+        "segundos": round(time.perf_counter() - t0, 1),
+        "bytes_zip": os.path.getsize(caminho_zip),
+        "bytes_csv": os.path.getsize(caminho_csv),
+        **meta,
+    }
+
+
+def apagar_do_landing(bucket, nome: str) -> list[str]:
+    """Remove o zip e o CSV de um arquivo que saiu da origem. Devolve os objetos apagados."""
+    apagados = []
+    for blob in (blob_zip(bucket, nome), blob_csv(bucket, nome)):
+        if blob.exists():
+            blob.delete()
+            apagados.append(blob.name)
+    return apagados

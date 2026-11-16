@@ -28,8 +28,8 @@
 - [x] 2.1 Implementar `baixar`: download em streaming, contagem de registros, upload do `.csv` e depois do `.csv.zip` com a metadata da origem, pulando o envio se o `origem_etag` já é o mesmo. Verificar baixando 2026 em dev e lendo a metadata do objeto.
 - [x] 2.2 Rodar `baixar` de novo para 2026 e conferir que nada é reenviado; baixar 2024, o maior ano, e registrar tempo e tamanho no design
 - [x] 2.3 Conferir encoding, separador, número de colunas e formato de data de 2000, 2013 e 2024 no landing; ajustar a carga se algum ano divergir (encoding por ano) e registrar no design (resultado: dois layouts, 2000–2006 SINAN Windows e 2007+ SINAN Net, registrados na seção 8 do design)
-- [ ] 2.4 Implementar `apagar` (`.csv.zip` e `.csv`); verificar com um objeto de teste fora da lista da origem (ex.: `DENGBR99.csv.zip`) que o plano o marca para apagar e a tarefa o remove
-- [ ] 2.5 Commit em `dev` (`feat(ingest): landing do SINAN como espelho da origem`); verificar `git log -1 --stat`
+- [x] 2.4 Implementar `apagar` (`.csv.zip` e `.csv`); verificar com um objeto de teste fora da lista da origem (ex.: `DENGBR99.csv.zip`) que o plano o marca para apagar e a tarefa o remove
+- [x] 2.5 Commit em `dev` (`feat(ingest): landing do SINAN como espelho da origem`); verificar `git log -1 --stat`
 
 ## 3. Tabela bronze materializada
 
