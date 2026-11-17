@@ -12,7 +12,7 @@
 
 ## 2. DAG de treino por horizonte
 
-- [ ] 2.1 Reescrever `atlas_dengue_forecast_br` em TaskFlow chamando as funções de `atlas_ml` (sem `BashOperator`), com parâmetro `horizons` (padrão 1 a 4), a cadeia dos seis modelos por horizonte em task groups mapeados, `compare` por horizonte (`all_done`) e disparo da exportação ao fim; verificar com `test_dags.py` atualizado (estrutura, mapeamento, regras de gatilho, sem `BashOperator`)
+- [x] 2.1 Reescrever `atlas_dengue_forecast_br` em TaskFlow chamando as funções de `atlas_ml` (sem `BashOperator`), com parâmetro `horizons` (padrão 1 a 4), a cadeia dos seis modelos por horizonte em task groups mapeados, `compare` por horizonte (`all_done`) e disparo da exportação ao fim; verificar com `test_dags.py` atualizado (estrutura, mapeamento, regras de gatilho, sem `BashOperator`)
 - [ ] 2.2 Treinar os seis modelos nos 4 horizontes em dev (com `drop_recent_weeks=8`) e registrar tempo total, por modelo e as métricas em `docs/referencias/resultados-forecast-br.md`; verificar no MLflow 24 versões `atlas-br-<modelo>-h<H>@dev` e `future_predictions.parquet` e `figures/` em cada run
 
 ## 3. Exportação do MLflow para o BigQuery

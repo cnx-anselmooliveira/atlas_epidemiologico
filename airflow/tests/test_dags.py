@@ -158,37 +158,64 @@ def test_docs_dag():
 
 
 FORECAST_BASES = ["baseline_bayes", "chronos", "catboost", "svr", "lstm"]
+FORECAST_STACKED = ["catboost", "svr", "lstm"]
+
+
+def _forecast():
+    return _dagbag().dags["atlas_dengue_forecast_br"]
 
 
 def test_forecast_estrutura_e_regras():
-    dag = _dagbag().dags["atlas_dengue_forecast_br"]
+    dag = _forecast()
     assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
     assert dag.max_active_runs == 1 and dag.max_active_tasks == 3
-    tasks = {f"train_{b}" for b in FORECAST_BASES}
-    assert set(dag.task_ids) == {"prepare", *tasks, "train_ensemble", "compare"}
-    assert dag.get_task("prepare").downstream_task_ids == tasks
+    por_horizonte = {f"horizonte.train_{b}" for b in FORECAST_BASES}
+    esperado = {
+        "prepare",
+        "configuracao",
+        "lista_de_horizontes",
+        *por_horizonte,
+        "horizonte.train_ensemble",
+        "horizonte.comparar",
+        "exportar",
+    }
+    assert set(dag.task_ids) == esperado
     # o ensemble depende só dos modelos empilhados
-    assert dag.get_task("train_ensemble").upstream_task_ids == {"train_catboost", "train_svr", "train_lstm"}
-    compare = dag.get_task("compare")
-    assert compare.upstream_task_ids == {"train_baseline_bayes", "train_chronos", "train_ensemble"}
-    assert compare.trigger_rule == "all_done"
-    for t in tasks | {"prepare", "train_ensemble"}:
+    ensemble = dag.get_task("horizonte.train_ensemble")
+    do_grupo = lambda t: {u for u in t.upstream_task_ids if u.startswith("horizonte.")}  # noqa: E731
+    assert do_grupo(ensemble) == {f"horizonte.train_{b}" for b in FORECAST_STACKED}
+    assert {"prepare", "configuracao"} <= ensemble.upstream_task_ids  # snapshot, janela e semente
+    comparar = dag.get_task("horizonte.comparar")
+    assert do_grupo(comparar) == {
+        "horizonte.train_baseline_bayes",
+        "horizonte.train_chronos",
+        "horizonte.train_ensemble",
+    }
+    assert comparar.trigger_rule == "all_done" and comparar.retries == 0
+    for t in por_horizonte | {"prepare", "horizonte.train_ensemble"}:
         assert dag.get_task(t).retries == 1, t
+    # um grupo por horizonte (mapeado) e a exportação depois dele
+    from airflow.sdk.definitions.mappedoperator import MappedOperator
+
+    for t in por_horizonte | {"horizonte.train_ensemble", "horizonte.comparar"}:
+        assert dag.get_task(t).get_closest_mapped_task_group() is not None, t
+    assert isinstance(dag.get_task("exportar"), MappedOperator) is False
+    exportar = dag.get_task("exportar")
+    assert exportar.trigger_dag_id == "process_forecast_export_atlas"
+    assert exportar.trigger_rule == "none_failed_min_one_success" and exportar.retries == 0
+    assert "horizonte.comparar" in exportar.upstream_task_ids
 
 
 def test_forecast_parametros_e_ambiente():
-    dag = _dagbag().dags["atlas_dengue_forecast_br"]
-    assert dag.params["window"] == 12 and dag.params["horizon"] == 1 and dag.params["seed"] == 42
-    for task in dag.tasks:
-        assert task.env["ATLAS_PIPELINE_RUN"] == "{{ run_id }}", task.task_id
-        assert "params." not in task.bash_command, task.task_id
-    cat = dag.get_task("train_catboost")
-    assert "atlas-ml forecast train catboost" in cat.bash_command
-    assert "xcom_pull(task_ids='prepare')" in cat.env["DATASET_RUN"]
-    base_runs = dag.get_task("train_ensemble").env["BASE_RUNS"]
-    for b in ("catboost", "svr", "lstm"):
-        assert f"{b}=" in base_runs and f"train_{b}" in base_runs
-    assert "forecast compare" in dag.get_task("compare").bash_command
+    dag = _forecast()
+    assert dag.params["window"] == 12 and dag.params["seed"] == 42
+    assert dag.params["horizons"] == [1, 2, 3, 4]
+    assert "horizon" not in dag.params  # substituído por horizons
+    # tudo roda em Python no venv do atlas_ml, sem scripts de shell
+    for t in dag.tasks:
+        assert type(t).__name__ != "BashOperator", t.task_id
+    for t in ["prepare", "horizonte.train_catboost", "horizonte.train_ensemble", "horizonte.comparar"]:
+        assert dag.get_task(t).python == "/opt/atlas-ml/bin/python", t
 
 
 def test_projeto_dbt_ignorado():
