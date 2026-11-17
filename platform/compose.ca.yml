@@ -28,6 +28,7 @@ services:
   airflow-dag-processor: *ca-build
   airflow-triggerer: *ca-build
   jupyter: *ca-build
+  backend: *ca-build
 
 secrets:
   extra_ca:

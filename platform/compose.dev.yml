@@ -1,9 +1,9 @@
-# Plataforma de ML — desenvolvimento local (Postgres + MLflow + Airflow [+ Jupyter]).
+# Plataforma local (Postgres + MLflow + Airflow + API gold/Redis [+ Jupyter]).
 # Use pelo script:   ./platform/dev.ps1 up        (define ATLAS_GIT_SHA e o .env)
 # Ou direto:         $env:ATLAS_GIT_SHA = git rev-parse HEAD
 #                    docker compose -f platform/compose.dev.yml --env-file platform/.env up -d
-# Portas só em 127.0.0.1: MLflow :5000 · Airflow :8080 · Jupyter :8888 (profile notebook)
-# (MLFLOW_PORT, AIRFLOW_PORT e JUPYTER_PORT mudam as portas do host; o teste de ponta a ponta usa outras)
+# Portas só em 127.0.0.1: MLflow :5000 · Airflow :8080 · API gold :8000 · Jupyter :8888 (profile notebook)
+# (MLFLOW_PORT, AIRFLOW_PORT, BACKEND_PORT e JUPYTER_PORT mudam as portas do host; o teste de ponta a ponta usa outras)
 
 name: atlas-platform-dev
 
@@ -155,6 +155,37 @@ services:
       timeout: 20s
       retries: 10
       start_period: 60s
+
+  # API gold (backend/) + cache: o site (frontend/) chama http://localhost:8000 em dev
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    image: atlas-epidemiologia-backend:local
+    build:
+      context: ../backend
+    # --reload: o código de backend/app é montado ao vivo, sem rebuild
+    command: ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      GCP_PROJECT: ${GCP_PROJECT:-ppgcc-dengue-project}
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/training-sa.json
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ../backend/app:/app/app
+      - ./secrets:/secrets:ro
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   jupyter:
     profiles: ["notebook"]

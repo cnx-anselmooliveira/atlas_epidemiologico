@@ -1,4 +1,4 @@
-# Plataforma de ML — Postgres, MLflow e Airflow
+# Plataforma local — Postgres, MLflow, Airflow e API gold
 
 Este diretório guarda o compose de **desenvolvimento local** da plataforma de ML. As stacks da VPS (hml e prod) ficam em [`../deploy/`](../deploy/).
 
@@ -6,6 +6,7 @@ Este diretório guarda o compose de **desenvolvimento local** da plataforma de M
 |---|---|---|
 | MLflow | <http://127.0.0.1:5000> | experimentos, métricas, artefatos e registro de modelos |
 | Airflow | <http://127.0.0.1:8080> | DAGs (treinos agora; ingestão e dbt depois) |
+| API gold (`backend/`) + Redis | <http://127.0.0.1:8000> | dados das tabelas gold para o site (`/gold/*`, `/health`) |
 | JupyterLab (opcional) | <http://127.0.0.1:8888> | exploração com o pacote `atlas_ml` já instalado |
 | Postgres | só na rede interna | bancos `mlflow`, `mlflow_auth` e `airflow`, cada um com o seu usuário |
 
