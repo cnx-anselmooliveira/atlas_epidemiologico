@@ -50,6 +50,8 @@ Substituído pela mudança `rebuild-frontend-astro` (site novo em Astro com SSR,
 
 ## 7. CI no GitHub Actions
 
+As tags de imagem seguem a convenção `dev`/`hml`/`X.Y` do `_image.yml` (add-ml-platform), no lugar de `sha7`/`latest` citados abaixo; backend e frontend já têm `backend.yml` e `frontend.yml`.
+
 - [ ] 7.1 Criar `.github/workflows/backend.yml` (paths `backend/**`): ruff + pytest → build; em `main` push para `anselmomendes/atlas-epidemiologia-backend:{sha7,latest}` e `:vX.Y.Z` em tags; verificar com um PR (só build) e um push em `main` (imagem no DockerHub)
 - [ ] 7.2 Workflow do frontend: definido na tarefa 8.2 da `rebuild-frontend-astro` (`npm ci`, `lint`, `check`, `test`, `test:e2e`, imagem Node); aqui só verificar que segue as regras de 7.1 (paths, PR sem push, tags `sha7`/`latest`)
 - [ ] 7.3 Criar `.github/workflows/pipelines.yml` (paths `pipelines/**`, `airflow/dags/utfpr_dengue/**`): ruff + pytest + `dbt parse` → build/push da imagem `pipelines`; verificar como em 7.1

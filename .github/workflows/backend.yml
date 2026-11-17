@@ -1,0 +1,30 @@
+# Publica a imagem da API gold (backend/): dev e hml por push (só com mudança em backend/),
+# X.Y por tag. Testes e builds vêm do ci.yml via _image.yml.
+name: backend
+
+on:
+  push:
+    branches: [dev, hml]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+      - ".github/workflows/_image.yml"
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    uses: ./.github/workflows/_image.yml
+    with:
+      image: backend
+      context: backend
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      PORTAINER_WEBHOOK: ${{ secrets.PORTAINER_WEBHOOK_BACKEND }}

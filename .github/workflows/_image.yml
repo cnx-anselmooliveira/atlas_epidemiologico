@@ -1,0 +1,121 @@
+# Workflow reutilizável: testa, builda e publica UMA imagem no DockerHub e atualiza o serviço
+# no Portainer. Chamado por frontend.yml, backend.yml (e, na add-ml-platform, ml/airflow/mlflow).
+#
+# Tag pela origem: branch dev → "dev", hml → "hml", tag vX.Y (ou vX.Y.Z) → "X.Y".
+# Tag de versão: só de commit que está em origin/main e que ainda não existe no DockerHub
+# (versão imutável). Webhook do Portainer só em hml e em versão (dev não é implantado).
+name: _image
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: Nome da imagem (anselmomendes/atlas-epidemiologia-<image>)
+        required: true
+        type: string
+      context:
+        required: true
+        type: string
+      file:
+        description: Dockerfile (padrão <context>/Dockerfile)
+        required: false
+        type: string
+        default: ""
+      build_args:
+        description: Build args extras, um KEY=VALUE por linha
+        required: false
+        type: string
+        default: ""
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+      PORTAINER_WEBHOOK:
+        description: URL do webhook de serviço do Portainer (opcional; sem ele não há deploy)
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    # Nenhuma imagem é publicada se o pipeline de testes falhar (add-ci-test-pipeline)
+    name: Testes (pipeline ci.yml)
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Publicar ${{ inputs.image }}
+    needs: tests
+    runs-on: ubuntu-latest
+    env:
+      REPO: anselmomendes/atlas-epidemiologia-${{ inputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag da imagem pela origem
+        id: tag
+        run: |
+          case "${GITHUB_REF}" in
+            refs/heads/dev) tag=dev ;;
+            refs/heads/hml) tag=hml ;;
+            refs/tags/v*)
+              name="${GITHUB_REF_NAME}"
+              if [[ ! "$name" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+                echo "::error::Tag fora do padrão vX.Y ou vX.Y.Z: ${name}"
+                exit 1
+              fi
+              tag="${name#v}"
+              echo "version=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Só dev, hml e tags vX.Y publicam imagens (origem: ${GITHUB_REF})"
+              exit 1
+              ;;
+          esac
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Tag: ${tag}"
+      - name: Versão só de commit que está em main
+        if: steps.tag.outputs.version == 'true'
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::A tag ${GITHUB_REF_NAME} aponta para ${GITHUB_SHA}, que não está em main."
+            exit 1
+          fi
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Versão ainda não publicada (imutável)
+        if: steps.tag.outputs.version == 'true'
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if docker manifest inspect "${REPO}:${TAG}" >/dev/null 2>&1; then
+            echo "::error::${REPO}:${TAG} já existe no DockerHub; versões não são sobrescritas."
+            exit 1
+          fi
+      - uses: docker/setup-buildx-action@v3
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.file != '' && inputs.file || format('{0}/Dockerfile', inputs.context) }}
+          push: true
+          tags: ${{ env.REPO }}:${{ steps.tag.outputs.tag }}
+          build-args: |
+            ATLAS_GIT_SHA=${{ github.sha }}
+            ATLAS_IMAGE_TAG=${{ steps.tag.outputs.tag }}
+            ${{ inputs.build_args }}
+          cache-from: type=gha,scope=${{ inputs.image }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.image }}
+      - name: Atualiza o serviço no Portainer (hml e versões)
+        if: steps.tag.outputs.tag != 'dev' && env.PORTAINER_WEBHOOK != ''
+        env:
+          PORTAINER_WEBHOOK: ${{ secrets.PORTAINER_WEBHOOK }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          # -f: resposta de erro derruba o job (falha visível)
+          curl -fsS -X POST "${PORTAINER_WEBHOOK}?tag=${TAG}"

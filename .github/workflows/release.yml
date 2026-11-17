@@ -68,7 +68,7 @@ jobs:
             echo "## Imagens Docker"
             echo
             echo '```sh'
-            for img in ml mlflow airflow; do
+            for img in ml mlflow airflow backend frontend; do
               echo "docker pull anselmomendes/atlas-epidemiologia-${img}:${VERSION}"
             done
             echo '```'
