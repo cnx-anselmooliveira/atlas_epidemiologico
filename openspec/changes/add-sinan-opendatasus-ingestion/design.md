@@ -158,7 +158,14 @@ As etapas por ano, do jeito que já estão implementadas e medidas (seção 8):
    - **ano corrente:** fica fora do teste e só é documentado, por decisão do usuário. Em 2026, entre o retrato de junho e a publicação de novembro, os registros sem classificação e os inconclusivos caíram muito (ex.: TO, de 5.968 para 690 sem classificação), porque viraram confirmados ou descartados. O total subiu de 398.786 para 489.197.
 3. Padrão trocado para `opendatasus` e `process_etl_atlas` completa.
 
-### 8. Medições do landing (16/11/2026)
+### 8. Ajustes depois da primeira execução agendada
+
+- **Carga por ano isolada:** `carregar_bronze → validar → marcar_carregado` virou um grupo mapeado por ano (`sinan.carga_ano`).
+  - **Problema:** com três tarefas mapeadas encadeadas, uma falha num ano (2008) deixou `upstream_failed` o `validar` e o `marcar_carregado` de **todos** os anos. O Airflow só expande a tarefa seguinte quando todas as instâncias da anterior terminam bem.
+  - **Agora:** cada ano tem sua cadeia; um ano ruim não impede os outros de serem marcados. O dbt continua sem rodar naquele dia (`decidir_dbt` com `none_failed`), e a execução fica vermelha.
+- **Caracteres de controle:** o arquivo de 2008 tem um byte nulo (` `) em `DT_OBITO` (linha 617.303). O load job agora usa `preserve_ascii_control_characters=True`, e a bronze guarda o dado como veio, em vez de rejeitar o arquivo.
+
+### 9. Medições do landing (16/11/2026)
 
 | Arquivo | Tempo | Zip | CSV | Registros | Colunas | Encoding |
 |---|---:|---:|---:|---:|---:|---|

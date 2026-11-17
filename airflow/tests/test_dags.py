@@ -103,9 +103,9 @@ SINAN = [
     "sinan.lista_baixar",
     "sinan.baixar",
     "sinan.apagar",
-    "sinan.carregar_bronze",
-    "sinan.validar",
-    "sinan.marcar_carregado",
+    "sinan.carga_ano.carregar_bronze",
+    "sinan.carga_ano.validar",
+    "sinan.carga_ano.marcar_carregado",
     "sinan.remover_da_bronze",
 ]
 
@@ -120,27 +120,28 @@ def test_etl_diaria_com_sync_do_sinan_antes_do_dbt():
     assert set(SINAN) <= set(dag.task_ids)
     sensor = dag.get_task("sinan.detectar_diferencas")
     assert sensor.mode == "reschedule" and sensor.soft_fail is True
-    # tarefas por arquivo/ano são mapeadas
-    for t in (
-        "sinan.baixar",
-        "sinan.apagar",
-        "sinan.carregar_bronze",
-        "sinan.validar",
-        "sinan.marcar_carregado",
-        "sinan.remover_da_bronze",
-    ):
-        from airflow.sdk.definitions.mappedoperator import MappedOperator
+    # tarefas por arquivo/ano são mapeadas; a cadeia de carga é um grupo mapeado por ano
+    from airflow.sdk.definitions.mappedoperator import MappedOperator
 
+    for t in ("sinan.baixar", "sinan.apagar", "sinan.remover_da_bronze"):
         assert isinstance(dag.get_task(t), MappedOperator), t
+    for t in (
+        "sinan.carga_ano.carregar_bronze",
+        "sinan.carga_ano.validar",
+        "sinan.carga_ano.marcar_carregado",
+    ):
+        assert dag.get_task(t).get_closest_mapped_task_group() is not None, t
     # landing antes da bronze; bronze antes da decisão; decisão antes do dbt
-    assert {"sinan.baixar", "sinan.apagar"} <= dag.get_task("sinan.carregar_bronze").upstream_task_ids
+    carregar = dag.get_task("sinan.carga_ano.carregar_bronze")
+    assert {"sinan.baixar", "sinan.apagar"} <= carregar.upstream_task_ids
+    assert dag.get_task("sinan.carga_ano.validar").upstream_task_ids == {carregar.task_id}
     assert "sinan.apagar" in dag.get_task("sinan.remover_da_bronze").upstream_task_ids
     decidir = dag.get_task("decidir_dbt")
-    assert {"sinan.marcar_carregado", "sinan.remover_da_bronze"} <= decidir.upstream_task_ids
+    assert {"sinan.carga_ano.marcar_carregado", "sinan.remover_da_bronze"} <= decidir.upstream_task_ids
     assert decidir.trigger_rule == "none_failed" and decidir.ignore_downstream_trigger_rules is True
     roots_seed = [t for t in decidir.downstream_task_ids if _layer_of(t) == "seed"]
     assert roots_seed, "decidir_dbt precisa vir antes do grupo seed"
-    for t in ("sinan.carregar_bronze", "sinan.remover_da_bronze"):
+    for t in ("sinan.carga_ano.carregar_bronze", "sinan.remover_da_bronze"):
         assert dag.get_task(t).trigger_rule == "none_failed", t
 
 

@@ -5,7 +5,7 @@ dbt mesmo assim (ex.: mudança só na modelagem).
 
     [sinan]  detectar_diferencas (sensor)
                ├─► baixar[arquivo] ─┐
-               └─► apagar[arquivo] ─┴─► carregar_bronze[ano] ─► validar[ano] ─► marcar_carregado[ano] ─┐
+               └─► apagar[arquivo] ─┴─► carga_ano[ano]: carregar_bronze ─► validar ─► marcar_carregado ─┐
                                     └─► remover_da_bronze[ano] ─────────────────────────────────────────┤
     decidir_dbt (pula o dbt sem dados novos, a menos que forcar_dbt) ◄──────────────────────────────────┘
        │
@@ -30,7 +30,7 @@ import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from airflow.sdk import DAG, Param, PokeReturnValue, TaskGroup, chain, get_current_context, task
+from airflow.sdk import DAG, Param, PokeReturnValue, TaskGroup, chain, get_current_context, task, task_group
 from cosmos import DbtTaskGroup, ExecutionConfig, ProfileConfig, ProjectConfig, RenderConfig
 from cosmos.constants import InvocationMode
 
@@ -125,7 +125,7 @@ def apagar(nome: str) -> list[str]:
     return apagar_do_landing(_bucket(), nome)
 
 
-@task(trigger_rule="none_failed", retries=1, map_index_template="{{ task.op_kwargs['ano'] }}")
+@task(trigger_rule="none_failed", retries=1)
 def carregar_bronze(ano: int) -> dict:
     from atlas_ingest.sinan import carregar_ano_na_bronze
 
@@ -154,6 +154,13 @@ def marcar_carregado(validado: dict) -> int:
     return validado["ano"]
 
 
+@task_group(group_id="carga_ano")
+def carga_ano(ano: int):
+    """Uma cadeia por ano (grupo mapeado): a falha de um ano não impede os outros de serem
+    validados e marcados; o ano que falhou volta no plano do dia seguinte."""
+    marcar_carregado(validar(carregar_bronze(ano)))  # sem retorno: dependências valem para o grupo
+
+
 @task(trigger_rule="none_failed", retries=1)
 def remover_da_bronze(ano: int) -> int:
     from atlas_ingest.sinan import remover_ano_da_bronze
@@ -166,7 +173,9 @@ def decidir_dbt() -> bool:
     """Roda o dbt se algum ano foi carregado ou removido, ou se o disparo pediu forcar_dbt."""
     ctx = get_current_context()
     ti = ctx["ti"]
-    marcados = [a for a in (ti.xcom_pull(task_ids="sinan.marcar_carregado", default=None) or []) if a]
+    marcados = [
+        a for a in (ti.xcom_pull(task_ids="sinan.carga_ano.marcar_carregado", default=None) or []) if a
+    ]
     removidos = [
         a for a in (ti.xcom_pull(task_ids="sinan.remover_da_bronze", default=None) or []) if a is not None
     ]
@@ -199,15 +208,14 @@ with DAG(
 
         baixados = baixar.expand(versao=lista("baixar"))
         apagados = apagar.expand(nome=lista("apagar"))
-        cargas = carregar_bronze.expand(ano=lista("carregar"))
-        marcados = marcar_carregado.expand(validado=validar.expand(resultado=cargas))
+        cargas = carga_ano.expand(ano=lista("carregar"))
         removidos = remover_da_bronze.expand(ano=lista("remover_da_bronze"))
         # landing primeiro; bronze depois (cargas e remoções esperam baixar/apagar terminarem)
         [baixados, apagados] >> cargas
         apagados >> removidos
 
     decidir = decidir_dbt()
-    [marcados, removidos] >> decidir
+    [cargas, removidos] >> decidir
 
     groups = [
         DbtTaskGroup(

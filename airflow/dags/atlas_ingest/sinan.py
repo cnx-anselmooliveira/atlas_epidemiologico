@@ -364,6 +364,9 @@ def carregar_ano_na_bronze(bq, bucket, ano: int, projeto: str) -> dict:
             schema=[bigquery.SchemaField(c, "STRING") for c in colunas],
             skip_leading_rows=1,
             allow_quoted_newlines=True,
+            # há bytes de controle nos arquivos (ex.: \x00 em DT_OBITO de DENGBR08): a bronze guarda o
+            # dado como veio da origem, em vez de rejeitar o arquivo inteiro
+            preserve_ascii_control_characters=True,
             encoding=meta.get("encoding", "UTF-8"),
             write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
         ),
