@@ -73,10 +73,13 @@ cleanup() {
 trap cleanup EXIT
 
 log "commit ${ATLAS_GIT_SHA} · projeto ${PROJECT} · MLflow :${MLFLOW_PORT} · Airflow :${AIRFLOW_PORT}"
+# Só a plataforma de ML (backend, frontend e redis da stack local têm testes próprios no ci.yml
+# e suas imagens não são construídas neste job)
+SERVICOS=(postgres mlflow airflow-api-server airflow-scheduler airflow-dag-processor airflow-triggerer)
 if [ "${E2E_NO_BUILD:-0}" = "1" ]; then
-  compose up -d --no-build
+  compose up -d --no-build "${SERVICOS[@]}"
 else
-  compose up -d --build
+  compose up -d --build "${SERVICOS[@]}"
 fi
 
 log "aguardando os 6 serviços ficarem saudáveis"
