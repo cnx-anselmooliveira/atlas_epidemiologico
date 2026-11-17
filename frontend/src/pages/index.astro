@@ -1,11 +1,11 @@
 ---
-import Welcome from '../components/Welcome.astro';
+import { API_INTERNAL_URL } from 'astro:env/server';
 import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+// Provisório: só garante que a variável é lida no servidor (substituído na tarefa 6.1)
+const backendConfigurado = Boolean(API_INTERNAL_URL);
 ---
 
 <Layout>
-	<Welcome />
+	<h1>Atlas Epidemiológico da Dengue</h1>
+	<p>{backendConfigurado ? 'backend configurado' : ''}</p>
 </Layout>

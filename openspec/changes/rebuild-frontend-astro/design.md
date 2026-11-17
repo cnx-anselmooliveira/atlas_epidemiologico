@@ -48,7 +48,7 @@ O schema em `astro.config.mjs` declara:
 - `PAGE_CACHE_SECONDS`, padrão 300;
 - `PUBLIC_SITE_URL`, para canonical e OG.
 
-Variáveis `server`/`secret` são lidas em runtime e validadas na inicialização, nunca embutidas no bundle do cliente. Foi descartado ler `process.env` direto, porque não tem validação nem tipos.
+Variáveis `server`/`secret` são lidas em runtime, nunca embutidas no bundle do cliente. O `astro:env` só as valida quando uma página as lê pela primeira vez. Por isso o servidor sobe por `scripts/start.mjs`, que confere `API_INTERNAL_URL` e os inteiros e sai com erro antes de carregar `dist/server/entry.mjs`. Foi descartado ler `process.env` direto, porque não tem validação nem tipos.
 
 ### 3. Dados: duas golds, uma rota para cada
 Cada visão lê um volume pequeno:
@@ -187,7 +187,7 @@ As fixtures cobrem 3 anos, 4 UFs e o Brasil. `npm run dev:mock` sobe o mock e o 
   - a UF selecionada;
   - o 503 com o backend fora;
   - a página inicial sem destaques quando o backend falha.
-- **Playwright** (smoke), contra `astro build && node dist/server/entry.mjs` + mock:
+- **Playwright** (smoke), contra `astro build && npm start` (`scripts/start.mjs`) + mock:
   - 360 px sem rolagem horizontal;
   - série sem JS mostrando a tabela;
   - clique no mapa navegando;
@@ -196,7 +196,7 @@ As fixtures cobrem 3 anos, 4 UFs e o Brasil. `npm run dev:mock` sobe o mock e o 
 ### 12. Imagem e deploy
 Dockerfile multi-stage `node:22-alpine`:
 1. build: `npm ci` e `astro build`;
-2. runtime: `npm ci --omit=dev`, `dist/`, usuário `node`, `HOST=0.0.0.0`, `PORT=4321`, `HEALTHCHECK` em `/healthz`, `CMD node ./dist/server/entry.mjs`.
+2. runtime: `npm ci --omit=dev`, `dist/`, usuário `node`, `HOST=0.0.0.0`, `PORT=4321`, `HEALTHCHECK` em `/healthz`, `CMD node scripts/start.mjs`.
 
 O design system já está versionado em `src/`, então o build não precisa de nada fora do repositório. Na `deploy/app.stack.yml`, o serviço `frontend` recebe `API_INTERNAL_URL=http://backend:8000` e a porta Traefik 4321, nas redes `network_public` e interna.
 

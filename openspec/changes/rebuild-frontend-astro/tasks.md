@@ -8,10 +8,10 @@
 
 ## 2. Base do projeto Astro
 
-- [ ] 2.1 Remover o conteúdo do template (`Welcome.astro`, `src/assets/*`, "Astro Basics") e definir `name: atlas-epidemiologia-frontend` no `package.json`; verificar que `npm run build` passa
-- [ ] 2.2 Instalar `@astrojs/node` compatível com o Astro instalado e configurar `output: 'server'` + `adapter: node({ mode: 'standalone' })`; verificar que `npm run build` gera `dist/server/entry.mjs` e que `node dist/server/entry.mjs` responde na porta 4321
-- [ ] 2.3 Declarar o schema `astro:env` (`API_INTERNAL_URL` server/secret, `BACKEND_TIMEOUT_MS`, `PAGE_CACHE_SECONDS`, `PUBLIC_SITE_URL`) e um `.env.example`; verificar que o servidor falha na inicialização sem `API_INTERNAL_URL` e que `grep` em `dist/client` não encontra o valor usado no build
-- [ ] 2.4 Adicionar Vitest, Playwright, ESLint (com `no-restricted-imports` bloqueando `src/lib/server/*` em scripts de cliente) e os scripts `check` (`astro check`), `test`, `test:e2e`, `lint`; verificar que todos rodam em verde no projeto vazio
+- [x] 2.1 Remover o conteúdo do template (`Welcome.astro`, `src/assets/*`, "Astro Basics") e definir `name: atlas-epidemiologia-frontend` no `package.json`; verificar que `npm run build` passa
+- [x] 2.2 Instalar `@astrojs/node` compatível com o Astro instalado e configurar `output: 'server'` + `adapter: node({ mode: 'standalone' })`; verificar que `npm run build` gera `dist/server/entry.mjs` e que `node dist/server/entry.mjs` responde na porta 4321
+- [x] 2.3 Declarar o schema `astro:env` (`API_INTERNAL_URL` server/secret, `BACKEND_TIMEOUT_MS`, `PAGE_CACHE_SECONDS`, `PUBLIC_SITE_URL`) e um `.env.example`; verificar que o servidor falha na inicialização sem `API_INTERNAL_URL` e que `grep` em `dist/client` não encontra o valor usado no build
+- [x] 2.4 Adicionar Vitest, Playwright, ESLint (com `no-restricted-imports` bloqueando `src/lib/server/*` em scripts de cliente) e os scripts `check` (`astro check`), `test`, `test:e2e`, `lint`; verificar que todos rodam em verde no projeto vazio
 
 ## 3. Camada de dados e mock
 
