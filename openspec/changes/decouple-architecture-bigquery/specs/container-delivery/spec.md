@@ -42,9 +42,9 @@ Nenhuma imagem publicada SHALL conter credenciais (chave de service account, tok
 - **WHEN** o sistema de arquivos de uma imagem publicada é inspecionado
 - **THEN** não há arquivo de chave GCP nem `.env`
 
-### Requirement: Frontend configurável em runtime
-A imagem do frontend SHALL obter a URL base da API em tempo de execução do container, de forma que a mesma imagem sirva qualquer ambiente.
+### Requirement: Frontend com backend configurado em runtime
+A imagem do frontend SHALL receber a URL interna do backend por variável de ambiente do container, lida pelo servidor web em tempo de execução, de forma que a mesma imagem sirva qualquer ambiente. O navegador SHALL falar só com o servidor web, e a URL do backend SHALL NOT ser enviada ao navegador (ver capability `atlas-web` da mudança `rebuild-frontend-astro`).
 
-#### Scenario: Mesma imagem, outra API
-- **WHEN** o container do frontend sobe com a URL da API definida por variável de ambiente
-- **THEN** as chamadas do navegador vão para essa URL, sem rebuild da imagem
+#### Scenario: Mesma imagem, outro backend
+- **WHEN** o container do frontend sobe com outro valor na variável de URL interna do backend
+- **THEN** as páginas passam a ser renderizadas com dados desse backend, sem rebuild da imagem

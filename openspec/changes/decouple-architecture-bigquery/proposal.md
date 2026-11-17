@@ -6,14 +6,15 @@ No `projeto_epidemiologia` tudo vive acoplado num só lugar: scripts de ingestã
 
 ## What Changes
 
-- O `atlas_epidemiologia` passa a ser um monorepo com componentes independentes: `pipelines/` (ingestão), `dbt/` (modelagem), `backend/`, `frontend/` e `deploy/` (stacks do Portainer).
+- O `atlas_epidemiologia` passa a ser um monorepo com componentes independentes: `pipelines/` (ingestão), `airflow/` (orquestração e o projeto dbt em `airflow/dags/utfpr_dengue/`), `backend/`, `frontend/` e `deploy/` (stacks do Portainer).
 - **BigQuery como datalake único**: camadas `raw` (ingestão), `bronze`/`silver`/`gold` (dbt). Nenhum componente guarda cópia local da gold como fonte de verdade.
 - **Ingestão desacoplada**: os scripts de download/carga viram jobs idempotentes por fonte (um país/fonte por execução), executáveis manualmente por CLI e, depois, por tarefas do Airflow.
-- **Modelagem desacoplada**: o projeto dbt (`utfpr_dengue`) migra para `dbt/`, com `profiles.yml` versionado lendo credenciais de variáveis de ambiente, rodável manualmente ou em container.
+- **Modelagem desacoplada**: o projeto dbt (`utfpr_dengue`) fica em `airflow/dags/utfpr_dengue/`, com `profiles.yml` versionado lendo credenciais de variáveis de ambiente, rodável manualmente ou em container.
 - **BREAKING (backend)**: a API deixa de sincronizar parquet e de ler via DuckDB; passa a consultar a gold diretamente no BigQuery, com **Redis** como cache de leitura. As rotas `/gold/*` e o contrato JSON atual são preservados.
 - **CI (GitHub Actions)**: workflows filtrados por path que testam, buildam e publicam no DockerHub as imagens do backend, do frontend e (na fase final) do Airflow, com tags imutáveis (SHA do commit) além de `latest`.
 - **CD (Portainer)**: stacks Swarm na VPS — stack da aplicação (frontend + backend + redis, atrás do Traefik) e, separada, stack de dados (Airflow). O GitHub Actions dispara o webhook do Portainer após publicar a imagem.
-- **BREAKING (frontend)**: a URL da API deixa de ser fixada em build-time; a mesma imagem serve qualquer ambiente, configurada em runtime.
+- **BREAKING (frontend)**: o front é refeito em Astro com SSR pela mudança `rebuild-frontend-astro`. A URL do backend deixa de ser fixada em build-time e passa a ser lida pelo servidor web em runtime.
+- **Rotas novas no backend**: `/gold/casos-provaveis-brasil-semanal` e `/gold/casos-provaveis-uf-semanal`, usadas pelo site novo.
 - **Orquestração (última fase)**: Airflow no Portainer dispara ingestão → `dbt build` → etapa do modelo de AI → invalidação do cache do backend. Até lá, essas etapas são executadas manualmente.
 
 ## Capabilities
@@ -31,7 +32,7 @@ No `projeto_epidemiologia` tudo vive acoplado num só lugar: scripts de ingestã
 
 ## Impact
 
-- **Código migrado** do `projeto_epidemiologia`: `scripts/` → `pipelines/`, `utfpr_dengue/` → `dbt/`, `infra/api/` → `backend/`, `front/` → `frontend/`, `infra/docker-compose.yaml` → `deploy/`.
+- **Código migrado** do `projeto_epidemiologia`: `scripts/` → `pipelines/`, `utfpr_dengue/` → `airflow/dags/utfpr_dengue/`, `infra/api/` → `backend/`, `front/` → refeito em `frontend/` (Astro), `infra/docker-compose.yaml` → `deploy/`.
 - **Backend**: remove `gold_sync.py`, a dependência de DuckDB e o volume `api_data`; adiciona `google-cloud-bigquery` + `redis`. Custo do BigQuery passa a depender do tráfego, mitigado pelo cache.
 - **Frontend**: `src/lib/api.ts` e `Dockerfile`/`nginx.conf` mudam para configuração de runtime.
 - **Infra**: novo serviço Redis na stack da aplicação; nova stack Airflow (webserver/scheduler + Postgres de metadados) na mesma VPS — exige avaliar memória disponível.
