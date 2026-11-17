@@ -11,7 +11,7 @@ Os seis modelos de previsão (Ensemble, CatBoost, LSTM, SVR, Bayesiano PyMC e Ch
 - **DAG que puxa do MLflow e materializa no BigQuery.** Uma DAG Python do Airflow (TaskFlow, sem scripts bash) lê, para cada modelo registrado no alias do ambiente, a run, as métricas, os parâmetros, as previsões e as figuras, e escreve tabelas no dataset `forecast` do BigQuery e as figuras no bucket. Roda ao fim da DAG de treino e pode ser disparada à mão, de forma idempotente.
 - **API com cache Redis.** O backend ganha rotas `/forecast/*` que leem essas tabelas, com a mesma paginação, parâmetros de consulta e cache por geração da tabela das rotas gold. As figuras são servidas por uma rota própria, com cache HTTP.
 - **Página de previsão no site** (`/previsao`, seção que passa de "em breve" a disponível):
-  - gráfico com a série observada, a previsão de teste e as próximas 4 semanas, com faixa de intervalo;
+  - gráfico com a série observada, a previsão de teste e as 4 semanas seguintes à última semana consolidada, com faixa de intervalo; como os modelos descartam as 8 últimas semanas (atraso de notificação), essas semanas ficam antes do dado mais recente e a página as rotula como **previsão retroativa** (decisão do usuário);
   - seletor de modelo com ícones próprios e botão de informação em cada um;
   - seletor de UF (Brasil por padrão) e de horizonte;
   - cartões de métricas (NRMSE, MAE, RMSE, R², cobertura do intervalo e tempo de treino), comparação entre os modelos e a data e a versão dos dados do treino.

@@ -7,6 +7,7 @@
   - os artefatos `predictions.parquet` (validação e teste, com `y_true`), `metrics_by_uf.csv`, `oof_predictions.parquet` e o modelo registrado como `atlas-br-<modelo>`;
   - as tags `atlas.pipeline_run`, `atlas.forecast_model`, `atlas.data_version` e `atlas.model_family`.
 - **O que não existe.** Previsão do futuro, métricas por horizonte e figuras. Todo o treino é a 1 semana (`horizon=1`); o parâmetro existe, mas a tarefa 9.3 da `add-dengue-forecast-models` (rodar com 4) ficou aberta.
+- **Decisão do usuário (17/11/2026): manter a origem na última semana madura.** Como os modelos descartam as 8 últimas semanas, as 4 semanas previstas ficam antes do dado mais recente (com a gold até 25/10, origem em ~30/08 e alvos de ~06/09 a ~27/09). Em vez de estender o horizonte ou modelar o atraso de notificação, a página trata isso como previsão retroativa, comparável com o que depois foi notificado, e o rotula assim. Uma previsão de semanas ainda não observadas fica como evolução futura.
 - **Painel de dados.** `gold_dengue_casos_provaveis_uf_semanal` (27 UFs × semanas desde 2000, incidência por 100 mil). Os modelos descartam as 8 últimas semanas (`drop_recent_weeks`, atraso de notificação), então a "origem" da previsão é a última semana **madura**. Como a gold termina em junho de 2026, as semanas previstas hoje já têm notificações parciais.
 - **Ciclo de vida dos modelos.** O registro promove `@dev` → `@hml` → `@prod` por alias (`atlas-ml promote`); o site de cada ambiente deve mostrar a versão do alias daquele ambiente.
 - **Site e API.** Astro SSR chamando o backend FastAPI (rotas `/gold/*`, whitelist de colunas, parâmetros de consulta, cache Redis por `last_modified` da tabela). Design system Painel copiado em `frontend/src/styles/ds`, ECharts por `<script>` de componente, registro de seções em `src/data/secoes.ts` (Previsão como "em breve").
@@ -110,7 +111,7 @@ Cada ambiente exporta a versão do **seu** alias (`@dev` em dev, `@hml` em hml, 
 ## Risks / Trade-offs
 
 - [Treino ~4 vezes maior, com o PyMC e o LSTM como gargalos] → horizontes em paralelo limitado por `max_active_tasks`, `nutpie` com poucas cadeias e épocas do LSTM já com parada antecipada; o `compare` aceita horizonte faltando.
-- [A "previsão do futuro" já está parcialmente no passado, porque a gold termina em junho e há 8 semanas imaturas] → o gráfico mostra as semanas já observadas em consolidação junto da previsão e a página informa a data do último treino e dos dados.
+- [A previsão das 4 semanas é retroativa: a origem é a última semana madura, 8 semanas antes da mais recente] → decisão do usuário de manter; a página rotula as semanas como "previsão retroativa", mostra os valores já observados em consolidação junto da previsão e informa a semana de origem e a data do último treino e dos dados. Uma previsão além da última semana com dados (horizonte de 9 a 12 semanas ou correção do atraso) fica como evolução.
 - [Chronos baixa o checkpoint do Hugging Face a cada ambiente novo] → cache `HF_HOME` já existente; a exportação não depende dele.
 - [Figuras divergirem do dado exibido] → as figuras e as métricas vêm da mesma run, e a página mostra a versão e a data do treino ao lado.
 - [Exportação parcial deixar o site inconsistente] → a visão vigente só muda na última tarefa (`atualizar_visoes`); falha antes disso mantém a exportação anterior.

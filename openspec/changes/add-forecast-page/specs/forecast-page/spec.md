@@ -20,6 +20,10 @@ A página `/previsao` SHALL mostrar, para o modelo, a UF (Brasil por padrão) e 
 - **WHEN** a página é aberta com `?modelo=catboost&uf=SP`
 - **THEN** o gráfico traz a série de São Paulo, a previsão de teste e as quatro semanas futuras do CatBoost com a faixa do intervalo
 
+#### Scenario: Previsão retroativa
+- **WHEN** as semanas previstas são anteriores à última semana com dados (os modelos partem da última semana madura, 8 semanas antes da mais recente)
+- **THEN** a página rotula essas semanas como "previsão retroativa", explica em uma frase que o modelo parte da última semana consolidada e informa a semana de origem
+
 #### Scenario: Semanas já parcialmente observadas
 - **WHEN** alguma das semanas previstas já tem notificações, ainda em consolidação
 - **THEN** o gráfico mostra esses valores observados com estilo próprio ("em consolidação") junto da previsão, e a legenda explica que semanas recentes ainda recebem notificações
