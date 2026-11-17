@@ -1,0 +1,11 @@
+# Configuração do gitleaks (job "secrets" do ci.yml). Mantém as regras padrão.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Falsos positivos conhecidos"
+# Link público de "Publicar na Web" do Power BI (fonte oficial dos dados do Ministério da Saúde,
+# citado na descrição da source do SINAN). Não é credencial: o prefixo base64 eyJrIjoi
+# ({"k":...) é parecido com o de uma chave do Grafana.
+regexTarget = "line"
+regexes = ['''app\.powerbi\.com/view\?r=eyJ[A-Za-z0-9_-]+''']
