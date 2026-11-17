@@ -15,6 +15,7 @@ export default defineConfig({
 			PAGE_CACHE_SECONDS: envField.number({ context: 'server', access: 'secret', default: 300, int: true, gt: -1 }),
 			PUBLIC_SITE_URL: envField.string({ context: 'client', access: 'public', url: true, optional: true }),
 		},
-		validateSecrets: true,
+		// segredos não são validados no build (a imagem não conhece o ambiente): scripts/start.mjs
+		// confere API_INTERNAL_URL na subida, e o astro:env valida ao ler
 	},
 });

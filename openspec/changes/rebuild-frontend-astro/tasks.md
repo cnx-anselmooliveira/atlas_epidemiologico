@@ -48,8 +48,10 @@
 
 ## 8. Imagem, CI e deploy
 
-- [ ] 8.1 Criar `frontend/Dockerfile` multi-stage `node:22-alpine` (usuário `node`, `HOST=0.0.0.0`, `PORT=4321`, `HEALTHCHECK` em `/healthz`) e `.dockerignore` (excluindo `design-system/`); verificar `docker build` e `docker run -e API_INTERNAL_URL=…` servindo `/` com dados
+- [x] 8.1 Criar `frontend/Dockerfile` multi-stage `node:22-alpine` (usuário `node`, `HOST=0.0.0.0`, `PORT=4321`, `HEALTHCHECK` em `/healthz`) e `.dockerignore` (excluindo `design-system/`); verificar `docker build` e `docker run -e API_INTERNAL_URL=…` servindo `/` com dados
+  - Feito: imagem de 557 MB, usuário `node`, sem chaves nem `design-system/`; serviço `frontend` também na stack local (`platform/compose.dev.yml`, `API_INTERNAL_URL=http://backend:8000`, porta 4321).
 - [ ] 8.2 Criar `.github/workflows/frontend.yml` (paths `frontend/**`): `npm ci`, `lint`, `check`, `test`, `test:e2e`, build da imagem; em `main` publicar `anselmomendes/atlas-epidemiologia-frontend:{sha7,latest}` e chamar o webhook do Portainer com `?tag=`; verificar com um PR (sem push) e um push em `main`
+  - Andamento: seguindo a convenção do repositório, os testes entraram como jobs `frontend` e `backend` do `ci.yml` (no `ci-ok`) e as duas imagens na matriz `images` (build sem publicar); actionlint e `compose config` passam localmente. Falta: rodar num PR para `hml` e a publicação no DockerHub + webhook do Portainer, que depende do pipeline de imagens (`_image.yml`, mudança `add-ml-platform`) e dos segredos `DOCKERHUB_*`/`PORTAINER_WEBHOOK_*`.
 - [ ] 8.3 Ajustar o serviço `frontend` em `deploy/app.stack.yml` (imagem Node, porta Traefik 4321, `API_INTERNAL_URL=http://backend:8000`, redes pública e interna); verificar com `docker stack config` e, no host temporário, as páginas renderizando com dados reais
 - [ ] 8.4 Reescrever `frontend/README.md` (hierarquia, componentes, design system copiado, variáveis, `dev:mock`, testes, imagem) e manter `AGENTS.md` coerente; verificar seguindo o passo a passo do README numa cópia limpa
 

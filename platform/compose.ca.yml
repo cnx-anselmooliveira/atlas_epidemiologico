@@ -29,6 +29,7 @@ services:
   airflow-triggerer: *ca-build
   jupyter: *ca-build
   backend: *ca-build
+  frontend: *ca-build
 
 secrets:
   extra_ca:

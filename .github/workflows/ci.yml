@@ -105,6 +105,8 @@ jobs:
           - { name: ml-notebook, context: ml, file: ml/Dockerfile, target: notebook }
           - { name: mlflow, context: infra/mlflow, file: infra/mlflow/Dockerfile, target: "" }
           - { name: airflow, context: ., file: airflow/Dockerfile, target: "" }
+          - { name: backend, context: backend, file: backend/Dockerfile, target: "" }
+          - { name: frontend, context: frontend, file: frontend/Dockerfile, target: "" }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -204,7 +206,41 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm run lint
+      - run: npm run check
+      - run: npm test
       - run: npm run build
+      - name: navegador do Playwright
+        run: npx playwright install --with-deps chromium
+      - name: smoke de ponta a ponta (build de produção + backend mock)
+        run: npm run test:e2e
+      - name: relatório do Playwright (em falha)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/test-results/
+          retention-days: 7
+
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: ruff e pytest (sem BigQuery nem Redis)
+        run: |
+          uv sync --frozen
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run --frozen pytest
 
   openspec:
     name: openspec
@@ -223,7 +259,7 @@ jobs:
     # liberar o merge, p.ex. dags/platform-e2e pulados porque images falhou).
     name: ci-ok
     if: always()
-    needs: [lint, ml-tests, ml-models-tests, images, dags, platform-e2e, frontend, openspec]
+    needs: [lint, ml-tests, ml-models-tests, images, dags, platform-e2e, frontend, backend, openspec]
     runs-on: ubuntu-latest
     steps:
       - name: resultado agregado

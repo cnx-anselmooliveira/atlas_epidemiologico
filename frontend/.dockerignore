@@ -1,0 +1,13 @@
+# design system de referência: só local, nunca na imagem
+design-system/
+node_modules/
+dist/
+.astro/
+.env
+.env.*
+e2e/
+tests/
+playwright-report/
+test-results/
+.vscode/
+Dockerfile
