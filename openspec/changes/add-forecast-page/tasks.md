@@ -8,7 +8,7 @@
   - Resultado: não foi preciso código específico. Chronos e Bayesiano montam a previsão só pela janela e pela origem (o Bayesiano já usa a priori para ano novo), então servem à janela do futuro como os demais; o contrato foi coberto pelos testes de `predict_future` com os seis modelos.
 - [x] 1.4 Incluir `horizon` em `metrics_by_uf.csv` e nas métricas logadas; verificar com teste que dois horizontes do mesmo modelo geram métricas independentes
 - [x] 1.5 Criar `atlas_ml/forecast/figures.py` (matplotlib `Agg`, tema claro, português, PNG ≤ 500 KB) com as figuras comuns e uma por família, cada uma num `try` que registra `atlas.figures_failed`; adicionar `matplotlib` ao grupo `models`; verificar com testes: as 3 figuras de cada modelo sobre dados sintéticos, tamanho ≤ 500 KB e falha forçada sem derrubar a run
-- [ ] 1.6 Ligar previsão do futuro e figuras ao fim de `run_model` e expor `--horizon` no CLI (`atlas-ml forecast train <modelo> --horizon H`); verificar com `uv run pytest` e uma run local de um modelo leve (SVR) a `horizon=2` no MLflow de dev, conferindo `future_predictions.parquet` e `figures/` na run
+- [x] 1.6 Ligar previsão do futuro e figuras ao fim de `run_model` e expor `--horizon` no CLI (`atlas-ml forecast train <modelo> --horizon H`); verificar com `uv run pytest` e uma run local de um modelo leve (SVR) a `horizon=2` no MLflow de dev, conferindo `future_predictions.parquet` e `figures/` na run
 
 ## 2. DAG de treino por horizonte
 
@@ -17,7 +17,7 @@
 
 ## 3. Exportação do MLflow para o BigQuery
 
-- [ ] 3.1 Criar `atlas_ingest/forecast_export.py` com as funções puras (versão vigente pelo alias, linha `BR` ponderada pela população e métricas recalculadas, validação de figura PNG ≤ 500 KB, conferência da origem comum entre horizontes), sem import de Airflow; verificar com `airflow/tests/test_forecast_export.py` sem rede (casos: BR = soma de casos ÷ população, figura grande rejeitada, horizonte com origem diferente descartado)
+- [x] 3.1 Criar `atlas_ingest/forecast_export.py` com as funções puras (versão vigente pelo alias, linha `BR` ponderada pela população e métricas recalculadas, validação de figura PNG ≤ 500 KB, conferência da origem comum entre horizontes), sem import de Airflow; verificar com `airflow/tests/test_forecast_export.py` sem rede (casos: BR = soma de casos ÷ população, figura grande rejeitada, horizonte com origem diferente descartado)
 - [ ] 3.2 Criar o DDL do dataset `forecast` (tabelas e visões `forecast_current_*`, com descrição de cada coluna, partição por `exported_date` e cluster por `model, horizon`) em `airflow/dags/atlas_ingest/forecast_ddl.py`; verificar criando em dev e conferindo com `bq show --schema`
 - [ ] 3.3 Escrever a DAG `process_forecast_export_atlas` (TaskFlow: `listar_versoes` → `extrair` mapeada → `carregar_bigquery` → `publicar_figuras` → `atualizar_visoes`; sem agendamento, `max_active_runs=1`; Connections `mlflow_default` e `google_cloud_default`); verificar com `test_dags.py` (estrutura, mapeamento, sem agendamento, sem `BashOperator`)
 - [ ] 3.4 Criar a Connection `mlflow_default` no Airflow de dev (UI) e rodar a DAG com as runs da tarefa 2.2; verificar `forecast_current_model_runs` com 24 linhas, `forecast_current_predictions` com as linhas `future` das 27 UFs e `BR` nos 4 horizontes e as figuras em `gs://ppgcc-bucket/forecast/dev/...`

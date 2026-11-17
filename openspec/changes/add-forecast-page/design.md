@@ -58,6 +58,8 @@ listar_versoes ─► extrair[modelo×horizonte] ─► carregar_bigquery ─►
 - `publicar_figuras`: copia os PNGs válidos para o bucket em `forecast/<ambiente>/<modelo>/h<H>/<run>/` e preenche `forecast_figures`.
 - `atualizar_visoes`: recria as visões `forecast_current_*` (a versão vigente é a do alias; o histórico fica nas tabelas).
 
+O ambiente do Airflow não tem o MLflow (ele vive no venv `atlas_ml`, separado por causa das versões), então a leitura é feita por `atlas_ml.forecast.export_read` numa tarefa `@task.external_python` apontando para esse venv. Ela baixa os artefatos para a pasta compartilhada `/opt/airflow/shared` e devolve só um manifesto JSON (versões, métricas, parâmetros e caminhos). A montagem das tabelas e a carga no BigQuery e no bucket ficam no ambiente do Airflow, com pandas e os provedores do Google (`atlas_ingest/forecast_export.py`, funções puras sem import de Airflow). As fórmulas das métricas do Brasil repetem as de `atlas_ml.forecast.evaluate`.
+
 O acesso ao MLflow é por uma Connection HTTP `mlflow_default` (host e, em hml, usuário e senha), o do BigQuery e do bucket por `google_cloud_default`. O código monta o cliente a partir das Connections e nunca lê chave de arquivo do repositório. Os mesmos nomes de Connection valem em dev e em hml, com valores próprios. As funções puras (montar linha `BR`, validar figura, escolher a versão vigente) ficam em `atlas_ingest/forecast_export.py`, sem import de Airflow, e são testadas sem rede.
 
 ### 5. Tabelas do dataset `forecast`
