@@ -1,0 +1,23 @@
+---
+// Erro inesperado no servidor (o detalhe vai para o log, não para a página).
+import Icon from '../components/Icon.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+interface Props {
+	error: unknown;
+}
+console.error('[atlas] erro ao renderizar', Astro.url.pathname, Astro.props.error);
+---
+
+<BaseLayout titulo="Erro" descricao="Erro inesperado no Atlas Epidemiológico da Dengue.">
+	<div class="ds-container ds-main">
+		<div class="ds-card">
+			<div class="ds-state ds-state--error">
+				<span class="ds-state__icon"><Icon nome="alert" tamanho="lg" /></span>
+				<h1 class="ds-state__title">Algo deu errado</h1>
+				<p class="ds-state__text">Não foi possível mostrar esta página. Tente novamente em alguns minutos.</p>
+				<a class="ds-btn ds-btn--primary" href="/">Ir para o início</a>
+			</div>
+		</div>
+	</div>
+</BaseLayout>

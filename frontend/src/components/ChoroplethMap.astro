@@ -1,7 +1,7 @@
 ---
 // Mapa coroplético das UFs (incidência por 100 mil) com 6 faixas fixas. No servidor: figura,
 // legenda de faixas e tabela alternativa (UF → série histórica). No navegador: ECharts com o
-// GeoJSON /geo/brasil-uf.json; clique numa UF abre a série histórica dela.
+// GeoJSON das UFs (asset do build: nome com hash e cache imutável); clique abre a série da UF.
 import { nomeDaUf } from '../data/ufs';
 import { FAIXAS } from '../lib/classes';
 import { formatarInteiro, formatarTaxa } from '../lib/format';
@@ -72,6 +72,7 @@ const linhas = [...valores]
 	import * as echarts from 'echarts/core';
 	import { SVGRenderer } from 'echarts/renderers';
 
+	import geoUrl from '../assets/geo/brasil-uf.json?url';
 	import { fmt } from '../scripts/ds/ds.js';
 	import { mountChart, tooltipHTML } from '../scripts/ds/echarts-theme.js';
 
@@ -85,7 +86,7 @@ const linhas = [...valores]
 
 	const figuras = document.querySelectorAll<HTMLElement>('figure[data-grafico="mapa-uf"]');
 	if (figuras.length) {
-		const geo = await fetch('/geo/brasil-uf.json').then((r) => (r.ok ? r.json() : null));
+		const geo = await fetch(geoUrl).then((r) => (r.ok ? r.json() : null));
 		if (geo) echarts.registerMap('brasil-uf', geo);
 		for (const figura of geo ? figuras : []) {
 			const json = figura.querySelector('script[data-mapa]')?.textContent;

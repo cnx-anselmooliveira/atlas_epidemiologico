@@ -19,7 +19,7 @@ beforeAll(async () => {
 	await new Promise<void>((ok) => mock.listen(Number(url.port), url.hostname, ok));
 	base = `http://${url.hostname}:${(mock.address() as AddressInfo).port}`;
 	container = await AstroContainer.create();
-	for (const nome of ['index', 'serie-historica', 'mapa']) {
+	for (const nome of ['index', 'serie-historica', 'mapa', 'sobre', '404']) {
 		paginas[nome] = (await import(`../src/pages/${nome}.astro`)).default;
 	}
 });
@@ -126,5 +126,37 @@ describe('mapa por UF', () => {
 	it('backend fora: 503', async () => {
 		await estadoMock({ falhar: true });
 		expect((await abrir('mapa', '/mapa')).status).toBe(503);
+	});
+});
+
+describe('sobre, health check e 404', () => {
+	it('sobre mostra a data da última geração dos dados', async () => {
+		const { status, html } = await abrir('sobre', '/sobre');
+		expect(status).toBe(200);
+		expect(html).toMatch(/Os dados exibidos foram gerados em <strong><time datetime="[^"]+">17\/11\/2026<\/time>/);
+		expect(html).toContain('Caso provável');
+		expect(html).not.toMatch(/data-grafico|data-serie|data-mapa/);
+	});
+
+	it('sobre continua (200) sem o backend, sem a data', async () => {
+		await estadoMock({ falhar: true });
+		const { status, html } = await abrir('sobre', '/sobre');
+		expect(status).toBe(200);
+		expect(html).toContain('temporariamente indisponível');
+	});
+
+	it('/healthz responde 200 com o backend fora', async () => {
+		await estadoMock({ falhar: true });
+		const { GET } = await import('../src/pages/healthz');
+		const resposta = await GET({} as never);
+		expect(resposta.status).toBe(200);
+		expect(resposta.headers.get('cache-control')).toBe('no-store');
+	});
+
+	it('404 com link para o início', async () => {
+		const { status, html } = await abrir('404', '/nao-existe');
+		expect(status).toBe(404);
+		expect(html).toContain('Página não encontrada');
+		expect(html).toContain('href="/"');
 	});
 });

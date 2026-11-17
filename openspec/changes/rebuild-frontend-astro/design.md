@@ -137,7 +137,7 @@ Série:
 A tabela alternativa traz os totais por ano e as 12 semanas mais recentes, não as 1,4 mil linhas.
 
 Mapa:
-- `echarts.registerMap('brasil-uf', geojson)` com `/geo/brasil-uf.json`;
+- `echarts.registerMap('brasil-uf', geojson)` com o GeoJSON importado de `src/assets/geo/brasil-uf.json?url`;
 - `visualMap` em faixas com as classes `--viz-map-1..6` do DS;
 - o clique navega para `/serie-historica?uf=<sigla>`.
 
@@ -163,12 +163,11 @@ Fontes Source Sans 3 / Source Serif 4 / Source Code Pro via `@fontsource/*` (sem
 Alternativa descartada: buscar o design system de um bucket no CI. Seriam uma credencial a mais no CI e um build impossível sem rede.
 
 ### 9. Cache HTTP
-Um middleware (`src/middleware.ts`) define o `Cache-Control`:
+Um middleware (`src/middleware.ts`) define o `Cache-Control` das páginas:
 - `public, max-age=${PAGE_CACHE_SECONDS}` nas respostas HTML 200;
-- `no-store` nas respostas 4xx e 5xx;
-- `max-age=604800` em `/geo/*`.
+- `no-store` nas respostas 4xx e 5xx.
 
-Os assets `/_astro/*` recebem `max-age=31536000, immutable` do servidor standalone. A tarefa 6.4 confere essa suposição; se o standalone não enviar `immutable`, o middleware cobre.
+Os assets `/_astro/*` recebem `max-age=31536000, immutable` do servidor standalone (conferido na tarefa 6.4). Os arquivos de `public/` são servidos antes do middleware e saem sem cache. Por isso o GeoJSON das UFs fica em `src/assets/geo/` e é importado com `?url`: vira um asset com hash em `/_astro/` e herda o cache imutável.
 
 ### 10. Backend mock para testes
 `frontend/mock-backend/` é um servidor Node mínimo, sem dependências, que serve as duas rotas da decisão 3 a partir de fixtures JSON. Ele:
