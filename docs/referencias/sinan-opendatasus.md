@@ -41,8 +41,24 @@ Efeito na gold: a série de casos prováveis ficaria **8,4% menor em 2014 e 4,5%
 
 Nos anos recentes o aviso do teste vem de reclassificação, não de perda: em 2021, 2024 e 2025 o total por UF não cai, mas algumas classificações finais ficam abaixo de 99% da Base dos Dados (casos que mudaram de classe depois do retrato da Base).
 
-## Conclusão
+## Decisão e efeito na gold
 
-O critério da tarefa 4.3 (anos fechados idênticos por UF) **não foi atendido**, por 2014 e 2015. Por isso o padrão de `sinan_source` continua em `basedosdados`, e a fonte `opendatasus` fica disponível por `--vars`. As opções estão na mudança, para decisão.
+Decisão do usuário (17/11/2026): **usar o OpenDataSUS em todos os anos**, aceitando a perda de 2014 e 2015. O padrão de `sinan_source` agora é `opendatasus`, e a Base dos Dados continua selecionável por `--vars '{sinan_source: basedosdados}'`.
 
-O teste `warn_sinan_opendatasus_equivale_basedosdados` é de severidade `warn` e fica como está: hoje retorna 184 linhas (2 em 2008, 54 em 2014 e 2015 e 128 nos anos recentes).
+Efeito na gold de casos prováveis (Brasil, por ano epidemiológico):
+
+| Ano | Antes (Base dos Dados) | Agora (OpenDataSUS) |
+|---|---|---|
+| 2014 | 597.856 | 543.918 (−9,0%) |
+| 2015 | 1.718.295 | 1.647.079 (−4,1%) |
+| 2013 e 2016 | iguais | iguais |
+
+- **Atualização:** a série passou a chegar em 25/10/2026, e antes parava em 28/06/2026.
+- **Limitação aceita:** 2014 e 2015 ficam subestimados, e isso vale para qualquer modelo treinado sobre a série.
+- **UF corrompida:** o arquivo tem 6 notificações com UF inválida (`MH`, `NG`, `MF`). Criavam 3 "UFs" falsas na gold (4.200 linhas sem população). O bronze agora só aceita as 27 siglas reais e manda o resto para a UF de notificação.
+
+O teste `warn_sinan_opendatasus_equivale_basedosdados` (severidade `warn`) trata 2014 e 2015 como exceção conhecida e, nos anos recentes, compara o total por UF (mínimo de 90% da Base dos Dados). Hoje retorna 7 linhas: 2 de 2008 (1 caso com UF corrompida) e 5 UF-ano em que o OpenDataSUS tem menos registros (2024: AC e PE, com PE em −23%; 2025: AC, DF e TO). A causa dessas 5 não foi apurada.
+
+## Teste de totais do Cosmos
+
+Ao trocar a fonte, a ETL falhou no teste `assert_casos_provaveis_batem_com_silver`, que referencia a silver, a agregada e a gold. O Cosmos o rodava na tarefa do primeiro modelo, antes de as outras tabelas serem reconstruídas, e comparava dado novo com tabelas velhas. Isso afetaria **toda** execução em que o SINAN trouxesse dado novo. A `process_etl_atlas` agora usa `TestIndirectSelection.BUILDABLE`: um teste de vários modelos só roda depois que os outros pais já foram construídos.

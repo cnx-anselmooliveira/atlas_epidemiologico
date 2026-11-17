@@ -4,7 +4,12 @@ Modelagem da dengue no BigQuery (`ppgcc-dengue-project`, location US), em camada
 
 ## Como rodar
 
-**Pelo Airflow** (dev, hml, prod): dispare a DAG `process_etl_atlas`. Ela roda pelo **Cosmos**, com os grupos `seed → bronze → silver → gold` e uma tarefa por model, cujos testes rodam logo depois. Não há parâmetros: o disparo roda o projeto inteiro. Para refazer só parte, limpe (clear) a tarefa ou o grupo na UI. Cada tarefa roda numa cópia temporária do projeto, então nada é gravado nesta pasta.
+**Pelo Airflow** (dev, hml, prod): a DAG `process_etl_atlas` roda todo dia.
+- Primeiro sincroniza o SINAN do OpenDataSUS (landing e tabela bronze).
+- Se houver dados novos, roda o dbt pelo **Cosmos**: grupos `seed → bronze → silver → gold`, uma tarefa por model com os testes logo depois.
+- Num disparo manual, `{"forcar_dbt": true}` roda o dbt mesmo sem dados novos.
+- Para refazer só parte, limpe (clear) a tarefa ou o grupo na UI.
+- Cada tarefa roda numa cópia temporária do projeto, então nada é gravado nesta pasta.
 
 A documentação (`dbt docs`) é gerada pela DAG `process_dbt_docs_atlas` e fica no menu de dbt docs do Airflow.
 
@@ -28,6 +33,21 @@ No PowerShell, use `dbt.ps1` com os mesmos argumentos. Os scripts:
 | `DBT_THREADS` | `4` | paralelismo |
 
 A service account de treino tem escrita em `silver` e `gold`, conferida com `dbt run --select silver_dim_country`.
+
+## Fonte do SINAN (Brasil)
+
+O model `bronze_dengue_brasil` escolhe a fonte pela variável `sinan_source`:
+- **`opendatasus` (padrão):** `source('sinan_opendatasus', 'sinan_dengue_opendatasus')`, a tabela carregada pela DAG a partir dos arquivos do OpenDataSUS. O model trata os dois layouts do SINAN:
+  - **2000–2006 (SINAN Windows):** `CON_CLASSI` etc., UF em sigla, município com 7 dígitos;
+  - **2007 em diante (SINAN Net):** `CLASSI_FIN` etc., UF em código do IBGE, município com 6 dígitos.
+
+  O model também decodifica a idade e converte as semanas para `AAAA-SS`. As macros ficam em `macros/sinan_opendatasus.sql`.
+- **`basedosdados`:** `microdados.raw_uftpr_microdados_brasil`, a cópia antiga da Base dos Dados. Fica como fallback: `dbt build --vars '{sinan_source: basedosdados}'`.
+
+O teste `warn_sinan_opendatasus_equivale_basedosdados` compara as duas fontes:
+- **anos fechados (até 2020):** idênticos por UF, exceto 2014 e 2015 (o OpenDataSUS não traz os descartados nem os confirmados do esquema antigo; limitação aceita);
+- **anos encerrados desde 2021:** total por UF do OpenDataSUS ≥ 90% da Base dos Dados;
+- **ano corrente:** fora do teste.
 
 ## Tabelas para os modelos de previsão
 

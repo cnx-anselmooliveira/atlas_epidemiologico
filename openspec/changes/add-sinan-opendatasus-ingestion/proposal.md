@@ -35,7 +35,7 @@ Hoje os casos de dengue do Brasil chegam ao BigQuery por uma cópia manual da ta
   - a tabela bronze vira `source` (`sinan_opendatasus`);
   - o `bronze_dengue_brasil` mapeia os códigos do DATASUS para as colunas que o projeto já usa;
   - silver e gold não mudam de contrato.
-- **Fallback:** a fonte antiga (Base dos Dados) continua selecionável pela variável dbt `sinan_source`.
+- **Fallback:** a fonte antiga (Base dos Dados) continua selecionável pela variável dbt `sinan_source`. O padrão é `opendatasus`, apesar de 2014 e 2015 virem sem os descartados e os confirmados do esquema antigo (decisão do usuário, registrada no design).
 - **Alinhamento com a `add-cosmos-dbt-dags`:** o requisito "Disparo sem configuração" daquela mudança (sem agendamento, sem parâmetros) passa a valer como descrito aqui: diário, com sync antes e o parâmetro opcional `forcar_dbt`.
 
 ## Capabilities

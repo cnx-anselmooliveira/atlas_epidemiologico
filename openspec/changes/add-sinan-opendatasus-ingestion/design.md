@@ -152,9 +152,9 @@ As etapas por ano, do jeito que já estão implementadas e medidas (seção 8):
 
 ### 7. Corte para a nova fonte
 1. Sync inicial com o bucket vazio, ou seja, todos os anos. A variável fica em `basedosdados` durante a comparação.
-2. Comparação entre as fontes, registrada em `docs/referencias/sinan-opendatasus.md`, com critério por tipo de ano:
-   - **anos fechados (até 2020):** total por UF idêntico, 0%. Em 2000, 2003 e 2013, os totais anuais já batem exatamente;
-   - **anos republicados (2021+):** o OpenDataSUS continua atualizando esses anos depois do retrato da Base dos Dados. Em 2023 houve +9,1%, todo em notificações novas (classes 10, 11 e 0), com inconclusivos e sem classificação idênticos e duplicidade de 0,1%. Por isso o critério é: por UF e classificação, OpenDataSUS ≥ 99% da Base dos Dados. A fonte nova pode ganhar registros, mas não perder.
+2. Comparação entre as fontes, registrada em `docs/referencias/sinan-opendatasus.md`. Com os 27 anos carregados, o critério por tipo de ano ficou assim:
+   - **anos fechados (até 2020):** total por UF idêntico, **exceto 2014 e 2015**. Nesses dois anos o arquivo do OpenDataSUS não traz os descartados (372.829 e 697.514) nem os confirmados do esquema antigo (códigos 1 a 4), e os casos prováveis ficam 8,4% e 4,5% abaixo da Base dos Dados (593.790 e 1.700.546, que batem com os boletins). **Decisão do usuário (17/11/2026): aceitar a perda e usar o OpenDataSUS em todos os anos**, em vez de uma fonte híbrida. A série histórica de 2014 e 2015 fica subestimada e isso é documentado;
+   - **anos republicados (2021+):** o OpenDataSUS continua atualizando esses anos depois do retrato da Base dos Dados (2023 teve +9,1%, todo em notificações novas) e reclassifica casos, então a classificação final deixou de entrar no critério. Fica: total por UF ≥ 90% da Base dos Dados. Hoje 5 UF-ano ficam abaixo (AC e PE em 2024; AC, DF e TO em 2025, com PE 2024 a −23%), registradas na documentação sem causa apurada;
    - **ano corrente:** fica fora do teste e só é documentado, por decisão do usuário. Em 2026, entre o retrato de junho e a publicação de novembro, os registros sem classificação e os inconclusivos caíram muito (ex.: TO, de 5.968 para 690 sem classificação), porque viraram confirmados ou descartados. O total subiu de 398.786 para 489.197.
 3. Padrão trocado para `opendatasus` e `process_etl_atlas` completa.
 

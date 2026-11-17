@@ -41,13 +41,33 @@ As tarefas herdam o ambiente do container (`MLFLOW_TRACKING_URI`, `ATLAS_ENV`, `
 | DAG | Agendamento | O que faz |
 |---|---|---|
 | `atlas_ml_example_training` | manual | `atlas-ml train example --register`. Falha se a run não for registrada no MLflow; 2 retentativas |
-| `process_etl_atlas` | manual | Modelagem dbt (`dags/utfpr_dengue/`) no BigQuery pelo **Cosmos**: grupos `seed → bronze → silver → gold`, uma tarefa por model com os testes logo depois. Sem parâmetros (roda o projeto inteiro) e sem retentativas |
+| `process_etl_atlas` | **diária** | Sync do SINAN (OpenDataSUS → landing → tabela bronze) e, se houver dados novos (ou com `forcar_dbt`), a modelagem dbt pelo **Cosmos**: grupos `seed → bronze → silver → gold`, uma tarefa por model com os testes logo depois |
 | `process_dbt_docs_atlas` | manual | Gera o dbt docs (`index.html`, `manifest.json`, `catalog.json`) e publica em `gs://ppgcc-bucket/dbt_docs/<ATLAS_ENV>/`; o Airflow mostra no menu de dbt docs |
 | `atlas_dengue_forecast_br` | manual | Previsão de dengue por UF: `prepare → 5 modelos-base (baseline bayesiano, Chronos, CatBoost, SVR, LSTM) → ensemble → compare`, com no máximo 3 tarefas em paralelo e 1 retentativa. Parâmetros opcionais `window`, `horizon` e `seed`. Todas as runs no MLflow (`atlas/dengue-forecast-br`) com a tag `atlas.pipeline_run` = run_id da DAG; modelos registrados como `atlas-br-<modelo>` |
 
-### process_etl_atlas (Cosmos)
+### process_etl_atlas (sync do SINAN + Cosmos)
 
-- **Disparo:** Trigger na UI, sem configuração. Para refazer só parte da modelagem, limpe (Clear) a tarefa de um model, com "Downstream" se quiser os dependentes, ou um grupo inteiro (ex.: `gold`).
+```
+[sinan]  detectar_diferencas (sensor) ─► baixar/apagar[arquivo] ─► carregar_bronze/validar/marcar_carregado[ano]
+         remover_da_bronze[ano]
+decidir_dbt ─► [seed] ─► [bronze] ─► [silver] ─► [gold]
+```
+
+- **Agendamento:** diária (`@daily`, sem catchup).
+  - **No agendamento:** o sensor `detectar_diferencas` espera até haver diferença entre o OpenDataSUS e o landing, conferindo a cada 30 min por até 20 h, sem ocupar o worker entre as checagens. Se nada mudar, ele fica pulado.
+  - **Disparo manual:** verifica a origem uma vez, sem esperar.
+- **Sync do SINAN (espelho exato):**
+  - o sensor compara `ETag`/`Last-Modified` dos arquivos `DENGBR<aa>.csv.zip` com a metadata dos objetos em `gs://ppgcc-bucket/landing/sinan/dengue/`;
+  - arquivo novo ou alterado é baixado (zip original + CSV) e substitui o anterior; arquivo que sumiu da origem é apagado do landing e o ano sai da bronze.
+- **Tabela bronze:** `bronze.sinan_dengue_opendatasus`, uma partição por ano, substituída inteira, com as colunas de origem como texto e as de linhagem (`ano_arquivo`, `arquivo_etag`, `arquivo_uri`, `carregado_em`).
+  - Depois de validar as contagens e as colunas obrigatórias, o ano é marcado com `bronze_etag` na metadata do zip.
+  - Ano que falhou volta no dia seguinte, sem baixar de novo.
+- **Estado:** fica na metadata dos objetos do landing (`origem_etag`, `origem_last_modified`, `registros`, `colunas`, `encoding`, `bronze_etag`). Não há tabela de controle.
+- **Forçar a recarga de um ano:** apague o `bronze_etag` do zip (recarrega só a bronze) ou o próprio objeto `DENGBR<aa>.csv.zip` (baixa de novo).
+- **dbt:**
+  - `decidir_dbt` roda os grupos só se algum ano foi carregado ou removido;
+  - num disparo manual, `{"forcar_dbt": true}` roda o dbt mesmo sem dados novos (ex.: mudança só na modelagem);
+  - para refazer só parte, limpe (Clear) a tarefa de um model ou um grupo inteiro (ex.: `gold`).
 - **Grafo:** o Cosmos monta as tarefas com `dbt ls` na leitura da DAG e guarda o resultado em cache. Um model novo em `models/<camada>/` aparece sozinho no grupo da camada. A primeira leitura leva alguns segundos (`AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT=120`).
 - **Falhas:** a tarefa do model que falhou fica vermelha, com o erro do dbt no log, e as dependentes ficam `upstream_failed`.
 - **Execução:** cada tarefa roda o dbt de `/opt/dbt` numa cópia temporária do projeto. Nada é escrito na pasta de DAGs.
