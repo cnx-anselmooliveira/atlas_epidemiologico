@@ -20,6 +20,7 @@ from atlas_ml.forecast.config import ForecastConfig
 from atlas_ml.forecast.splits import TEST, TRAIN, VAL, SplitDates, split_dates
 
 META_COLUMNS = ["uf", "uf_code", "origin_date", "target_date", "population", "y_true"]
+FUTURE = "future"  # split das janelas sem alvo (previsão das próximas semanas)
 
 
 def drop_immature(panel: pd.DataFrame, cfg: ForecastConfig) -> pd.DataFrame:
@@ -104,6 +105,56 @@ def build_windows(panel: pd.DataFrame, cfg: ForecastConfig) -> RawWindows:
         season=np.concatenate(seasons),
         features=np.concatenate(feats),
         feature_names=names,
+    )
+
+
+def build_future_windows(panel: pd.DataFrame, cfg: ForecastConfig) -> RawWindows:
+    """Uma janela por UF terminando na última semana do painel, com alvo em origem + horizonte.
+
+    O painel já vem sem as semanas imaturas, então a origem é a última semana madura. Não há
+    alvo observado: `y_true` e `target` ficam NaN e só o histórico até a origem é usado, o que
+    garante que nenhuma informação posterior à origem entra na previsão.
+    """
+    missing = [f for f in cfg.features if f not in panel.columns]
+    if missing:
+        raise ValueError(f"Covariáveis ausentes no painel: {', '.join(missing)}")
+    w = cfg.window
+    metas, hists, seasons, feats = [], [], [], []
+    for _, g in panel.sort_values(["uf", "week_start"]).groupby("uf", sort=True):
+        if len(g) < w:
+            continue
+        tail = g.iloc[-w:]
+        origin = pd.Timestamp(tail["week_start"].iloc[-1])
+        target = origin + pd.Timedelta(weeks=cfg.horizon)
+        hists.append(np.log1p(tail["incidence"].to_numpy(dtype="float64"))[None, :])
+        angle = 2 * np.pi * (target.isocalendar().week - 1) / 52.0
+        seasons.append(np.array([[np.sin(angle), np.cos(angle)]]))
+        if cfg.features:
+            feats.append(np.concatenate([tail[f].to_numpy(dtype="float64") for f in cfg.features])[None, :])
+        else:
+            feats.append(np.empty((1, 0)))
+        metas.append(
+            pd.DataFrame(
+                {
+                    "uf": [g["uf"].iloc[0]],
+                    "uf_code": [int(g["uf_code"].iloc[0])],
+                    "origin_date": [origin],
+                    "target_date": [target],
+                    "population": [float(tail["population"].iloc[-1])],
+                    "y_true": [np.nan],
+                    "split": [FUTURE],
+                }
+            )
+        )
+    if not metas:
+        raise ValueError("Nenhuma UF com histórico suficiente para a janela do futuro.")
+    return RawWindows(
+        meta=pd.concat(metas, ignore_index=True),
+        hist=np.concatenate(hists),
+        target=np.full(len(metas), np.nan),
+        season=np.concatenate(seasons),
+        features=np.concatenate(feats),
+        feature_names=[f"{f}_t-{w - 1 - k}" for f in cfg.features for k in range(w)],
     )
 
 

@@ -27,6 +27,7 @@ models = [
     "h5netcdf>=1.3",  # idata.nc do baseline bayesiano
     "h5py>=3.11",
     "chronos-forecasting>=1.5",
+    "matplotlib>=3.9",  # figuras das runs
 ]
 
 [project.scripts]
@@ -43,6 +44,7 @@ explicit = true
 
 [dependency-groups]
 dev = [
+    "matplotlib>=3.9",
     "pytest>=8",
     "ruff>=0.6",
 ]

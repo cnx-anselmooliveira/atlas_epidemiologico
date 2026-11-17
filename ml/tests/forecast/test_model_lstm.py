@@ -38,5 +38,8 @@ def test_lstm_registra_oof_e_varia_pouco_entre_execucoes(tracking_uri):
     pa, pb = _artifact(a.run_id, PREDICTIONS), _artifact(b.run_id, PREDICTIONS)
     assert np.allclose(pa.y_pred, pb.y_pred, rtol=0.02, atol=1e-6)
 
+    figs = {x.path.split("/")[-1] for x in mlflow.MlflowClient().list_artifacts(a.run_id, "figures")}
+    assert "learning_curve.png" in figs and "atlas.figures_failed" not in run.data.tags
+
     contract = mlflow.artifacts.load_dict(f"runs:/{a.run_id}/model_extra/input_contract.json")
     assert contract["window"] == SMALL.window and "mean" in contract

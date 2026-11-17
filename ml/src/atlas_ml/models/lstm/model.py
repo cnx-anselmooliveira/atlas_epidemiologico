@@ -82,6 +82,7 @@ class LSTMForecast:
         self.net = None
         self.best_epoch: int | None = None
         self.epochs_run = 0
+        self.val_curve: list[float] = []  # erro de validação por época (figura de aprendizado)
 
     def fit(self, train: Batch, val: Batch) -> None:
         torch.manual_seed(self.cfg.seed)
@@ -116,6 +117,7 @@ class LSTMForecast:
             self.net.eval()
             with torch.no_grad():
                 v = float(loss_fn(self.net(*val_t[:3]), val_t[3]))
+            self.val_curve.append(v)
             if v < best - 1e-6:
                 best, best_state, wait, self.best_epoch = (
                     v,

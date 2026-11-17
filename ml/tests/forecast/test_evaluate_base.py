@@ -1,3 +1,4 @@
+import dataclasses
 import math
 
 import mlflow
@@ -7,7 +8,14 @@ import pytest
 from mlflow import MlflowClient
 
 from atlas_ml.config import load_settings
-from atlas_ml.forecast.base import METRICS_BY_UF, OOF_PREDICTIONS, PREDICTIONS, run_model
+from atlas_ml.forecast.base import (
+    FUTURE_PREDICTIONS,
+    METRICS_BY_UF,
+    OOF_PREDICTIONS,
+    PREDICTIONS,
+    registered_name,
+    run_model,
+)
 from atlas_ml.forecast.compare import compare
 from atlas_ml.forecast.evaluate import interval_coverage, metrics_by_uf, summarize_metrics
 
@@ -70,7 +78,7 @@ def test_run_model_registra_metricas_artefatos_oof_e_modelo(tracking_uri, monkey
     assert (pd.to_datetime(oof.target_date) >= pd.to_datetime(oof.fit_until)).all()
     assert pd.to_datetime(oof.target_date).max() < pd.Timestamp(run.data.params["val_start"])
 
-    mv = client.get_model_version_by_alias("atlas-br-persistence", "dev")
+    mv = client.get_model_version_by_alias("atlas-br-persistence-h1", "dev")
     assert str(mv.version) == result.model_version
 
 
@@ -102,3 +110,67 @@ def test_previsoes_negativas_viram_zero(tracking_uri):
 
     result = run_model(Negativo, SMALL, dataset_run(), load_settings(), register=False)
     assert (_artifact(result.run_id, PREDICTIONS).y_pred == 0).all()
+
+
+def test_previsao_do_futuro_por_uf_e_nome_por_horizonte(tracking_uri):
+    from atlas_ml.forecast.dataset import load_snapshot
+    from atlas_ml.forecast.windows import drop_immature
+
+    ds = dataset_run()
+    cfg = dataclasses.replace(SMALL, horizon=3)
+    result = run_model(Persistence, cfg, ds, load_settings())
+    future = _artifact(result.run_id, FUTURE_PREDICTIONS)
+
+    panel, _ = load_snapshot(ds)
+    mature = drop_immature(panel, cfg)
+    last_mature = pd.Timestamp(mature.week_start.max())
+    assert sorted(future.uf) == sorted(panel.uf.unique())  # uma linha por UF
+    assert (pd.to_datetime(future.origin_date) == last_mature).all()  # origem = última semana madura
+    assert (pd.to_datetime(future.target_date) == last_mature + pd.Timedelta(weeks=3)).all()
+    assert (future.horizon == 3).all() and (future.y_pred >= 0).all()
+    # a Persistence repete a última semana madura: prova que nada posterior à origem entrou
+    last = mature[mature.week_start == last_mature].set_index("uf").incidence
+    for row in future.itertuples():
+        assert row.y_pred == pytest.approx(last[row.uf])
+
+    by_uf = pd.read_csv(mlflow.artifacts.download_artifacts(f"runs:/{result.run_id}/{METRICS_BY_UF}"))
+    assert (by_uf.horizon == 3).all()
+    assert str(
+        MlflowClient().get_model_version_by_alias(registered_name("persistence", 3), "dev").version
+    ) == (result.model_version)
+    assert registered_name("catboost", 2) == "atlas-br-catboost-h2"
+
+
+def test_horizontes_independentes_nas_metricas(tracking_uri):
+    ds = dataset_run()
+    runs = {
+        h: run_model(Persistence, dataclasses.replace(SMALL, horizon=h), ds, load_settings(), register=False)
+        for h in (1, 4)
+    }
+    for h, r in runs.items():
+        assert mlflow.get_run(r.run_id).data.params["horizon"] == str(h)
+    # persistência piora com o horizonte: erro do horizonte 4 maior que o do 1
+    assert runs[4].metrics["test_nrmse_mean"] > runs[1].metrics["test_nrmse_mean"]
+
+
+def test_horizonte_fora_de_1_a_4_e_recusado():
+    from atlas_ml.forecast.config import ForecastConfig
+
+    for h in (0, 5):
+        with pytest.raises(ValueError, match="horizon"):
+            ForecastConfig(horizon=h)
+
+
+def test_compare_filtra_por_horizonte(tracking_uri, monkeypatch):
+    monkeypatch.setenv("ATLAS_PIPELINE_RUN", "manual__hor")
+    ds = dataset_run()
+    for h in (1, 3):
+        run_model(Persistence, dataclasses.replace(SMALL, horizon=h), ds, load_settings(), register=False)
+    run_id, _ = compare(load_settings(), "manual__hor", horizon=3)
+    run = mlflow.get_run(run_id)
+    assert run.data.tags["atlas.horizon"] == "3"
+    comparison = pd.read_csv(mlflow.artifacts.download_artifacts(f"runs:/{run_id}/comparison.csv"))
+    persistence = comparison[comparison.model == "persistence"]
+    assert len(persistence) == 1  # só o horizonte 3, sem misturar com o 1
+    only3 = mlflow.get_run(persistence.run_id.iloc[0])
+    assert only3.data.params["horizon"] == "3"

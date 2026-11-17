@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
+MAX_HORIZON = 4  # o site mostra as próximas 4 semanas
+
 
 @dataclass(frozen=True)
 class ForecastConfig:
@@ -22,6 +24,8 @@ class ForecastConfig:
     def __post_init__(self) -> None:
         if self.window < 1 or self.horizon < 1:
             raise ValueError("window e horizon devem ser >= 1")
+        if self.horizon > MAX_HORIZON:
+            raise ValueError(f"horizon deve ser de 1 a {MAX_HORIZON} semanas")
         if self.test_weeks < 1 or self.val_weeks < 1:
             raise ValueError("test_weeks e val_weeks devem ser >= 1")
 

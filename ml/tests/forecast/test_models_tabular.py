@@ -42,6 +42,19 @@ def test_modelo_registra_metricas_oof_e_e_reprodutivel(name, tracking_uri):
     pa, pb = _artifact(a.run_id, PREDICTIONS), _artifact(b.run_id, PREDICTIONS)
     assert np.allclose(pa.y_pred, pb.y_pred, rtol=1e-6)
 
+    # figuras: as duas comuns e a da família (importância no CatBoost, erro por semana no SVR)
+    figs = {a.path.split("/")[-1] for a in mlflow.MlflowClient().list_artifacts(a.run_id, "figures")}
+    family = "feature_importance.png" if name == "catboost" else "error_by_week.png"
+    assert {"forecast_vs_observed.png", "error_by_uf.png", family} <= figs
+    assert "atlas.figures_failed" not in run.data.tags
+    # previsão do futuro das 3 UFs sintéticas
+    assert (
+        len(_artifact(a.run_id, "future_predictions.parquet"))
+        == pd.read_parquet(
+            mlflow.artifacts.download_artifacts(f"runs:/{a.run_id}/predictions.parquet")
+        ).uf.nunique()
+    )
+
     # o modelo registrado carrega e prevê
-    model = mlflow.pyfunc.load_model(f"models:/atlas-br-{name}@dev")
+    model = mlflow.pyfunc.load_model(f"models:/atlas-br-{name}-h1@dev")
     assert model is not None
