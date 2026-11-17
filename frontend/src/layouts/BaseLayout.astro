@@ -1,0 +1,55 @@
+---
+// Layout de todas as páginas: <head> (título, descrição, canonical), CSS do design system,
+// tema salvo aplicado antes da primeira pintura, cabeçalho, conteúdo e rodapé.
+import { PUBLIC_SITE_URL } from 'astro:env/client';
+
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import '../styles/ds/index.css';
+
+interface Props {
+	titulo: string;
+	descricao: string;
+}
+const { titulo, descricao } = Astro.props;
+const nomeSite = 'Atlas Epidemiológico da Dengue';
+const tituloCompleto = Astro.url.pathname === '/' ? nomeSite : `${titulo} · ${nomeSite}`;
+const canonical = PUBLIC_SITE_URL ? new URL(Astro.url.pathname, PUBLIC_SITE_URL).href : undefined;
+---
+
+<!doctype html>
+<html lang="pt-BR">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{tituloCompleto}</title>
+		<meta name="description" content={descricao} />
+		{canonical && <link rel="canonical" href={canonical} />}
+		<meta property="og:title" content={tituloCompleto} />
+		<meta property="og:description" content={descricao} />
+		<meta property="og:locale" content="pt_BR" />
+		{canonical && <meta property="og:url" content={canonical} />}
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<!-- Tema salvo (mesma chave do ds.js) antes da primeira pintura, sem flash -->
+		<script is:inline>
+			try {
+				const t = localStorage.getItem('atlas-painel-theme');
+				if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+			} catch {
+				/* sem storage: segue o sistema */
+			}
+		</script>
+	</head>
+	<body>
+		<a class="ds-skip-link" href="#conteudo">Pular para o conteúdo</a>
+		<SiteHeader />
+		<main id="conteudo">
+			<slot />
+		</main>
+		<SiteFooter />
+		<script>
+			import { initDesignSystem } from '../scripts/ds/ds.js';
+			initDesignSystem();
+		</script>
+	</body>
+</html>

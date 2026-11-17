@@ -1,0 +1,49 @@
+/* =============================================================================
+   Atlas DS · Painel — layout
+   Cópia de frontend/design-system/status_invest/css/layout.css (cópia local de consulta, fora do Git).
+   Para mudar: altere o original e copie de novo.
+   ========================================================================== */
+
+.ds-container {
+  width: 100%;
+  max-width: calc(var(--container-max) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.ds-container--narrow { max-width: calc(var(--container-narrow) + 2 * var(--gutter)); }
+
+.ds-main { padding-block: var(--space-6) var(--space-16); }
+@media (min-width: 768px) { .ds-main { padding-block: var(--space-8) var(--space-20); } }
+
+/* Pilha vertical e agrupamento horizontal */
+.ds-stack { display: flex; flex-direction: column; gap: var(--stack-gap, var(--space-4)); }
+.ds-stack--sm { --stack-gap: var(--space-2); }
+.ds-stack--lg { --stack-gap: var(--space-6); }
+.ds-stack--xl { --stack-gap: var(--space-10); }
+
+.ds-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cluster-gap, var(--space-2)); }
+.ds-cluster--between { justify-content: space-between; }
+.ds-cluster--lg { --cluster-gap: var(--space-4); }
+
+/* Grade fluida — colunas mínimas, nunca rolagem horizontal */
+.ds-grid {
+  display: grid;
+  gap: var(--grid-gap, var(--space-4));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--grid-min, 240px)), 1fr));
+}
+.ds-grid--kpi   { --grid-min: 200px; }
+.ds-grid--cards { --grid-min: 320px; --grid-gap: var(--space-6); }
+
+/* Grade fixa de 12 colunas a partir de 1024px */
+.ds-layout { display: grid; gap: var(--space-6); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1024px) {
+  .ds-layout { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .ds-span-4  { grid-column: span 4; }
+  .ds-span-5  { grid-column: span 5; }
+  .ds-span-6  { grid-column: span 6; }
+  .ds-span-7  { grid-column: span 7; }
+  .ds-span-8  { grid-column: span 8; }
+  .ds-span-12 { grid-column: 1 / -1; }
+}
+
+.ds-divider { border: 0; border-top: var(--border-width) solid var(--border-subtle); margin-block: var(--space-6); }

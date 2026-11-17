@@ -23,8 +23,8 @@
 
 ## 4. Design system e layout
 
-- [ ] 4.1 Copiar de `frontend/design-system/status_invest/` só o necessário para `src/styles/ds/` (tokens e CSS, com `index.css` de entrada) e `src/scripts/ds/` (`ds.js`, `echarts-theme.js`), e `icons.svg` para `public/`, com cabeçalho de origem em cada arquivo e sem vitrine, README ou menções à referência; trocar o `@import` de fontes por `@fontsource/source-sans-3`, `source-serif-4` e `source-code-pro`; verificar com `git status` (arquivos novos versionados, nada de `design-system/`) e `grep -ri "status invest" src public` vazio
-- [ ] 4.2 Criar `BaseLayout.astro` (`lang="pt-BR"`, título e descrição por página, canonical a partir de `PUBLIC_SITE_URL`, CSS do DS, tema salvo aplicado inline no `<head>`, `initDesignSystem()`), `SiteHeader.astro` (navegação de `secoes.ts`, seção atual destacada), `SiteFooter.astro` e `PageHeader.astro` (trilha "Início › Seção"); verificar com `astro check` e teste da Container API (seção atual com `aria-current`)
+- [x] 4.1 Copiar de `frontend/design-system/status_invest/` só o necessário para `src/styles/ds/` (tokens e CSS, com `index.css` de entrada) e `src/scripts/ds/` (`ds.js`, `echarts-theme.js`), e `icons.svg` para `public/`, com cabeçalho de origem em cada arquivo e sem vitrine, README ou menções à referência; trocar o `@import` de fontes por `@fontsource/source-sans-3`, `source-serif-4` e `source-code-pro`; verificar com `git status` (arquivos novos versionados, nada de `design-system/`) e `grep -ri "status invest" src public` vazio
+- [x] 4.2 Criar `BaseLayout.astro` (`lang="pt-BR"`, título e descrição por página, canonical a partir de `PUBLIC_SITE_URL`, CSS do DS, tema salvo aplicado inline no `<head>`, `initDesignSystem()`), `SiteHeader.astro` (navegação de `secoes.ts`, seção atual destacada), `SiteFooter.astro` e `PageHeader.astro` (trilha "Início › Seção"); verificar com `astro check` e teste da Container API (seção atual com `aria-current`)
 
 ## 5. Componentes
 

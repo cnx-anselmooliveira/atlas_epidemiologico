@@ -18,6 +18,8 @@ export default [
 	...tseslint.configs.recommended,
 	...eslintPluginAstro.configs.recommended,
 	{ rules: { '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }] } },
+	// cópia do design system (scripts/copiar-design-system.py): não é editada aqui
+	{ files: ['src/scripts/ds/**'], rules: { '@typescript-eslint/no-unused-expressions': 'off' } },
 	{
 		// <script> dos componentes .astro (arquivos virtuais) e módulos de cliente
 		files: ['**/*.astro/*.js', '**/*.astro/*.ts', 'src/scripts/**/*.{js,ts}'],

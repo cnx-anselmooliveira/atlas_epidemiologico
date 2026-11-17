@@ -1,6 +1,6 @@
 ---
 // Provisório (tarefa 3.5): confirma a cadeia página → gold.ts → backend; substituído na 6.1
-import Layout from '../layouts/Layout.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
 import { formatarInteiro, formatarSemana } from '../lib/format';
 import { ultimaSemana } from '../lib/series';
 import { gold } from '../lib/server/gold';
@@ -8,7 +8,7 @@ import { gold } from '../lib/server/gold';
 const ultima = ultimaSemana(await (await gold()).serieBrasil());
 ---
 
-<Layout>
+<BaseLayout titulo="Início" descricao="Atlas Epidemiológico da Dengue">
 	<h1>Atlas Epidemiológico da Dengue</h1>
 	{ultima && <p>{formatarSemana(ultima.epi_year, ultima.epi_week)}: {formatarInteiro(ultima.probable_cases)} casos prováveis</p>}
-</Layout>
+</BaseLayout>
