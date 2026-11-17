@@ -4,7 +4,7 @@
 
 - [x] 1.1 Criar a gold `gold_dengue_casos_provaveis_brasil_semanal` (soma das 27 UFs por semana a partir de `gold_dengue_casos_provaveis_uf_semanal`, população e incidência do Brasil, `gold_generated_at`) com `.yml` e testes (`unique` em `week_start`, `not_null`, total igual à soma das UFs); verificar com `dbt build --select gold_dengue_casos_provaveis_brasil_semanal` e conferindo que o grupo `gold` da `process_etl_atlas` passa a ter a tarefa do model
 - [x] 1.2 Atualizar a mudança `decouple-architecture-bigquery` via `openspec-update-change`: incluir as rotas `GET /gold/casos-provaveis-brasil-semanal` e `GET /gold/casos-provaveis-uf-semanal` (filtros `uf`, `epi_year`), remover o grupo 6 (front React), substituir o requisito "Frontend configurável em runtime" de `container-delivery` e alinhar o caminho do dbt (`airflow/dags/utfpr_dengue/`); verificar com `openspec validate decouple-architecture-bigquery --strict`
-- [ ] 1.3 Implementar o backend (grupo 5 da `decouple-architecture-bigquery`) até as duas rotas responderem localmente com dados reais; verificar com `curl` em `/gold/casos-provaveis-uf-semanal?uf=SP&limit=5` e `/gold/casos-provaveis-brasil-semanal?limit=5`
+- [x] 1.3 Implementar o backend (grupo 5 da `decouple-architecture-bigquery`) até as duas rotas responderem localmente com dados reais; verificar com `curl` em `/gold/casos-provaveis-uf-semanal?uf=SP&limit=5` e `/gold/casos-provaveis-brasil-semanal?limit=5`
 
 ## 2. Base do projeto Astro
 

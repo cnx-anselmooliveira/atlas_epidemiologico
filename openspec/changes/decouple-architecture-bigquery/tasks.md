@@ -34,14 +34,14 @@
 ## 5. Backend (BigQuery + Redis)
 
 - [ ] 5.1 Copiar `infra/api/app` para `backend/app`, remover `gold_sync.py`, DuckDB e o loop do lifespan; criar `backend/pyproject.toml` com `fastapi`, `uvicorn`, `google-cloud-bigquery`, `redis`, `pytest`, `ruff`; verificar que `ruff check` passa e a app importa
-- [ ] 5.2 Implementar o repositório BigQuery com whitelist de tabela/colunas por rota, `ScalarQueryParameter` para filtros, `LIMIT/OFFSET` parametrizados e `maximum_bytes_billed`; verificar com teste que um filtro `' OR 1=1 --` vira parâmetro e não SQL
+- [x] 5.2 Implementar o repositório BigQuery com whitelist de tabela/colunas por rota, `ScalarQueryParameter` para filtros, `LIMIT/OFFSET` parametrizados e `maximum_bytes_billed`; verificar com teste que um filtro `' OR 1=1 --` vira parâmetro e não SQL
 - [ ] 5.3 Adaptar os 14 routers ao novo repositório mantendo rotas, filtros e campos; verificar com testes de contrato (cliente BigQuery mockado) comparando campos com os tipos de `frontend/src/lib/api.ts`
-- [ ] 5.3a Adicionar as rotas `GET /gold/casos-provaveis-brasil-semanal` (filtro `epi_year`) e `GET /gold/casos-provaveis-uf-semanal` (filtros `uf`, `epi_year`), ordenadas por `week_start` (e `uf`), usadas pelo site (`rebuild-frontend-astro`); verificar com testes de contrato (filtro, ordem e campos) e `curl` local com dados reais
-- [ ] 5.4 Implementar cache Redis com chave por geração (`tables.get` → `last_modified`, cacheado 5 min) e TTL máximo configurável; verificar com testes (fakeredis) que requisição repetida não chama o BigQuery e que mudança de `last_modified` gera miss
+- [x] 5.3a Adicionar as rotas `GET /gold/casos-provaveis-brasil-semanal` (filtro `epi_year`) e `GET /gold/casos-provaveis-uf-semanal` (filtros `uf`, `epi_year`), ordenadas por `week_start` (e `uf`), usadas pelo site (`rebuild-frontend-astro`); verificar com testes de contrato (filtro, ordem e campos) e `curl` local com dados reais
+- [x] 5.4 Implementar cache Redis com chave por geração (`tables.get` → `last_modified`, cacheado 5 min) e TTL máximo configurável; verificar com testes (fakeredis) que requisição repetida não chama o BigQuery e que mudança de `last_modified` gera miss
 - [ ] 5.5 Implementar `POST /admin/cache/invalidate` com `ADMIN_TOKEN`; verificar com testes: 401 sem token, cache vazio após chamada com token
-- [ ] 5.6 Implementar degradação sem Redis (timeout curto + fallback direto); verificar com teste em que o Redis levanta erro e a rota responde 200
+- [x] 5.6 Implementar degradação sem Redis (timeout curto + fallback direto); verificar com teste em que o Redis levanta erro e a rota responde 200
 - [ ] 5.7 Implementar `/health` com status de BigQuery e Redis (503 se BigQuery inacessível) e CORS via `CORS_ALLOWED_ORIGINS`, apenas GET; verificar com testes
-- [ ] 5.8 Criar `backend/Dockerfile` (Python 3.12 slim, usuário não-root, `HEALTHCHECK` em `/health`) e `.dockerignore`; verificar `docker build` e subida local com Redis (`docker compose -f backend/compose.dev.yml up`) respondendo uma rota `/gold/*` real
+- [x] 5.8 Criar `backend/Dockerfile` (Python 3.12 slim, usuário não-root, `HEALTHCHECK` em `/health`) e `.dockerignore`; verificar `docker build` e subida local com Redis (serviços `backend` e `redis` do `platform/compose.dev.yml`, via `platform/dev.ps1 up`) respondendo uma rota `/gold/*` real
 - [ ] 5.9 Atualizar `backend/README.md` (variáveis, rotas, cache, invalidação); verificar que o exemplo de `curl` documentado funciona localmente
 
 ## 6. Frontend
