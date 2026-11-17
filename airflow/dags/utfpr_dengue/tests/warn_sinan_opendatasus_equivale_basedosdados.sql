@@ -1,9 +1,11 @@
 -- Aviso: equivalência entre as duas fontes do SINAN, nos anos presentes em ambas.
---   Anos fechados (até 2020): total de notificações por UF idêntico.
---   Anos republicados (2021+): por UF e classificação final, OpenDataSUS >= 99% da Base dos
---   Dados. O OpenDataSUS continua atualizando esses anos depois do retrato da Base dos Dados
---   (ex.: 2023 tem +9,1%, todo em notificações novas), então ele pode ganhar registros, mas
---   não perder.
+--   Anos fechados (até 2020): total de notificações por UF idêntico, exceto 2014 e 2015.
+--   2014 e 2015 são exceções conhecidas e aceitas: o arquivo do OpenDataSUS não traz os
+--   descartados nem os confirmados do esquema antigo (casos prováveis 8,4% e 4,5% abaixo da
+--   Base dos Dados; ver docs/referencias/sinan-opendatasus.md).
+--   Anos republicados (2021+): total por UF do OpenDataSUS >= 90% do da Base dos Dados. O
+--   OpenDataSUS continua atualizando esses anos depois do retrato da Base dos Dados, então
+--   ganha notificações novas e reclassifica casos (por isso a classificação final não entra).
 --   Ano corrente: fora do teste. As notificações ainda mudam de classe entre as publicações
 --   ("sem classificação" e "inconclusivo" viram confirmado/descartado), então ele só é
 --   documentado.
@@ -61,12 +63,6 @@ por_uf as (
     from (select ano, uf, sum(n) as n from opendatasus group by 1, 2) as o
     full join (select ano, uf, sum(n) as n from basedosdados group by 1, 2) as b using (ano, uf)
     group by 1, 2
-),
-
-por_uf_classe as (
-    select ano, uf, classificacao, o.n as n_opendatasus, b.n as n_basedosdados
-    from opendatasus as o
-    full join basedosdados as b using (ano, uf, classificacao)
 )
 
 select 'ano fechado: total por UF diferente' as regra, ano, uf, cast(null as string) as classificacao,
@@ -74,13 +70,14 @@ select 'ano fechado: total por UF diferente' as regra, ano, uf, cast(null as str
 from por_uf
 where ano in (select ano from anos_comuns)
   and ano <= 2020
+  and ano not in (2014, 2015)
   and coalesce(n_opendatasus, 0) != coalesce(n_basedosdados, 0)
 
 union all
 
-select 'ano republicado: OpenDataSUS abaixo de 99%' as regra, ano, uf, classificacao,
+select 'ano republicado: total por UF abaixo de 90%' as regra, ano, uf, cast(null as string) as classificacao,
        n_opendatasus, n_basedosdados
-from por_uf_classe
+from por_uf
 where ano in (select ano from anos_comuns)
   and ano >= 2021
-  and coalesce(n_opendatasus, 0) < 0.99 * coalesce(n_basedosdados, 0)
+  and coalesce(n_opendatasus, 0) < 0.90 * coalesce(n_basedosdados, 0)

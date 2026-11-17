@@ -32,7 +32,7 @@ from pathlib import Path
 
 from airflow.sdk import DAG, Param, PokeReturnValue, TaskGroup, chain, get_current_context, task, task_group
 from cosmos import DbtTaskGroup, ExecutionConfig, ProfileConfig, ProjectConfig, RenderConfig
-from cosmos.constants import InvocationMode
+from cosmos.constants import InvocationMode, TestIndirectSelection
 
 DBT_DIR = Path(__file__).resolve().parent / "utfpr_dengue"
 DBT_EXECUTABLE = "/opt/dbt/bin/dbt"
@@ -57,8 +57,14 @@ profile_config = ProfileConfig(
 )
 # dbt só existe no venv /opt/dbt (não no Python do Airflow): chamar o executável, nunca o
 # dbtRunner em processo (padrão do Cosmos 1.16 quando não se informa o modo)
+# Teste que referencia vários models (ex.: totais silver × agregada × gold) só roda quando os
+# outros models já foram construídos. Com a seleção padrão (eager), ele rodava junto do primeiro
+# model e comparava dado novo com tabelas ainda velhas, quebrando a execução sempre que a
+# origem mudava.
 execution_config = ExecutionConfig(
-    dbt_executable_path=DBT_EXECUTABLE, invocation_mode=InvocationMode.SUBPROCESS
+    dbt_executable_path=DBT_EXECUTABLE,
+    invocation_mode=InvocationMode.SUBPROCESS,
+    test_indirect_selection=TestIndirectSelection.BUILDABLE,
 )
 
 
