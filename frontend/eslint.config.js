@@ -17,6 +17,7 @@ export default [
 	{ ignores: ['dist/', '.astro/', 'node_modules/', 'design-system/', 'playwright-report/', 'test-results/'] },
 	...tseslint.configs.recommended,
 	...eslintPluginAstro.configs.recommended,
+	{ rules: { '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }] } },
 	{
 		// <script> dos componentes .astro (arquivos virtuais) e módulos de cliente
 		files: ['**/*.astro/*.js', '**/*.astro/*.ts', 'src/scripts/**/*.{js,ts}'],

@@ -1,11 +1,14 @@
 ---
-import { API_INTERNAL_URL } from 'astro:env/server';
+// Provisório (tarefa 3.5): confirma a cadeia página → gold.ts → backend; substituído na 6.1
 import Layout from '../layouts/Layout.astro';
-// Provisório: só garante que a variável é lida no servidor (substituído na tarefa 6.1)
-const backendConfigurado = Boolean(API_INTERNAL_URL);
+import { formatarInteiro, formatarSemana } from '../lib/format';
+import { ultimaSemana } from '../lib/series';
+import { gold } from '../lib/server/gold';
+
+const ultima = ultimaSemana(await (await gold()).serieBrasil());
 ---
 
 <Layout>
 	<h1>Atlas Epidemiológico da Dengue</h1>
-	<p>{backendConfigurado ? 'backend configurado' : ''}</p>
+	{ultima && <p>{formatarSemana(ultima.epi_year, ultima.epi_week)}: {formatarInteiro(ultima.probable_cases)} casos prováveis</p>}
 </Layout>

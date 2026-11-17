@@ -14,7 +14,8 @@
     "check": "astro check",
     "test": "vitest run --passWithNoTests",
     "test:e2e": "playwright test --pass-with-no-tests",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "dev:mock": "node scripts/dev-mock.mjs"
   },
   "dependencies": {
     "@astrojs/node": "11.1.13",

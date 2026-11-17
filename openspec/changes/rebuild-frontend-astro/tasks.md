@@ -15,11 +15,11 @@
 
 ## 3. Camada de dados e mock
 
-- [ ] 3.1 Criar `mock-backend/` (servidor Node sem dependências) com as duas rotas, filtros por igualdade, `limit/offset`, flags de atraso e 503, e fixtures coerentes (3 anos, 4 UFs e o Brasil, com o ano mais recente incompleto); verificar com um teste Vitest do próprio mock
-- [ ] 3.2 Implementar `src/lib/server/gold.ts` (tipos das duas golds, uma função por rota, paginação até esgotar, timeout e `BackendUnavailableError`); verificar com testes Vitest de paginação (2 páginas), timeout e 5xx
-- [ ] 3.3 Implementar `src/lib/series.ts` (totais por ano, última semana × mesma semana do ano anterior, incidência por UF no ano, ano em andamento), `src/lib/filtros.ts` (`parseUf`, `parseAno`) e `src/lib/format.ts` (inteiro, taxa por 100 mil, variação %, data pt-BR); verificar com testes Vitest, incluindo `?uf=XX`, `?ano=abc` e ano fora da faixa
-- [ ] 3.4 Criar `src/data/secoes.ts` (Série histórica, Mapa por UF e Sobre disponíveis; Previsão e Qualidade dos dados em breve) e `src/data/ufs.ts` (sigla, nome, região); verificar com teste Vitest que toda seção disponível tem página em `src/pages/`
-- [ ] 3.5 Adicionar `npm run dev:mock` (mock + `astro dev` apontando para ele); verificar que a página inicial abre com dados das fixtures
+- [x] 3.1 Criar `mock-backend/` (servidor Node sem dependências) com as duas rotas, filtros por igualdade, `limit/offset`, flags de atraso e 503, e fixtures coerentes (3 anos, 4 UFs e o Brasil, com o ano mais recente incompleto); verificar com um teste Vitest do próprio mock
+- [x] 3.2 Implementar `src/lib/server/gold.ts` (tipos das duas golds, uma função por rota, paginação até esgotar, timeout e `BackendUnavailableError`); verificar com testes Vitest de paginação (2 páginas), timeout e 5xx
+- [x] 3.3 Implementar `src/lib/series.ts` (totais por ano, última semana × mesma semana do ano anterior, incidência por UF no ano, ano em andamento), `src/lib/filtros.ts` (`parseUf`, `parseAno`) e `src/lib/format.ts` (inteiro, taxa por 100 mil, variação %, data pt-BR); verificar com testes Vitest, incluindo `?uf=XX`, `?ano=abc` e ano fora da faixa
+- [x] 3.4 Criar `src/data/secoes.ts` (Série histórica, Mapa por UF e Sobre disponíveis; Previsão e Qualidade dos dados em breve) e `src/data/ufs.ts` (sigla, nome, região); verificar com teste Vitest que toda seção disponível tem página em `src/pages/`
+- [x] 3.5 Adicionar `npm run dev:mock` (mock + `astro dev` apontando para ele); verificar que a página inicial abre com dados das fixtures
 
 ## 4. Design system e layout
 
