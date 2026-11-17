@@ -13,7 +13,7 @@
     "start": "node scripts/start.mjs",
     "check": "astro check",
     "test": "vitest run --passWithNoTests",
-    "test:e2e": "playwright test --pass-with-no-tests",
+    "test:e2e": "playwright test",
     "lint": "eslint .",
     "dev:mock": "node scripts/dev-mock.mjs"
   },

@@ -42,8 +42,9 @@
 
 ## 7. Testes de ponta a ponta e validação real
 
-- [ ] 7.1 Escrever o smoke Playwright contra o build de produção + mock: sem rolagem horizontal a 360 px em `/`, `/serie-historica` e `/mapa`; série com JS desabilitado mostra KPIs e tabela; clique numa UF do mapa abre a série dela; `/sobre` não baixa chunks do ECharts; verificar com `npm run test:e2e` em verde
-- [ ] 7.2 Rodar o site contra o backend real local e conferir os números com o BigQuery (total do Brasil no ano mais recente, casos de SP na última semana, incidência de uma UF no mapa); verificar registrando as três comparações no PR
+- [x] 7.1 Escrever o smoke Playwright contra o build de produção + mock: sem rolagem horizontal a 360 px em `/`, `/serie-historica` e `/mapa`; série com JS desabilitado mostra KPIs e tabela; clique numa UF do mapa abre a série dela; `/sobre` não baixa chunks do ECharts; verificar com `npm run test:e2e` em verde
+- [x] 7.2 Rodar o site contra o backend real local e conferir os números com o BigQuery (total do Brasil no ano mais recente, casos de SP na última semana, incidência de uma UF no mapa); verificar registrando as três comparações no PR
+  - Resultado (17/11/2026, backend local + BigQuery, gold ainda na fonte Base dos Dados): Brasil 2026 = 399.804 casos e 186,6/100 mil no site e no BigQuery; SP na SE 26/2026 = 3 nos dois; MG 2024 = 1.689.139 casos e 7.921,8/100 mil nos dois.
 
 ## 8. Imagem, CI e deploy
 
