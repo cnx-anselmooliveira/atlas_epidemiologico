@@ -1,0 +1,15 @@
+---
+// Fonte e data da última geração dos dados (gold_generated_at).
+import { formatarData } from '../lib/format';
+
+interface Props {
+	geradoEm?: string;
+	fonte?: string;
+}
+const { geradoEm, fonte = 'SINAN' } = Astro.props;
+---
+
+<span class="ds-cluster ds-label-sm ds-text-3">
+	<span class="ds-badge ds-badge--solid">{fonte}</span>
+	{geradoEm && <span>Dados atualizados em <time datetime={geradoEm}>{formatarData(geradoEm)}</time></span>}
+</span>

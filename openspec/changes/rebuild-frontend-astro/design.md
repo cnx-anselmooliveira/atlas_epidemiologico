@@ -85,7 +85,7 @@ A página inicial e o `SiteHeader` leem essa lista, então os dois nunca diverge
 
 | Rota | Conteúdo | Fonte |
 |---|---|---|
-| `/` | cabeçalho de apresentação + um `SectionCard` por seção, com destaque (casos na semana mais recente, UF com maior incidência no ano) | gold nacional + gold UF do ano |
+| `/` | cabeçalho de apresentação + um `SectionCard` por seção, com destaque (casos prováveis no ano mais recente, UF com maior incidência no ano; a última semana sozinha é instável por atraso de notificação), seções disponíveis antes das "em breve" | gold nacional + gold UF do ano |
 | `/serie-historica` | `PageHeader`, `FilterForm` (UF), `KpiStrip`, `TimeSeriesChart`, tabela por ano, `SourceNote` | gold nacional ou gold UF (`?uf=`) |
 | `/mapa` | `PageHeader`, `FilterForm` (ano), `KpiStrip`, `ChoroplethMap` + `RankingBars`, `SourceNote` | gold UF (`?ano=`) |
 | `/sobre` | texto estático + data da gold mais recente | `gold_generated_at` da gold nacional |

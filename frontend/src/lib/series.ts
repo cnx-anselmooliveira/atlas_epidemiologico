@@ -65,14 +65,14 @@ export function totaisPorAno(semanas: readonly Semana[]): TotalAno[] {
 		}));
 }
 
-export interface Comparacao {
-	atual: Semana;
-	anterior: Semana | undefined;
+export interface Comparacao<T extends Semana = Semana> {
+	atual: T;
+	anterior: T | undefined;
 	/** Variação % dos casos em relação à mesma semana epidemiológica do ano anterior. */
 	variacao: number | null;
 }
 
-export function comparacaoAnoAnterior(semanas: readonly Semana[]): Comparacao | undefined {
+export function comparacaoAnoAnterior<T extends Semana>(semanas: readonly T[]): Comparacao<T> | undefined {
 	const atual = ultimaSemana(semanas);
 	if (!atual) return undefined;
 	const anterior = semanas.find((s) => s.epi_year === atual.epi_year - 1 && s.epi_week === atual.epi_week);

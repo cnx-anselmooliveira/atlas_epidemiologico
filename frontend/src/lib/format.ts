@@ -42,3 +42,9 @@ export function formatarData(iso: string | null | undefined): string {
 export function formatarSemana(ano: number, semana: number): string {
 	return `SE ${semana}/${ano}`;
 }
+
+/** Classe .ds-delta-- de uma variação de casos: subir é pior; |x| < 2% é estável. */
+export function classeVariacao(pct: number | null | undefined, faixaEstavel = 2): string {
+	if (pct == null || !Number.isFinite(pct) || Math.abs(pct) < faixaEstavel) return 'ds-delta--flat';
+	return pct > 0 ? 'ds-delta--worse' : 'ds-delta--better';
+}

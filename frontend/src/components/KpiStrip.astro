@@ -1,0 +1,11 @@
+---
+// Faixa de indicadores (KpiCard); o primeiro costuma ir com `destaque`.
+interface Props {
+	rotulo?: string;
+}
+const { rotulo = 'Indicadores' } = Astro.props;
+---
+
+<div class="ds-kpi-strip" role="group" aria-label={rotulo}>
+	<slot />
+</div>

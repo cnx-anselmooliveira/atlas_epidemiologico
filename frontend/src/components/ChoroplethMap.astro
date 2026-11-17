@@ -1,0 +1,147 @@
+---
+// Mapa coroplético das UFs (incidência por 100 mil) com 6 faixas fixas. No servidor: figura,
+// legenda de faixas e tabela alternativa (UF → série histórica). No navegador: ECharts com o
+// GeoJSON /geo/brasil-uf.json; clique numa UF abre a série histórica dela.
+import { nomeDaUf } from '../data/ufs';
+import { FAIXAS } from '../lib/classes';
+import { formatarInteiro, formatarTaxa } from '../lib/format';
+import DataTable from './DataTable.astro';
+
+export interface ValorUf {
+	uf: string;
+	incidencia: number;
+	casos: number;
+}
+
+interface Props {
+	titulo: string;
+	subtitulo?: string;
+	valores: readonly ValorUf[];
+	/** Destino do clique; a sigla é acrescentada ao final (ex.: "/serie-historica?uf="). */
+	linkUf?: string;
+	fonte?: string;
+}
+const { titulo, subtitulo, valores, linkUf = '/serie-historica?uf=', fonte } = Astro.props;
+
+const dados = JSON.stringify({
+	linkUf,
+	faixas: FAIXAS.map((f) => ({ min: f.min, max: f.max, classe: f.classe })),
+	valores: valores.map((v) => ({ uf: v.uf, nome: nomeDaUf(v.uf), incidencia: v.incidencia, casos: v.casos })),
+}).replace(/</g, '\\u003c');
+
+const linhas = [...valores]
+	.sort((a, b) => nomeDaUf(a.uf).localeCompare(nomeDaUf(b.uf), 'pt-BR'))
+	.map((v) => ({ uf: nomeDaUf(v.uf), incidencia: formatarTaxa(v.incidencia), casos: formatarInteiro(v.casos) }));
+---
+
+<figure class="ds-card ds-figure" data-grafico="mapa-uf">
+	<div class="ds-figure__header">
+		<div>
+			<h2 class="ds-figure__title">{titulo}</h2>
+			{subtitulo && <p class="ds-figure__subtitle">{subtitulo}</p>}
+		</div>
+	</div>
+	<div class="ds-figure__plot ds-figure__plot--map" role="img" aria-label={`${titulo}; valores na tabela.`}></div>
+	<div class="ds-legend-scale">
+		<span class="ds-label-sm">Casos prováveis por 100 mil habitantes</span>
+		<div class="ds-legend-scale__bar ds-legend-scale__bar--steps">
+			{FAIXAS.map((f) => <span style={`--swatch: var(--viz-map-${f.classe})`} title={f.rotulo} />)}
+		</div>
+		<div class="ds-legend-scale__ticks">{FAIXAS.map((f) => <span>{f.max === null ? `${f.min.toLocaleString('pt-BR')}+` : f.min}</span>)}</div>
+	</div>
+	<div class="ds-figure__fallback">
+		<DataTable
+			colunas={[
+				{ chave: 'uf', rotulo: 'UF' },
+				{ chave: 'incidencia', rotulo: 'Incidência /100 mil', numerica: true },
+				{ chave: 'casos', rotulo: 'Casos prováveis', numerica: true },
+			]}
+			linhas={linhas}
+			legenda={titulo}
+			compacta
+			rolagem
+		/>
+	</div>
+	{fonte && <figcaption class="ds-figure__caption"><span>{fonte}</span></figcaption>}
+	<script is:inline type="application/json" data-mapa set:html={dados} />
+</figure>
+
+<script>
+	import { MapChart } from 'echarts/charts';
+	import { TooltipComponent, VisualMapComponent } from 'echarts/components';
+	import * as echarts from 'echarts/core';
+	import { SVGRenderer } from 'echarts/renderers';
+
+	import { fmt } from '../scripts/ds/ds.js';
+	import { mountChart, tooltipHTML } from '../scripts/ds/echarts-theme.js';
+
+	echarts.use([MapChart, TooltipComponent, VisualMapComponent, SVGRenderer]);
+
+	type Dados = {
+		linkUf: string;
+		faixas: { min: number; max: number | null; classe: number }[];
+		valores: { uf: string; nome: string; incidencia: number; casos: number }[];
+	};
+
+	const figuras = document.querySelectorAll<HTMLElement>('figure[data-grafico="mapa-uf"]');
+	if (figuras.length) {
+		const geo = await fetch('/geo/brasil-uf.json').then((r) => (r.ok ? r.json() : null));
+		if (geo) echarts.registerMap('brasil-uf', geo);
+		for (const figura of geo ? figuras : []) {
+			const json = figura.querySelector('script[data-mapa]')?.textContent;
+			const plot = figura.querySelector<HTMLElement>('.ds-figure__plot');
+			if (!json || !plot) continue;
+			const { linkUf, faixas, valores }: Dados = JSON.parse(json);
+			const porUf = new Map(valores.map((v) => [v.uf, v]));
+
+			const grafico = mountChart(echarts, plot, (v: { mapClasses: string[]; nodata: string }) => ({
+				tooltip: {
+					trigger: 'item',
+					formatter: (p: { name: string; color: string }) => {
+						const d = porUf.get(p.name);
+						if (!d) return tooltipHTML(p.name, [{ label: 'Sem dados', value: '—', color: v.nodata }]);
+						return tooltipHTML(d.nome, [
+							{ label: 'Incidência /100 mil', value: fmt.dec(d.incidencia), color: p.color },
+							{ label: 'Casos prováveis', value: fmt.int(d.casos), color: p.color },
+						]);
+					},
+				},
+				visualMap: {
+					type: 'piecewise',
+					show: false,
+					dimension: 0,
+					pieces: faixas.map((f) => ({
+						gte: f.min,
+						...(f.max === null ? {} : { lt: f.max }),
+						color: v.mapClasses[f.classe - 1],
+					})),
+				},
+				series: [
+					{
+						type: 'map',
+						map: 'brasil-uf',
+						roam: false,
+						layoutCenter: ['50%', '50%'],
+						layoutSize: '95%',
+						data: valores.map((d) => ({ name: d.uf, value: d.incidencia })),
+						cursor: 'pointer',
+					},
+				],
+			}));
+			// o mountChart recria a instância na troca de tema; estes ouvintes rodam depois dele
+			// (registrados depois) e religam o clique na instância nova
+			let ligada: unknown;
+			const ligarClique = () => {
+				const instancia = grafico?.instance;
+				if (!instancia || instancia === ligada) return;
+				instancia.on('click', (p: { name: string }) => {
+					if (porUf.has(p.name)) window.location.href = `${linkUf}${encodeURIComponent(p.name)}`;
+				});
+				ligada = instancia;
+			};
+			ligarClique();
+			document.addEventListener('ds:themechange', ligarClique);
+			matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ligarClique);
+		}
+	}
+</script>

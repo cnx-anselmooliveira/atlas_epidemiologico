@@ -1,0 +1,47 @@
+---
+// Um indicador: rótulo em caixa alta, valor e, opcionalmente, unidade, variação e nota.
+// `destaque` usa o bloco azul (primeiro indicador da faixa).
+import { classeVariacao, formatarVariacao } from '../lib/format';
+import Icon from './Icon.astro';
+
+interface Props {
+	rotulo: string;
+	valor: string;
+	unidade?: string;
+	/** Variação % e o que ela compara (ex.: "vs. SE 20/2025"). Subir casos é pior. */
+	variacao?: { pct: number | null; referencia: string };
+	nota?: string;
+	ajuda?: string;
+	destaque?: boolean;
+}
+const { rotulo, valor, unidade, variacao, nota, ajuda, destaque = false } = Astro.props;
+const classe = variacao ? classeVariacao(variacao.pct) : undefined;
+const seta = classe === 'ds-delta--worse' ? 'arrow-up' : classe === 'ds-delta--better' ? 'arrow-down' : 'minus';
+---
+
+<div class:list={['ds-kpi', { 'ds-kpi--on-band': destaque }]}>
+	<span class="ds-kpi__label">
+		{rotulo}
+		{
+			ajuda && (
+				<span class="ds-tooltip-trigger" data-ds-tooltip={ajuda}>
+					<Icon nome="help" tamanho="sm" />
+					<span class="ds-sr-only">{ajuda}</span>
+				</span>
+			)
+		}
+	</span>
+	<span class="ds-kpi__value">{valor}{unidade && <span class="ds-kpi__unit">{unidade}</span>}</span>
+	{
+		variacao && (
+			<span class="ds-kpi__meta">
+				<span class:list={['ds-delta', classe]}>
+					<Icon nome={seta} tamanho="sm" />
+					{formatarVariacao(variacao.pct)}
+				</span>{' '}
+				{variacao.referencia}
+			</span>
+		)
+	}
+	{nota && <span class="ds-kpi__meta">{nota}</span>}
+</div>

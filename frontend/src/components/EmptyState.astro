@@ -1,0 +1,16 @@
+---
+// Seção sem dados para o filtro: mensagem no lugar do gráfico vazio.
+import Icon from './Icon.astro';
+
+interface Props {
+	titulo?: string;
+	texto?: string;
+}
+const { titulo = 'Sem dados para o período', texto } = Astro.props;
+---
+
+<div class="ds-state ds-state--compact" role="status">
+	<span class="ds-state__icon"><Icon nome="inbox" tamanho="lg" /></span>
+	<p class="ds-state__title">{titulo}</p>
+	{texto && <p class="ds-state__text">{texto}</p>}
+</div>

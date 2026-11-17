@@ -1,0 +1,56 @@
+---
+// Cartão de uma seção na página inicial. Disponível: o cartão inteiro é o link e pode trazer
+// um número de destaque. Em breve: sem link, com selo.
+import type { Secao } from '../data/secoes';
+import Icon from './Icon.astro';
+
+export interface Destaque {
+	rotulo: string;
+	valor: string;
+	detalhe?: string;
+}
+
+interface Props {
+	secao: Secao;
+	destaque?: Destaque;
+}
+const { secao, destaque } = Astro.props;
+const disponivel = secao.status === 'disponivel';
+const tituloId = `secao-${secao.id}`;
+---
+
+<article
+	class:list={['ds-card', disponivel ? 'ds-card-link ds-card--accent' : 'ds-card--flat']}
+	aria-labelledby={tituloId}
+	data-secao={secao.id}
+	data-status={secao.status}
+>
+	<div class="ds-card__header">
+		<div class="ds-cluster">
+			<Icon nome={secao.icone} tamanho="lg" class="ds-text-link" />
+			<h2 class="ds-card__title" id={tituloId}>
+				{disponivel ? <a href={secao.href}>{secao.titulo}</a> : secao.titulo}
+			</h2>
+		</div>
+		{!disponivel && <span class="ds-badge">Em breve</span>}
+	</div>
+	<p class="ds-text-2">{secao.descricao}</p>
+	{
+		destaque && (
+			<div class="ds-kpi ds-mt-4">
+				<span class="ds-kpi__label">{destaque.rotulo}</span>
+				<span class="ds-kpi__value">{destaque.valor}</span>
+				{destaque.detalhe && <span class="ds-kpi__meta">{destaque.detalhe}</span>}
+			</div>
+		)
+	}
+	{
+		disponivel && (
+			<div class="ds-card__footer ds-text-link">
+				<span class="ds-cluster">
+					Abrir <Icon nome="chevron-right" tamanho="sm" />
+				</span>
+			</div>
+		)
+	}
+</article>

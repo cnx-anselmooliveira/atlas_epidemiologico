@@ -1,14 +1,71 @@
 ---
-// Provisório (tarefa 3.5): confirma a cadeia página → gold.ts → backend; substituído na 6.1
+// Página inicial: tudo o que o site oferece, um cartão por seção (registro src/data/secoes.ts).
+// Os destaques vêm do backend; se ele falhar, os cartões continuam, sem números.
+import BackendError from '../components/BackendError.astro';
+import type { Destaque } from '../components/SectionCard.astro';
+import SectionCard from '../components/SectionCard.astro';
+import SourceNote from '../components/SourceNote.astro';
+import { SECOES } from '../data/secoes';
+import { nomeDaUf } from '../data/ufs';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { formatarInteiro, formatarSemana } from '../lib/format';
-import { ultimaSemana } from '../lib/series';
+import { formatarInteiro, formatarSemana, formatarTaxa } from '../lib/format';
+import { incidenciaPorUf, totaisPorAno, ultimaSemana } from '../lib/series';
 import { gold } from '../lib/server/gold';
+import { carregar } from '../lib/server/pagina';
 
-const ultima = ultimaSemana(await (await gold()).serieBrasil());
+const dados = await carregar(
+	Astro,
+	async () => {
+		const g = await gold();
+		const brasil = await g.serieBrasil();
+		const ultima = ultimaSemana(brasil);
+		const ufs = ultima ? await g.ufsDoAno(ultima.epi_year) : [];
+		return { ultima, ano: totaisPorAno(brasil).at(-1), maior: incidenciaPorUf(ufs)[0] };
+	},
+	{ status503: false }, // a página inicial segue útil sem os números
+);
+
+const destaques: Record<string, Destaque | undefined> = {
+	// total do ano (a última semana sozinha é instável: ainda recebe notificações)
+	'serie-historica': dados?.ultima &&
+		dados.ano && {
+			rotulo: `Casos prováveis em ${dados.ano.ano}`,
+			valor: formatarInteiro(dados.ano.casos),
+			detalhe: `Brasil · ${dados.ano.emAndamento ? 'até ' : ''}${formatarSemana(dados.ultima.epi_year, dados.ultima.epi_week)}`,
+		},
+	mapa: dados?.maior && {
+		rotulo: `Maior incidência em ${dados.ultima?.epi_year}`,
+		valor: nomeDaUf(dados.maior.uf),
+		detalhe: `${formatarTaxa(dados.maior.incidencia)} casos por 100 mil habitantes`,
+	},
+};
 ---
 
-<BaseLayout titulo="Início" descricao="Atlas Epidemiológico da Dengue">
-	<h1>Atlas Epidemiológico da Dengue</h1>
-	{ultima && <p>{formatarSemana(ultima.epi_year, ultima.epi_week)}: {formatarInteiro(ultima.probable_cases)} casos prováveis</p>}
+<BaseLayout
+	titulo="Início"
+	descricao="Casos prováveis de dengue no Brasil desde 2000: série histórica por semana epidemiológica e mapa de incidência por UF, com dados do SINAN."
+>
+	<section class="ds-hero">
+		<div class="ds-container ds-stack">
+			<p class="ds-eyebrow">Vigilância da dengue no Brasil</p>
+			<h1 class="ds-display">Atlas Epidemiológico da Dengue</h1>
+			<p class="ds-hero__lead">
+				Casos prováveis de dengue notificados no SINAN desde 2000, por semana epidemiológica e por UF. Escolha uma seção
+				para ver o detalhe.
+			</p>
+			{dados?.ultima && <SourceNote geradoEm={dados.ultima.gold_generated_at} />}
+		</div>
+	</section>
+
+	<div class="ds-container ds-stack ds-stack--xl ds-main">
+		{dados === null && <BackendError compacto />}
+		<div class="ds-grid ds-grid--cards">
+			{
+				// disponíveis primeiro, na ordem do registro; depois as planejadas
+				[...SECOES]
+					.sort((a, b) => Number(a.status === 'em-breve') - Number(b.status === 'em-breve'))
+					.map((secao) => <SectionCard secao={secao} destaque={destaques[secao.id]} />)
+			}
+		</div>
+	</div>
 </BaseLayout>

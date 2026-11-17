@@ -28,16 +28,16 @@
 
 ## 5. Componentes
 
-- [ ] 5.1 Criar `SectionCard.astro` (disponível com link e destaque opcional; "em breve" sem link), `KpiStrip.astro`/`KpiCard.astro` (primeiro no bloco azul, variação com seta), `EmptyState.astro`, `BackendError.astro` e `SourceNote.astro`; verificar com testes da Container API
-- [ ] 5.2 Criar `FilterForm.astro` com `UfSelect` e `YearSelect` (form GET, funciona sem JS, valor atual selecionado) e `DataTable.astro`; verificar com testes da Container API
-- [ ] 5.3 Instalar `echarts` e criar `TimeSeriesChart.astro` (figura, `DataTable` resumida, JSON embutido, `<script>` com `echarts/core` tree-shaken, `mountChart`, `dataZoom` começando nos últimos 5 anos, tooltip com semana e data); verificar com teste da Container API (tabela presente) e manualmente o zoom e o tooltip no navegador
-- [ ] 5.4 Copiar `brasil-uf.json` de `projeto_epidemiologia/front/public/geo/` para `public/geo/` e criar `ChoroplethMap.astro` (registerMap, faixas `--viz-map-1..6`, legenda, tooltip, clique → `/serie-historica?uf=<sigla>`, tabela alternativa) e `RankingBars.astro`; verificar com teste da Container API e manualmente o clique
+- [x] 5.1 Criar `SectionCard.astro` (disponível com link e destaque opcional; "em breve" sem link), `KpiStrip.astro`/`KpiCard.astro` (primeiro no bloco azul, variação com seta), `EmptyState.astro`, `BackendError.astro` e `SourceNote.astro`; verificar com testes da Container API
+- [x] 5.2 Criar `FilterForm.astro` com `UfSelect` e `YearSelect` (form GET, funciona sem JS, valor atual selecionado) e `DataTable.astro`; verificar com testes da Container API
+- [x] 5.3 Instalar `echarts` e criar `TimeSeriesChart.astro` (figura, `DataTable` resumida, JSON embutido, `<script>` com `echarts/core` tree-shaken, `mountChart`, `dataZoom` começando nos últimos 5 anos, tooltip com semana e data); verificar com teste da Container API (tabela presente) e manualmente o zoom e o tooltip no navegador
+- [x] 5.4 Copiar `brasil-uf.json` de `projeto_epidemiologia/front/public/geo/` para `public/geo/` e criar `ChoroplethMap.astro` (registerMap, faixas `--viz-map-1..6`, legenda, tooltip, clique → `/serie-historica?uf=<sigla>`, tabela alternativa) e `RankingBars.astro`; verificar com teste da Container API e manualmente o clique
 
 ## 6. Páginas
 
-- [ ] 6.1 Implementar `/` (apresentação + um `SectionCard` por seção, destaques: casos na semana mais recente e UF com maior incidência no ano; backend fora → cartões sem destaque e aviso); verificar com testes da Container API com o mock normal e em modo 503
-- [ ] 6.2 Implementar `/serie-historica` (`?uf=`, KPIs, série, tabela por ano, `SourceNote`; UF inválida → Brasil com aviso); verificar com testes da Container API para Brasil, `SP` e `XX`
-- [ ] 6.3 Implementar `/mapa` (`?ano=`, KPIs, mapa + ranking, indicação de ano em andamento; ano inválido → mais recente); verificar com testes da Container API para o ano padrão, `2024` e `abc`
+- [x] 6.1 Implementar `/` (apresentação + um `SectionCard` por seção, destaques: casos prováveis no ano mais recente e UF com maior incidência no ano; backend fora → cartões sem destaque e aviso); verificar com testes da Container API com o mock normal e em modo 503
+- [x] 6.2 Implementar `/serie-historica` (`?uf=`, KPIs, série, tabela por ano, `SourceNote`; UF inválida → Brasil com aviso); verificar com testes da Container API para Brasil, `SP` e `XX`
+- [x] 6.3 Implementar `/mapa` (`?ano=`, KPIs, mapa + ranking, indicação de ano em andamento; ano inválido → mais recente); verificar com testes da Container API para o ano padrão, `2024` e `abc`
 - [ ] 6.4 Implementar `/sobre` (fontes, definições, data da gold mais recente), `/healthz`, `404.astro`, `500.astro` e o tratamento de `BackendUnavailableError` → 503 nas páginas de seção; implementar `src/middleware.ts` (`Cache-Control` das páginas e de `/geo/*`; conferir `/_astro/*` no build standalone e cobri-lo se não vier `immutable`); verificar com testes da Container API (503 com o mock em erro, `/healthz` 200 com o mock desligado) e `curl -I` numa página, num asset e no GeoJSON
 
 ## 7. Testes de ponta a ponta e validação real
