@@ -1,0 +1,51 @@
+---
+// Filtros da página como formulário GET: funcionam sem JavaScript (botão Aplicar) e, com JS,
+// enviam ao mudar o campo (data-ds-autosubmit esconde o botão). O estado fica na URL.
+import { UFS } from '../data/ufs';
+
+interface Props {
+	/** Seletor de UF (null = Brasil). */
+	uf?: { valor: string | null };
+	/** Seletor de ano entre os anos com dados. */
+	ano?: { valor: number; opcoes: readonly number[] };
+	rotulo?: string;
+}
+const { uf, ano, rotulo = 'Filtros' } = Astro.props;
+---
+
+<form class="ds-cluster" method="get" data-ds-autosubmit aria-label={rotulo}>
+	{
+		uf && (
+			<label class="ds-field">
+				<span class="ds-field__label">Local</span>
+				<select class="ds-select" name="uf">
+					<option value="" selected={uf.valor === null}>
+						Brasil
+					</option>
+					{UFS.map((u) => (
+						<option value={u.sigla} selected={u.sigla === uf.valor}>
+							{u.nome}
+						</option>
+					))}
+				</select>
+			</label>
+		)
+	}
+	{
+		ano && (
+			<label class="ds-field">
+				<span class="ds-field__label">Ano epidemiológico</span>
+				<select class="ds-select" name="ano">
+					{[...ano.opcoes]
+						.sort((a, b) => b - a)
+						.map((a) => (
+							<option value={a} selected={a === ano.valor}>
+								{a}
+							</option>
+						))}
+				</select>
+			</label>
+		)
+	}
+	<button class="ds-btn ds-btn--primary ds-btn--sm" type="submit" data-ds-hide-when-enhanced>Aplicar</button>
+</form>

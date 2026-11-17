@@ -7,3 +7,8 @@ mlartifacts
 tests
 *.json
 .env
+.env.*
+!.env.example
+secrets
+*.pem
+*.key

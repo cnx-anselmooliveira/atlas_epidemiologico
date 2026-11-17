@@ -1,0 +1,70 @@
+
+# Name your project! Project names should contain only lowercase characters
+# and underscores. A good package name should reflect your organization's
+# name or the intended use of these models
+name: 'utfpr_dengue'
+version: '1.0.0'
+
+# This setting configures which "profile" dbt uses for this project.
+profile: 'utfpr_dengue'
+
+# These configurations specify where dbt should look for different types of files.
+# The `model-paths` config, for example, states that models in this project can be
+# found in the "models/" directory. You probably won't need to change these!
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+# Pacotes do `dbt deps` fora da pasta do projeto quando rodando pelo Airflow
+# (a DAG aponta DBT_PACKAGES_INSTALL_PATH para o diretório de artefatos da execução)
+packages-install-path: "{{ env_var('DBT_PACKAGES_INSTALL_PATH', 'dbt_packages') }}"
+
+clean-targets:         # directories to be removed by `dbt clean`
+  - "target"
+  - "dbt_packages"
+
+seeds:
+  utfpr_dengue:
+    +schema: bronze
+    seed_dim_provincia_argentina:
+      +column_types:
+        province_code: string
+    seed_populacao_admin1:
+      +column_types:
+        country_iso3: string
+        admin1_name: string
+        population: int64
+        population_year: int64
+        source_name: string
+    seed_populacao_municipio_brasil:
+      +column_types:
+        municipality_id: int64
+        municipality_name: string
+        state_code: string
+        population: int64
+        population_year: int64
+        source_name: string
+    seed_populacao_departamento_argentina:
+      +column_types:
+        province_code: string
+        department_name: string
+        population: int64
+        population_year: int64
+        source_name: string
+
+models:
+  utfpr_dengue:
+    metricflow_time_spine:
+      +schema: gold
+    bronze:
+      +materialized: view
+      +schema: bronze
+    silver:
+      +materialized: table
+      +schema: silver
+    gold:
+      +materialized: table
+      +schema: gold

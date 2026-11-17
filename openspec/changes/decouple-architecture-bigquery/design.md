@@ -30,10 +30,9 @@ Restrição: tudo roda numa única VPS gerenciada pelo Portainer (Swarm). O cód
 ```
 atlas_epidemiologia/
 ├── pipelines/   # pacote Python: CLI de ingestão (download + carga raw)
-├── dbt/         # projeto dbt (ex-utfpr_dengue) + profiles.yml por env var
 ├── backend/     # FastAPI
-├── frontend/    # Vite + React + nginx
-├── airflow/     # DAGs + Dockerfile do Airflow (última fase)
+├── frontend/    # Astro SSR (mudança rebuild-frontend-astro)
+├── airflow/     # DAGs + Dockerfile do Airflow; projeto dbt em airflow/dags/utfpr_dengue/
 ├── deploy/      # app.stack.yml (front+api+redis) e data.stack.yml (Airflow)
 └── .github/workflows/  # backend.yml, frontend.yml, pipelines.yml, airflow.yml
 ```
@@ -57,8 +56,8 @@ Imagem Python 3.12 com o pacote `pipelines`, `dbt-bigquery` e o projeto `dbt/` (
 - CORS: `CORS_ALLOWED_ORIGINS` (lista), padrão `https://dengue.contovisual.com.br`.
 - Alternativa considerada: manter cópia parquet + DuckDB (custo zero por request). Descartada por decisão do usuário; o custo é controlado pelo cache, clustering e `maximum_bytes_billed`.
 
-### 6. Frontend: configuração em runtime
-O nginx da imagem roda um script em `/docker-entrypoint.d/` que gera `/config.js` a partir de `API_BASE_URL` (`window.__ATLAS_CONFIG__ = {apiBaseUrl: …}`); `index.html` carrega `/config.js` antes do bundle e `src/lib/api.ts` usa `window.__ATLAS_CONFIG__?.apiBaseUrl ?? import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"`. `config.js` servido com `no-cache`. Alternativa (proxy `/api` no nginx do front) descartada porque a API já tem domínio próprio no Traefik.
+### 6. Frontend: substituído pela `rebuild-frontend-astro`
+O site novo é Astro com SSR (adapter Node). O servidor web chama o backend pela URL interna `API_INTERNAL_URL`, lida em runtime, e o navegador só fala com o domínio do site. Com isso, o `config.js` gerado pelo nginx deixa de existir, e a API pública deixa de ser necessária para o site; ela fica exposta só se outro cliente precisar dela.
 
 ### 7. CI: GitHub Actions → DockerHub
 Por componente: `lint+test` (ruff/pytest no backend e pipelines, `tsc`+`vite build` no front, `dbt parse` no pipelines) → `docker/build-push-action` com cache GHA. Em PR: só valida e builda (`push: false`). Em `main`: publica `anselmomendes/atlas-epidemiologia-<componente>:{sha7,latest}`; em tag `v*`: também `:vX.Y.Z`. Secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `PORTAINER_WEBHOOK_<COMPONENTE>`.
@@ -71,6 +70,11 @@ Cada serviço Swarm (`atlas-app_backend`, `atlas-app_frontend`) tem webhook de s
 
 ### 10. Airflow (última fase)
 `deploy/data.stack.yml`: Airflow 2.x (LocalExecutor) com `postgres` de metadados, imagem `atlas-epidemiologia-airflow` = `apache/airflow` + pacote `pipelines` + `dbt-bigquery` + projeto `dbt/` + DAGs. Tarefas via `BashOperator` executando os **mesmos comandos** da imagem `pipelines` (`pipelines load <fonte>`, `dbt build`), um task por fonte (task group), `max_active_runs=1`, `retries=2`. Tarefa do modelo de AI executa `AI_MODEL_COMMAND` (Variable); vazio → `AirflowSkipException`; trigger rule da invalidação = `none_failed`. Última tarefa chama `/admin/cache/invalidate`. UI exposta em `airflow.dengue.contovisual.com.br` via Traefik com login do Airflow. Alternativa `DockerOperator` descartada: exige montar o socket do Docker no worker (risco de segurança) e não combina bem com Swarm.
+
+### 11. Realinhamento com o que já foi feito (novembro de 2026)
+- **dbt**: o projeto ficou em `airflow/dags/utfpr_dengue/` (mudanças `add-dbt-refresh-dag` e `add-cosmos-dbt-dags`), não em `dbt/`, e roda pela DAG `process_etl_atlas`.
+- **SINAN**: a ingestão do Brasil vem do OpenDataSUS pela própria `process_etl_atlas` (`add-sinan-opendatasus-ingestion`).
+- **Rotas novas**: o site novo usa duas golds do Brasil que a API antiga não tinha, `gold_dengue_casos_provaveis_uf_semanal` e `gold_dengue_casos_provaveis_brasil_semanal`. Elas entram como rotas próprias (`/gold/casos-provaveis-uf-semanal` e `/gold/casos-provaveis-brasil-semanal`), com o mesmo repositório, whitelist, paginação e cache das demais.
 
 ## Risks / Trade-offs
 

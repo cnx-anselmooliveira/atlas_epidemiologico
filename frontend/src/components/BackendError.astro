@@ -1,0 +1,16 @@
+---
+// Backend indisponível (a página responde 503). `compacto` para avisos dentro de uma página
+// que segue funcionando (ex.: página inicial sem os números de destaque).
+import Icon from './Icon.astro';
+
+interface Props {
+	compacto?: boolean;
+}
+const { compacto = false } = Astro.props;
+---
+
+<div class:list={['ds-state ds-state--error', { 'ds-state--compact': compacto }]} role="alert">
+	<span class="ds-state__icon"><Icon nome="cloud-off" tamanho="lg" /></span>
+	<p class="ds-state__title">Dados temporariamente indisponíveis</p>
+	<p class="ds-state__text">Não foi possível consultar os dados agora. Tente novamente em alguns minutos.</p>
+</div>

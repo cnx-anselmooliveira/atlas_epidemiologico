@@ -13,6 +13,26 @@ A API SHALL expor as mesmas rotas `GET /gold/*`, parâmetros de filtro e campos 
 - **WHEN** o cliente chama a rota de curva epidêmica semanal filtrando por `country_iso3=BRA`
 - **THEN** a resposta é uma lista JSON com os mesmos campos de hoje (`country_iso3`, `year`, `epi_week`, `total_cases`, ...) só com linhas do Brasil
 
+### Requirement: Rotas dos casos prováveis do Brasil
+Além das rotas herdadas, a API SHALL expor:
+- `GET /gold/casos-provaveis-brasil-semanal`, a partir de `gold_dengue_casos_provaveis_brasil_semanal`, filtrável por `epi_year`;
+- `GET /gold/casos-provaveis-uf-semanal`, a partir de `gold_dengue_casos_provaveis_uf_semanal`, filtrável por `uf` e `epi_year`.
+
+As linhas SHALL vir ordenadas por semana (e por `uf` na rota por UF).
+
+#### Scenario: Campos da resposta
+- **WHEN** o cliente chama qualquer uma das duas rotas
+- **THEN** cada linha traz pelo menos `week_start`, `epi_year`, `epi_week`, `probable_cases`, `population`, `incidence` e `gold_generated_at`
+- **AND** a rota por UF traz também `uf`
+
+#### Scenario: Série de uma UF
+- **WHEN** o cliente chama `/gold/casos-provaveis-uf-semanal?uf=SP&limit=1000`
+- **THEN** a resposta traz só linhas de SP, da semana mais antiga para a mais recente
+
+#### Scenario: Ano para o mapa
+- **WHEN** o cliente chama `/gold/casos-provaveis-uf-semanal?epi_year=2024&limit=1000`
+- **THEN** a resposta traz as semanas de 2024 das 27 UFs
+
 ### Requirement: Leitura direta do BigQuery
 A API SHALL obter os dados das tabelas do dataset `gold` no BigQuery, sem depender de cópia local (parquet ou banco embutido) como fonte.
 

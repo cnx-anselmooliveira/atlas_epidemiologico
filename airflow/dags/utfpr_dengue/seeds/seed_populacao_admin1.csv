@@ -1,0 +1,141 @@
+country_iso3,admin1_name,population,population_year,source_name
+BRA,AC,830018,2022,IBGE Censo 2022
+BRA,AL,3127683,2022,IBGE Censo 2022
+BRA,AM,3941613,2022,IBGE Censo 2022
+BRA,AP,733759,2022,IBGE Censo 2022
+BRA,BA,14141626,2022,IBGE Censo 2022
+BRA,CE,8794957,2022,IBGE Censo 2022
+BRA,DF,2817381,2022,IBGE Censo 2022
+BRA,ES,3833712,2022,IBGE Censo 2022
+BRA,GO,7056495,2022,IBGE Censo 2022
+BRA,MA,6776699,2022,IBGE Censo 2022
+BRA,MG,20539989,2022,IBGE Censo 2022
+BRA,MS,2757013,2022,IBGE Censo 2022
+BRA,MT,3658649,2022,IBGE Censo 2022
+BRA,PA,8120131,2022,IBGE Censo 2022
+BRA,PB,3974687,2022,IBGE Censo 2022
+BRA,PE,9058931,2022,IBGE Censo 2022
+BRA,PI,3271199,2022,IBGE Censo 2022
+BRA,PR,11444380,2022,IBGE Censo 2022
+BRA,RJ,16055174,2022,IBGE Censo 2022
+BRA,RN,3302729,2022,IBGE Censo 2022
+BRA,RO,1581196,2022,IBGE Censo 2022
+BRA,RR,636707,2022,IBGE Censo 2022
+BRA,RS,10882965,2022,IBGE Censo 2022
+BRA,SC,7610361,2022,IBGE Censo 2022
+BRA,SE,2210004,2022,IBGE Censo 2022
+BRA,SP,44411238,2022,IBGE Censo 2022
+BRA,TO,1511460,2022,IBGE Censo 2022
+COL,AMAZONAS,79020,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,ANTIOQUIA,6677930,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,ARAUCA,294206,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,ATLANTICO,2722128,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,BOGOTA,7743955,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,BOLIVAR,2180976,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,BOYACA,1242731,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,CALDAS,1018453,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,CAQUETA,410521,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,CASANARE,435195,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,CAUCA,1491937,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,CESAR,1295387,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,CHOCO,544764,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,CORDOBA,1828947,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,CUNDINAMARCA,3242999,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,GUAINIA,50636,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,GUAJIRA,965718,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,GUAVIARE,86657,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,HUILA,1122622,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,MAGDALENA,1427026,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,META,1063454,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,NARIÑO,1627589,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,NORTE SANTANDER,1620318,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,PUTUMAYO,359127,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,QUINDIO,555401,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,RISARALDA,961055,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,SAN ANDRES,63692,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,SANTANDER,2280908,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,SUCRE,949252,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,TOLIMA,1339998,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,VALLE,4532152,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,VAUPES,44712,2020,"DANE (via Wikipedia, projeção 2020)"
+COL,VICHADA,112958,2020,"DANE (via Wikipedia, projeção 2020)"
+PER,AMAZONAS,467845,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,ANCASH,1205998,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,APURIMAC,467380,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,AREQUIPA,1814396,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,AYACUCHO,709570,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,CAJAMARCA,1490769,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,CALLAO,1101911,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,CUSCO,1379003,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,HUANUCO,807612,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,ICA,1033185,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,JUNIN,1422597,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,LA LIBERTAD,2056560,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,LAMBAYEQUE,1404376,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,LIMA,11310876,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,LORETO,1032016,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,MADRE DE DIOS,208682,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,MOQUEGUA,194842,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,PASCO,253223,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,PIURA,2115587,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,PUNO,1232995,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,SAN MARTIN,968472,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,TUMBES,256683,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+PER,UCAYALI,624235,2025,Censo 2025 (INEI) + Provincia de Lima/INEI 2023 pra LIMA (ver comentário)
+ARG,Buenos Aires,17569053,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,CABA,3120612,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Catamarca,429556,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Chaco,1142963,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Chubut,603120,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Corrientes,1197553,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Córdoba,3978984,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Entre Ríos,1426426,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Formosa,606041,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Jujuy,797955,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,La Pampa,366022,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,La Rioja,384607,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Mendoza,2014533,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Misiones,1280960,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Neuquén,726590,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Río Negro,762067,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Salta,1440672,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,San Juan,818234,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,San Luis,540905,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Santa Cruz,333473,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Santa Fe,3556522,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Santiago del Estero,1054028,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Tierra del Fuego,190641,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ARG,Tucumán,1703186,2022,INDEC Censo Nacional 2022 (resultados provisionales)
+ECU,AZUAY,801609,2022,Censo 2022 (via Wikipedia)
+ECU,BOLIVAR,199078,2022,Censo 2022 (via Wikipedia)
+ECU,CARCHI,172828,2022,Censo 2022 (via Wikipedia)
+ECU,CAÑAR,227578,2022,Censo 2022 (via Wikipedia)
+ECU,CHIMBORAZO,471933,2022,Censo 2022 (via Wikipedia)
+ECU,COTOPAXI,470210,2022,Censo 2022 (via Wikipedia)
+ECU,EL ORO,714592,2022,Censo 2022 (via Wikipedia)
+ECU,ESMERALDAS,553900,2022,Censo 2022 (via Wikipedia)
+ECU,GALAPAGOS,28583,2022,Censo 2022 (via Wikipedia)
+ECU,GUAYAS,4391923,2022,Censo 2022 (via Wikipedia)
+ECU,IMBABURA,469879,2022,Censo 2022 (via Wikipedia)
+ECU,LOJA,485421,2022,Censo 2022 (via Wikipedia)
+ECU,LOS RIOS,898652,2022,Censo 2022 (via Wikipedia)
+ECU,MANABI,1592840,2022,Censo 2022 (via Wikipedia)
+ECU,MORONA SANTIAGO,192508,2022,Censo 2022 (via Wikipedia)
+ECU,NAPO,131675,2022,Censo 2022 (via Wikipedia)
+ECU,ORELLANA,182166,2022,Censo 2022 (via Wikipedia)
+ECU,PASTAZA,111915,2022,Censo 2022 (via Wikipedia)
+ECU,PICHINCHA,3089473,2022,Censo 2022 (via Wikipedia)
+ECU,SANTA ELENA,385735,2022,Censo 2022 (via Wikipedia)
+ECU,SANTO DOMINGO DE LOS TSACHILAS,492969,2022,Censo 2022 (via Wikipedia)
+ECU,SUCUMBIOS,199014,2022,Censo 2022 (via Wikipedia)
+ECU,TUNGURAHUA,563532,2022,Censo 2022 (via Wikipedia)
+ECU,ZAMORA CHINCHIPE,110973,2022,Censo 2022 (via Wikipedia)
+BOL,Beni,477441,2024,"Censo 2024 (INE, via Wikipedia)"
+BOL,Chuquisaca,600132,2024,"Censo 2024 (INE, via Wikipedia)"
+BOL,Cochabamba,2005373,2024,"Censo 2024 (INE, via Wikipedia)"
+BOL,La Paz,3022566,2024,"Censo 2024 (INE, via Wikipedia)"
+BOL,Oruro,570194,2024,"Censo 2024 (INE, via Wikipedia)"
+BOL,Pando,130761,2024,"Censo 2024 (INE, via Wikipedia)"
+BOL,Potosi,856419,2024,"Censo 2024 (INE, via Wikipedia)"
+BOL,Santa Cruz,3115386,2024,"Censo 2024 (INE, via Wikipedia)"
+BOL,Tarija,534348,2024,"Censo 2024 (INE, via Wikipedia)"

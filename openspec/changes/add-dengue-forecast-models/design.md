@@ -71,7 +71,7 @@ Cada `README.md` de modelo traz:
 Assim cada `model.py` só contém o que é específico do modelo.
 
 ### 2. Dataset e snapshot
-- **Consulta:** junta a curva semanal com `country_iso3='BRA' AND admin1_name IS NOT NULL`. A população é a do ano mais próximo, escolhida por `ROW_NUMBER` sobre `ABS(year − population_year)`. A leitura usa `read_features(query=…, source_tables=[epi, pop])`, então a `data_version` registra a geração das duas tabelas.
+- **Consulta:** um `SELECT` simples da `gold_dengue_casos_provaveis_uf_semanal` (mudança `add-gold-casos-provaveis-uf`): `probable_cases` vira `cases`, com a população do ano epidemiológico e o relevo (`mean_elevation_m`, `mean_slope_deg`) como covariáveis estáticas, disponíveis para `cfg.features`. A leitura usa `read_features(query=…, source_tables=[gold])`, então a `data_version` registra a geração da tabela. A curva antiga (`gold_dengue_epi_curve_weekly`) não serve como alvo: soma descartados até 2021 e não depois, o que cria uma quebra de nível em 2022 (`docs/referencias/gold-casos-provaveis-uf.md`).
 - **Painel:**
   - semanas faltantes completadas com zero e `filled=true`;
   - `incidence = cases / population × 1e5`;
@@ -151,6 +151,18 @@ A DAG `atlas_dengue_forecast_br`:
 - **Runs:** `dataset`, um por modelo (`run_name=<modelo>`) e `compare`.
 - **Tags:** além das `atlas.*`, cada run grava `atlas.pipeline_run` e `atlas.model_family` (`bayes`, `gbm`, `kernel`, `rnn`, `foundation`, `stacking`).
 - **Modelos registrados:** `atlas-br-<modelo>`, com `@dev` automático em dev.
+
+## Ajustes da implementação
+
+- **Fonte:** o painel lê a `gold_dengue_casos_provaveis_uf_semanal` (casos prováveis, população anual e relevo), não a curva antiga (ver seção 2).
+- **Imagens:** no lugar de um alvo `runtime-models`, o `ml/Dockerfile` recebe `--build-arg ATLAS_ML_EXTRAS=models`; a imagem publicada continua leve por padrão. Na imagem do Airflow, o venv não leva `chown -R` numa camada separada e o cache do `uv` fica montado no build (antes, os dois dobravam o tamanho). Resultado: 8,3 GB descompactada e 2,5 GB compactada.
+- **CA corporativa no build:** o `compose.ca.yml` passa o bundle como secret `extra_ca` também no build. Sem isso, o download do PyTorch falha na rede com inspeção TLS.
+- **PyMC:** amostrador `nutpie` (numba), porque o PyTensor não tem compilador C no Windows nem na imagem do Airflow. O `idata.nc` exige `h5netcdf`/`h5py`.
+- **LSTM:** registrado com `mlflow.pytorch` em formato pickle. O `forward` tem 3 entradas, que o formato `pt2` do MLflow 3 não descreve na assinatura. A escala do scaler vai em `model_extra/input_contract.json`.
+- **Chronos:** precisa do histórico longo por UF. O contrato ganhou o gancho opcional `use_panel(painel)`, chamado pelo `run_model`.
+- **Parâmetros dos modelos:** registrados depois do `fit`, porque melhor iteração, épocas e melhores hiperparâmetros só existem ali.
+- **SVR:** usa as 8.000 janelas de treino mais recentes (`max_train_rows`) e `max_iter=50000`, por causa do custo O(n²). Os dois valores ficam registrados.
+- **Comparação:** a run `compare` grava `comparison.csv`, as tags `atlas.best_model` e `atlas.missing_models` e a métrica `<modelo>.test_nrmse_mean`.
 
 ## Risks / Trade-offs
 

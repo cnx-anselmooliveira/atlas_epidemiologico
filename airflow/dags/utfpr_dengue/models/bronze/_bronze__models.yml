@@ -1,0 +1,445 @@
+version: 2
+
+models:
+  - name: bronze_dengue_brasil
+    description: >
+      Casos de dengue notificados no Brasil (SINAN). Grão: 1 linha por caso
+      notificado. Origem: source('raw_uftpr_microdados','raw_uftpr_microdados_brasil').
+      Sem chave primária nativa na fonte (base anonimizada) — `case_id` é uma
+      chave substituta (hash) só para deduplicação.
+    columns:
+      - name: case_id
+        description: "Chave substituta (md5) gerada a partir de campos naturais do caso. Identificador. Regra de cálculo: md5(data_notificacao|id_municipio_notificacao|id_agravo|ano_nascimento_paciente|sexo_paciente|data_primeiros_sintomas)."
+      - name: notification_year
+        description: Ano de notificação do caso. Dimensão temporal.
+      - name: notification_type
+        description: Tipo de notificação (código do SINAN). Dimensão/status.
+      - name: disease_code
+        description: Código do agravo (CID) notificado. Dimensão.
+      - name: notification_date
+        description: Data de notificação do caso. Dimensão temporal.
+      - name: notification_epi_week
+        description: "Número da semana epidemiológica da notificação (1-53) — CORRIGIDO: não é composto \"AAAA-SS\" como se presumia antes, é só o número da semana (o ano vem separado em notification_year). Dimensão temporal."
+      - name: notification_state
+        description: UF onde o caso foi notificado. Dimensão, chave de relacionamento com dim_municipio_brasil.
+      - name: notification_municipality_id
+        description: Código IBGE do município de notificação. Identificador, chave de relacionamento com silver_dim_municipio_brasil.
+      - name: symptom_onset_date
+        description: Data de início dos primeiros sintomas. Dimensão temporal.
+      - name: symptom_onset_epi_week
+        description: Semana epidemiológica do início dos sintomas. Dimensão temporal.
+      - name: patient_country_residence
+        description: País de residência do paciente. Dimensão.
+      - name: patient_state_residence
+        description: UF de residência do paciente. Dimensão.
+      - name: patient_municipality_residence_id
+        description: Código IBGE do município de residência do paciente. Identificador.
+      - name: patient_birth_year
+        description: Ano de nascimento do paciente. Dimensão, base para faixa etária.
+      - name: patient_age
+        description: Idade do paciente na notificação. Dimensão/métrica.
+      - name: patient_sex
+        description: Sexo do paciente. Dimensão.
+      - name: patient_race
+        description: Raça/cor autodeclarada do paciente. Dimensão.
+      - name: patient_education_level
+        description: Escolaridade do paciente. Dimensão.
+      - name: patient_pregnancy_status
+        description: Situação gestacional do paciente, quando aplicável. Dimensão.
+      - name: hospitalized_flag
+        description: Indica se o paciente foi internado. Status.
+      - name: hospitalization_date
+        description: Data de internação, quando houve. Dimensão temporal.
+      - name: case_classification
+        description: Classificação final do caso (ex. dengue, dengue com sinais de alarme, dengue grave). Dimensão/status.
+      - name: confirmation_criteria
+        description: Critério usado para confirmação do caso (laboratorial/clínico-epidemiológico). Dimensão.
+      - name: severe_dengue_flag
+        description: Indica caso de febre hemorrágica do dengue (FHD). Status.
+      - name: autochthonous_case_flag
+        description: Indica se o caso é autóctone (contraído no próprio município). Status.
+      - name: dengue_serotype
+        description: Sorotipo do vírus identificado, quando houve tipagem. Dimensão.
+      - name: infection_country
+        description: País onde o paciente provavelmente se infectou. Dimensão.
+      - name: infection_state
+        description: UF onde o paciente provavelmente se infectou. Dimensão.
+      - name: infection_municipality_id
+        description: Código IBGE do município provável de infecção. Identificador.
+      - name: case_outcome
+        description: Evolução do caso (cura, óbito por dengue, óbito por outra causa etc). Status.
+      - name: death_date
+        description: Data de óbito, quando houve. Dimensão temporal.
+      - name: case_closure_date
+        description: Data de encerramento do caso no sistema. Dimensão temporal.
+      - name: source_system_type
+        description: Sistema de origem do registro dentro do SINAN. Dimensão técnica.
+      - name: data_entry_date
+        description: Data de digitação do registro no sistema. Dimensão técnica/auditoria.
+
+  - name: bronze_dim_municipio_brasil
+    description: >
+      Dimensão de municípios do Brasil. Grão: 1 linha por município (5.571
+      linhas). Origem:
+      source('raw_uftpr_microdados','raw_uftpr_dim_municipio_brasil') —
+      tabela carregada no BigQuery por
+      scripts/carregar_bigquery.py::carregar_municipios_brasil a partir do
+      arquivo local microdados/brasil_microdados_sinan/br_ms_sinan.duckdb.
+    columns:
+      - name: municipality_id
+        description: Código IBGE do município. Identificador, chave primária.
+      - name: municipality_name
+        description: Nome do município. Dimensão.
+      - name: state_code
+        description: Sigla da UF. Dimensão.
+      - name: state_name
+        description: Nome da UF. Dimensão.
+      - name: region_name
+        description: Nome da grande região (Norte, Nordeste etc). Dimensão.
+      - name: health_region_id
+        description: Código da região de saúde. Identificador.
+      - name: health_region_name
+        description: Nome da região de saúde. Dimensão.
+      - name: metropolitan_region_id
+        description: Código da região metropolitana, quando o município pertence a uma. Identificador.
+      - name: metropolitan_region_name
+        description: Nome da região metropolitana, quando aplicável. Dimensão.
+      - name: legal_amazon_flag
+        description: "Indica se o município pertence à Amazônia Legal. Status. Regra de cálculo: amazonia_legal = 1 na fonte (INT64, não booleano nativo)."
+      - name: centroid_wkt
+        description: Centroide do município em texto WKT (ex. "POINT(-54.94 -13.46)"), já assim na fonte. Atributo geográfico.
+
+  - name: bronze_dengue_colombia
+    description: >
+      Casos de dengue e dengue grave notificados na Colômbia (SIVIGILA).
+      Grão: 1 linha por caso notificado. Origem:
+      source('raw_uftpr_microdados','raw_uftpr_microdados_colombia').
+    columns:
+      - name: case_id
+        description: Chave substituta (md5) para deduplicação. Identificador.
+      - name: source_record_id
+        description: Identificador interno do registro na fonte (CONSECUTIVE). Identificador natural, rastreabilidade.
+      - name: case_severity_category
+        description: "Boletim de origem: 'Dengue' ou 'Dengue Grave'. Dimensão/status."
+      - name: event_code
+        description: Código do evento de vigilância (COD_EVE). Dimensão.
+      - name: event_name
+        description: Nome do evento notificado. Dimensão.
+      - name: notification_date
+        description: Data de notificação do caso. Dimensão temporal.
+      - name: notification_epi_week
+        description: Semana epidemiológica da notificação. Dimensão temporal.
+      - name: notification_year
+        description: Ano de notificação. Dimensão temporal.
+      - name: patient_age
+        description: Idade do paciente. Métrica/dimensão.
+      - name: patient_age_unit
+        description: Unidade da idade (anos/meses/dias). Dimensão.
+      - name: patient_sex
+        description: Sexo do paciente. Dimensão.
+      - name: patient_birth_date
+        description: Data de nascimento do paciente. Dimensão temporal.
+      - name: area_type
+        description: Área de ocorrência (urbana/rural). Dimensão.
+      - name: occurrence_department_code
+        description: Código do departamento de ocorrência do caso. Identificador.
+      - name: occurrence_department_name
+        description: Nome do departamento de ocorrência. Dimensão.
+      - name: occurrence_municipality_code
+        description: Código do município de ocorrência. Identificador.
+      - name: occurrence_municipality_name
+        description: Nome do município de ocorrência. Dimensão.
+      - name: residence_department_code
+        description: Código do departamento de residência do paciente. Identificador.
+      - name: residence_department_name
+        description: Nome do departamento de residência. Dimensão.
+      - name: residence_municipality_code
+        description: Código do município de residência. Identificador.
+      - name: residence_municipality_name
+        description: Nome do município de residência. Dimensão.
+      - name: symptom_onset_date
+        description: Data de início dos sintomas. Dimensão temporal.
+      - name: consultation_date
+        description: Data da consulta médica. Dimensão temporal.
+      - name: case_type_code
+        description: Código do tipo de caso (probable/confirmado). Dimensão/status.
+      - name: hospitalized_flag
+        description: Indica se o paciente foi hospitalizado. Status.
+      - name: hospitalization_date
+        description: Data de hospitalização. Dimensão temporal.
+      - name: final_condition
+        description: Condição final do paciente (vivo/óbito). Status.
+      - name: death_date
+        description: Data de óbito. Dimensão temporal.
+      - name: final_case_status_code
+        description: Código do status final do caso na vigilância. Status.
+      - name: final_case_status_desc
+        description: Descrição do status final do caso. Status.
+      - name: source_file_name
+        description: Nome do arquivo de origem (proveniência/auditoria). Dimensão técnica.
+
+  - name: bronze_dengue_peru
+    description: >
+      Casos de dengue notificados no Peru (CDC-MINSA / datos abiertos).
+      Grão: 1 linha por caso notificado. Origem:
+      source('raw_uftpr_microdados','raw_uftpr_microdados_peru').
+    columns:
+      - name: case_id
+        description: Chave substituta (md5) para deduplicação. Identificador.
+      - name: notification_year
+        description: Ano de notificação. Dimensão temporal.
+      - name: notification_epi_week
+        description: Semana epidemiológica de notificação. Dimensão temporal.
+      - name: department_name
+        description: Departamento de ocorrência. Dimensão.
+      - name: province_name
+        description: Província de ocorrência. Dimensão.
+      - name: district_name
+        description: Distrito de ocorrência. Dimensão.
+      - name: locality_name
+        description: Localidade de ocorrência. Dimensão.
+      - name: location_ubigeo_code
+        description: Código UBIGEO (identificador geográfico oficial do Peru). Identificador, chave de relacionamento geográfico.
+      - name: locality_code
+        description: Código interno de localidade. Identificador.
+      - name: health_directorate_code
+        description: Código da DIRESA (direção regional de saúde) responsável. Identificador.
+      - name: disease_name
+        description: Nome da doença notificada. Dimensão.
+      - name: diagnosis_code
+        description: Código de diagnóstico (CID-10). Dimensão.
+      - name: patient_age
+        description: Idade do paciente. Métrica/dimensão.
+      - name: patient_age_unit
+        description: Unidade da idade. Dimensão.
+      - name: patient_sex
+        description: Sexo do paciente. Dimensão.
+      - name: source_file_name
+        description: Nome do arquivo de origem. Dimensão técnica.
+
+  - name: bronze_dengue_argentina
+    description: >
+      Casos de dengue da Argentina (SNVS/BIV), já agregados na fonte por
+      departamento × semana epidemiológica × faixa etária × evento. Grão: 1
+      linha por combinação departamento×semana×faixa etária×evento×arquivo de
+      origem. Esquema de colunas varia por época; padronizado via COALESCE.
+      Origem: source('raw_uftpr_microdados','raw_uftpr_microdados_argentina').
+    columns:
+      - name: row_id
+        description: Chave substituta (md5) para deduplicação. Identificador.
+      - name: department_code
+        description: Código do departamento de residência (INDEC). Identificador.
+      - name: department_name
+        description: Nome do departamento de residência. Dimensão.
+      - name: province_code
+        description: Código da província de residência (INDEC). Identificador.
+      - name: province_name
+        description: Nome da província de residência. Dimensão.
+      - name: notification_year
+        description: Ano de notificação. Dimensão temporal.
+      - name: notification_epi_week
+        description: Semana epidemiológica de notificação. Dimensão temporal.
+      - name: event_name
+        description: Nome do evento de vigilância (ex. Dengue, Zika). Dimensão.
+      - name: age_group_code
+        description: Código do grupo etário. Identificador/dimensão.
+      - name: age_group_desc
+        description: Descrição do grupo etário. Dimensão.
+      - name: case_count
+        description: Métrica. Quantidade de casos na combinação departamento×semana×faixa etária×evento.
+      - name: source_file_name
+        description: Nome do arquivo de origem. Dimensão técnica.
+
+  - name: bronze_dengue_equador_weekly_agg
+    description: >
+      Dengue no Equador, vigilância geral, agregado por semana epidemiológica
+      × faixa etária/sexo (planilha DSSA_2021_2024). Grão: 1 linha por
+      combinação de unidade operativa × semana × evento. Origem:
+      source('raw_uftpr_microdados','raw_uftpr_microdados_equador')
+      filtrado por hoja_origem = 'DSSA_2021_2024'.
+    columns:
+      - name: notification_year
+        description: Ano de notificação. Dimensão temporal.
+      - name: notification_epi_week
+        description: Semana epidemiológica de notificação. Dimensão temporal.
+      - name: institution_name
+        description: Instituição de saúde responsável. Dimensão.
+      - name: health_unit_name
+        description: Unidade operativa de saúde. Dimensão.
+      - name: health_unit_code
+        description: Código da unidade operativa (Unicodigo). Identificador.
+      - name: zone_code
+        description: Código da zona administrativa de saúde. Identificador.
+      - name: district_name
+        description: Distrito de saúde. Dimensão.
+      - name: province_code
+        description: Código da província. Identificador.
+      - name: province_name
+        description: Nome da província. Dimensão.
+      - name: canton_code
+        description: Código do cantão. Identificador.
+      - name: canton_name
+        description: Nome do cantão. Dimensão.
+      - name: parish_code
+        description: Código da paróquia/freguesia. Identificador.
+      - name: parish_name
+        description: Nome da paróquia/freguesia. Dimensão.
+      - name: event_name
+        description: Evento de vigilância notificado. Dimensão.
+      - name: cases_age_lt1_male
+        description: Métrica. Casos em homens com menos de 1 ano.
+      - name: cases_age_lt1_female
+        description: Métrica. Casos em mulheres com menos de 1 ano.
+      - name: cases_age_1_4_male
+        description: Métrica. Casos em homens de 1 a 4 anos.
+      - name: cases_age_1_4_female
+        description: Métrica. Casos em mulheres de 1 a 4 anos.
+      - name: cases_age_5_9_male
+        description: Métrica. Casos em homens de 5 a 9 anos.
+      - name: cases_age_5_9_female
+        description: Métrica. Casos em mulheres de 5 a 9 anos.
+      - name: cases_age_10_14_male
+        description: Métrica. Casos em homens de 10 a 14 anos.
+      - name: cases_age_10_14_female
+        description: Métrica. Casos em mulheres de 10 a 14 anos.
+      - name: cases_age_15_19_male
+        description: Métrica. Casos em homens de 15 a 19 anos.
+      - name: cases_age_15_19_female
+        description: Métrica. Casos em mulheres de 15 a 19 anos.
+      - name: cases_age_20_49_male
+        description: Métrica. Casos em homens de 20 a 49 anos.
+      - name: cases_age_20_49_female
+        description: Métrica. Casos em mulheres de 20 a 49 anos.
+      - name: cases_age_50_64_male
+        description: Métrica. Casos em homens de 50 a 64 anos.
+      - name: cases_age_50_64_female
+        description: Métrica. Casos em mulheres de 50 a 64 anos.
+      - name: cases_age_65plus_male
+        description: Métrica. Casos em homens com 65 anos ou mais.
+      - name: cases_age_65plus_female
+        description: Métrica. Casos em mulheres com 65 anos ou mais.
+      - name: total_cases_male
+        description: Métrica. Total de casos em homens na linha.
+      - name: total_cases_female
+        description: Métrica. Total de casos em mulheres na linha.
+      - name: total_cases
+        description: Métrica. Total de casos na linha (homens + mulheres).
+
+  - name: bronze_dengue_equador_cases
+    description: >
+      Casos de dengue grave no Equador, nível de caso (planilha
+      DCSA_DG_2021_2025). Grão: 1 linha por caso. Origem:
+      source('raw_uftpr_microdados','raw_uftpr_microdados_equador')
+      filtrado por hoja_origem = 'DCSA_DG_2021_2025'.
+    columns:
+      - name: case_id
+        description: Chave substituta (md5) para deduplicação. Identificador.
+      - name: notification_year
+        description: Ano de notificação. Dimensão temporal.
+      - name: notification_epi_week
+        description: Semana epidemiológica de notificação. Dimensão temporal.
+      - name: institution_name
+        description: Instituição de saúde responsável. Dimensão.
+      - name: health_unit_name
+        description: Unidade operativa de saúde. Dimensão.
+      - name: province_code
+        description: Código da província de domicílio. Identificador.
+      - name: province_name
+        description: Nome da província de domicílio. Dimensão.
+      - name: canton_code
+        description: Código do cantão de domicílio. Identificador.
+      - name: canton_name
+        description: Nome do cantão de domicílio. Dimensão.
+      - name: parish_code
+        description: Código da paróquia de domicílio. Identificador.
+      - name: parish_name
+        description: Nome da paróquia de domicílio. Dimensão.
+      - name: patient_sex
+        description: Sexo do paciente. Dimensão.
+      - name: patient_age
+        description: Idade do paciente. Métrica/dimensão.
+      - name: patient_age_unit
+        description: Unidade da idade. Dimensão.
+      - name: patient_ethnicity
+        description: Autoidentificação étnica do paciente. Dimensão.
+      - name: symptom_onset_date
+        description: Data de início dos sintomas. Dimensão temporal.
+      - name: travel_history_flag
+        description: Indica antecedente de viagem a área de risco. Status.
+      - name: travel_location
+        description: Local da viagem, quando houve antecedente. Dimensão.
+      - name: lab_result
+        description: Resultado laboratorial. Dimensão/status.
+      - name: final_condition
+        description: Condição final do paciente. Status.
+      - name: death_date
+        description: Data de óbito, quando houve. Dimensão temporal.
+      - name: final_diagnosis
+        description: Diagnóstico final do caso. Dimensão/status.
+      - name: confirmed_by
+        description: Critério/entidade que confirmou o caso. Dimensão.
+
+  - name: bronze_dengue_bolivia
+    description: >
+      Casos de dengue da Bolívia (PAHO/PLISA), já agregados na fonte por
+      departamento × semana epidemiológica. Grão: 1 linha por
+      departamento×semana. Origem:
+      source('raw_uftpr_microdados','raw_uftpr_microdados_bolivia').
+    columns:
+      - name: notification_year
+        description: Ano de notificação. Dimensão temporal.
+      - name: notification_epi_week
+        description: Semana epidemiológica de notificação. Dimensão temporal.
+      - name: department_name
+        description: Departamento. Dimensão.
+      - name: total_cases
+        description: Métrica. Total de casos na semana/departamento.
+      - name: confirmed_cases
+        description: Métrica. Casos confirmados laboratorialmente.
+      - name: cases_without_warning_signs
+        description: Métrica. Casos sem sinais de alarme.
+      - name: cases_with_warning_signs
+        description: Métrica. Casos com sinais de alarme.
+      - name: severe_dengue_cases
+        description: Métrica. Casos de dengue grave.
+      - name: deaths
+        description: Métrica. Óbitos na semana/departamento.
+
+  - name: bronze_dengue_paho_americas
+    description: >
+      Dengue em todos os países/territórios das Américas (PAHO/ARBO Portal),
+      fallback para países sem fonte nacional confiável. Grão: 1 linha por
+      país/subregião × ano × semana epidemiológica. "cumulative_total_cases"
+      é cumulativo dentro do ano civil. Origem:
+      source('raw_uftpr_microdados','raw_uftpr_paho_dengue').
+    columns:
+      - name: source_record_id
+        description: Identificador do registro na fonte. Identificador.
+      - name: country_or_subregion
+        description: País ou subregião reportado pelo PAHO. Dimensão.
+      - name: dengue_serotype
+        description: Sorotipo do vírus, quando reportado. Dimensão.
+      - name: notification_year
+        description: Ano de notificação. Dimensão temporal.
+      - name: subregion_flag
+        description: Indica se a linha está dentro ("In") ou fora ("Out") da subregião filtrada. Dimensão técnica.
+      - name: notification_epi_week
+        description: Semana epidemiológica de notificação. Dimensão temporal.
+      - name: cumulative_total_cases
+        description: Métrica. Total de casos de dengue acumulado desde a semana 1 do ano até a semana corrente.
+      - name: incidence_rate
+        description: Métrica. Taxa de incidência reportada pelo PAHO.
+      - name: laboratory_confirmed_cases
+        description: Métrica. Casos confirmados laboratorialmente (acumulado no ano).
+      - name: pct_lab_confirmed
+        description: Métrica. Percentual de casos confirmados laboratorialmente.
+      - name: severe_dengue_cases
+        description: Métrica. Casos de dengue grave (acumulado no ano).
+      - name: pct_severe_over_total
+        description: Métrica. Percentual de casos graves sobre o total.
+      - name: deaths
+        description: Métrica. Óbitos (acumulado no ano).
+      - name: case_fatality_rate
+        description: Métrica. Taxa de letalidade reportada pelo PAHO.
+      - name: population_thousands
+        description: Dimensão. População do país/subregião, em milhares.

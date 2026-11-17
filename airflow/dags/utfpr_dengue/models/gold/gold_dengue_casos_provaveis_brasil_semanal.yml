@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: gold_dengue_casos_provaveis_brasil_semanal
+    description: >
+      Casos prováveis de dengue no Brasil por semana epidemiológica do início dos
+      sintomas: soma das 27 UFs de gold_dengue_casos_provaveis_uf_semanal, com a
+      população do Brasil no ano epidemiológico (soma das UFs) e a incidência.
+      Série regular, com zero nas semanas sem notificação. Fonte da série
+      histórica nacional do site. Grão: semana.
+    columns:
+      - name: week_start
+        description: Domingo que inicia a semana epidemiológica. Identificador.
+        data_tests: [unique, not_null]
+      - name: epi_year
+        description: Ano epidemiológico (ano da quarta-feira da semana).
+        data_tests: [not_null]
+      - name: epi_week
+        description: Semana epidemiológica (1 a 53); a semana 1 contém o dia 4 de janeiro.
+        data_tests: [not_null]
+      - name: ufs
+        description: Quantidade de UFs somadas na semana (sempre 27).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [27]
+                quote: false
+      - name: notified_cases
+        description: Total de notificações.
+      - name: probable_cases
+        description: Notificações que não são 'descartado' (definição do boletim do Ministério da Saúde).
+        data_tests: [not_null]
+      - name: discarded_cases
+        description: Notificações descartadas (classificação final 5).
+      - name: confirmed_cases
+        description: Confirmadas (1, 2, 3, 4, 10, 11, 12).
+      - name: alarm_cases
+        description: Dengue com sinais de alarme (11) ou com complicações (2).
+      - name: severe_cases
+        description: Dengue grave (12), febre hemorrágica (3) ou síndrome do choque (4).
+      - name: inconclusive_cases
+        description: Inconclusivas (8).
+      - name: investigation_cases
+        description: Sem classificação final (nulo ou 0).
+      - name: other_cases
+        description: Códigos fora do dicionário.
+      - name: deaths
+        description: Casos prováveis com data de óbito preenchida.
+      - name: date_fallback_cases
+        description: Casos que usaram a data de notificação no lugar do início dos sintomas.
+      - name: place_fallback_cases
+        description: Casos que usaram a UF de notificação por falta da UF de residência.
+      - name: population
+        description: População residente do Brasil no ano epidemiológico (soma das 27 UFs).
+        data_tests: [not_null]
+      - name: population_year
+        description: Ano da população usada.
+      - name: incidence
+        description: probable_cases / population × 100.000.
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP()."

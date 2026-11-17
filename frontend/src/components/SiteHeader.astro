@@ -1,0 +1,65 @@
+---
+// Cabeçalho do site: marca, navegação das seções (mesma lista da página inicial) e tema.
+import { SECOES, secaoAtual } from '../data/secoes';
+import Icon from './Icon.astro';
+
+const atual = secaoAtual(Astro.url.pathname)?.id;
+---
+
+<header class="ds-header">
+	<div class="ds-container ds-header__inner">
+		<a class="ds-brand" href="/">
+			<span class="ds-brand__mark"><Icon nome="pulse" /></span>
+			<span><span class="ds-brand__name">Atlas da Dengue</span><span class="ds-brand__sub">Brasil · SINAN</span></span>
+		</a>
+		<nav class="ds-nav" aria-label="Seções">
+			{
+				SECOES.map((s) =>
+					s.status === 'disponivel' ? (
+						<a class="ds-nav__link" href={s.href} aria-current={s.id === atual ? 'page' : undefined}>
+							{s.titulo}
+						</a>
+					) : (
+						<span class="ds-nav__link em-breve" aria-disabled="true" title="Em breve">
+							{s.titulo}
+						</span>
+					),
+				)
+			}
+		</nav>
+		<div class="ds-header__actions">
+			<button class="ds-btn ds-btn--on-band ds-btn--icon" type="button" data-ds-theme-toggle aria-label="Alternar tema">
+				<Icon nome="moon" />
+			</button>
+			<button
+				class="ds-btn ds-btn--on-band ds-btn--icon ds-menu-toggle"
+				type="button"
+				data-ds-menu-toggle="#menu-movel"
+				aria-label="Abrir menu"
+			>
+				<Icon nome="menu" />
+			</button>
+		</div>
+	</div>
+</header>
+<nav id="menu-movel" class="ds-mobile-nav" aria-label="Seções (móvel)" hidden>
+	{
+		SECOES.filter((s) => s.status === 'disponivel').map((s) => (
+			<a class="ds-nav__link" href={s.href} aria-current={s.id === atual ? 'page' : undefined}>
+				{s.titulo}
+			</a>
+		))
+	}
+</nav>
+
+<style>
+	/* seção planejada: visível na navegação, mas sem link */
+	.em-breve {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.em-breve:hover {
+		color: inherit;
+		background: none;
+	}
+</style>

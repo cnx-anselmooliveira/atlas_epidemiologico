@@ -1,0 +1,11 @@
+---
+// Ícone do sprite public/icons.svg (decorativo: o texto ao lado dá o significado).
+interface Props {
+	nome: string;
+	tamanho?: 'sm' | 'md' | 'lg';
+	class?: string;
+}
+const { nome, tamanho = 'md', class: classe } = Astro.props;
+---
+
+<svg class:list={['ds-icon', `ds-icon--${tamanho}`, classe]} aria-hidden="true"><use href={`/icons.svg#i-${nome}`}></use></svg>

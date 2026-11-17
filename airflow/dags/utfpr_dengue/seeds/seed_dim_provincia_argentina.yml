@@ -1,0 +1,29 @@
+version: 2
+
+seeds:
+  - name: seed_dim_provincia_argentina
+    description: >
+      Dicionário código-de-província (INDEC) -> nome canônico, pra
+      Argentina. Os 24 códigos e a contagem de departamentos distintos por
+      código foram conferidos direto contra bronze_dengue_argentina (ver
+      query em utfpr_dengue/docs — não foi inventado); os nomes foram
+      corrigidos manualmente onde o dado bruto vinha com artefato de
+      mojibake (ex. "C�rdoba" -> "Córdoba", "Tucum�n" -> "Tucumán") —
+      Argentina tem só 24 províncias (23 + CABA), então essa correção é
+      determinística, não uma adivinhação.
+
+      A fonte bruta às vezes traz province_code/province_name com colunas
+      trocadas (nome onde devia estar o código e vice-versa) e com o código
+      sem zero à esquerda ("6" em vez de "06") — o join em
+      silver_dengue_weekly_cases normaliza os dois lados (regex pra achar
+      qual coluna é numérica, LPAD pra 2 dígitos) antes de casar aqui.
+    columns:
+      - name: province_code
+        description: Código INDEC de província, 2 dígitos com zero à esquerda (ex. "02" = CABA).
+        data_tests:
+          - unique
+          - not_null
+      - name: province_name
+        description: Nome oficial da província, com acentuação corrigida.
+        data_tests:
+          - not_null

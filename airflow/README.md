@@ -41,3 +41,27 @@ As tarefas herdam o ambiente do container (`MLFLOW_TRACKING_URI`, `ATLAS_ENV`, `
 | DAG | Agendamento | O que faz |
 |---|---|---|
 | `atlas_ml_example_training` | manual | `atlas-ml train example --register`. Falha se a run não for registrada no MLflow; 2 retentativas |
+| `process_etl_atlas` | manual | Modelagem dbt (`dags/utfpr_dengue/`) no BigQuery pelo **Cosmos**: grupos `seed → bronze → silver → gold`, uma tarefa por model com os testes logo depois. Sem parâmetros (roda o projeto inteiro) e sem retentativas |
+| `process_dbt_docs_atlas` | manual | Gera o dbt docs (`index.html`, `manifest.json`, `catalog.json`) e publica em `gs://ppgcc-bucket/dbt_docs/<ATLAS_ENV>/`; o Airflow mostra no menu de dbt docs |
+| `atlas_dengue_forecast_br` | manual | Previsão de dengue por UF: `prepare → 5 modelos-base (baseline bayesiano, Chronos, CatBoost, SVR, LSTM) → ensemble → compare`, com no máximo 3 tarefas em paralelo e 1 retentativa. Parâmetros opcionais `window`, `horizon` e `seed`. Todas as runs no MLflow (`atlas/dengue-forecast-br`) com a tag `atlas.pipeline_run` = run_id da DAG; modelos registrados como `atlas-br-<modelo>` |
+
+### process_etl_atlas (Cosmos)
+
+- **Disparo:** Trigger na UI, sem configuração. Para refazer só parte da modelagem, limpe (Clear) a tarefa de um model, com "Downstream" se quiser os dependentes, ou um grupo inteiro (ex.: `gold`).
+- **Grafo:** o Cosmos monta as tarefas com `dbt ls` na leitura da DAG e guarda o resultado em cache. Um model novo em `models/<camada>/` aparece sozinho no grupo da camada. A primeira leitura leva alguns segundos (`AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT=120`).
+- **Falhas:** a tarefa do model que falhou fica vermelha, com o erro do dbt no log, e as dependentes ficam `upstream_failed`.
+- **Execução:** cada tarefa roda o dbt de `/opt/dbt` numa cópia temporária do projeto. Nada é escrito na pasta de DAGs.
+- **Credencial:** `DBT_BQ_KEYFILE`; em dev, `/secrets/training-sa.json`.
+- **Custo:** o build completo processa cerca de 9 GiB no BigQuery ([detalhes](dags/utfpr_dengue/README.md#custo-e-tempo-do-build-completo)).
+- **Pasta de DAGs:** o projeto dbt fica dentro dela e é ignorado pelo processador de DAGs (`dags/.airflowignore`).
+
+### process_dbt_docs_atlas e o menu de dbt docs
+
+- **Geração:** a DAG roda `dbt docs generate` (consulta o BigQuery para o catálogo) e envia os arquivos para `gs://<ATLAS_DBT_DOCS_BUCKET>/dbt_docs/<ATLAS_ENV>/`. O bucket padrão é `ppgcc-bucket`.
+- **Visualização:** o plugin do Cosmos mostra a documentação no menu do Airflow, configurado por:
+  ```
+  AIRFLOW__COSMOS__DBT_DOCS_PROJECTS='{"atlas": {"dir": "gs://ppgcc-bucket/dbt_docs/<ambiente>", "conn_id": "google_cloud_default", "index": "index.html", "name": "dbt Docs (Atlas)"}}'
+  ```
+- **Credencial:** bucket e plugin usam a Connection `google_cloud_default`.
+  - Em dev, ela vem por variável de ambiente com o caminho da chave montada (`key_path`), sem o conteúdo.
+  - Em hml/prod, cadastre pela UI (Admin → Connections, tipo Google Cloud, campo Keyfile JSON) e ajuste o sufixo do `DBT_DOCS_PROJECTS` na stack.

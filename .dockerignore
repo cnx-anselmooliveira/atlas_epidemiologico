@@ -1,0 +1,32 @@
+# Contexto de build da raiz (airflow/Dockerfile): só vai o que o Dockerfile copia por caminho;
+# o resto, e principalmente qualquer credencial, nem chega ao daemon.
+.git
+.github
+.dbt-local
+.venv
+**/.venv
+**/node_modules
+**/__pycache__
+frontend
+backend
+platform
+deploy
+docs
+openspec
+infra
+.env
+**/.env
+**/.env.*
+!**/.env.example
+**/secrets
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*-sa.json
+*service-account*.json
+*service_account*.json
+*credentials*.json
+client_secret*.json
+ppgcc-dengue-project*.json

@@ -1,0 +1,91 @@
+---
+// Sobre: fontes, definições dos indicadores e data da última geração dos dados. Texto estático;
+// só a data vem do backend (sem ela, a página continua, com 200).
+import PageHeader from '../components/PageHeader.astro';
+import SourceNote from '../components/SourceNote.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { formatarData } from '../lib/format';
+import { ultimaSemana } from '../lib/series';
+import { gold } from '../lib/server/gold';
+import { carregar } from '../lib/server/pagina';
+
+const ultima = await carregar(Astro, async () => ultimaSemana(await (await gold()).serieBrasil()), {
+	status503: false,
+});
+const geradoEm = ultima?.gold_generated_at;
+---
+
+<BaseLayout titulo="Sobre" descricao="Fontes de dados, definições dos indicadores e data da última atualização do Atlas.">
+	<PageHeader titulo="Sobre" subtitulo="De onde vêm os dados e como cada indicador é calculado.">
+		<Fragment slot="meta">
+			{geradoEm && <SourceNote geradoEm={geradoEm} />}
+		</Fragment>
+	</PageHeader>
+
+	<div class="ds-container ds-container--narrow ds-stack ds-stack--xl ds-main">
+		<section class="ds-paper" aria-labelledby="atualizacao">
+			<header class="ds-section__header"><h2 class="ds-section__title" id="atualizacao">Última atualização</h2></header>
+			<p>
+				{
+					geradoEm ? (
+						<>
+							Os dados exibidos foram gerados em <strong><time datetime={geradoEm}>{formatarData(geradoEm)}</time></strong>. O
+							processamento roda todos os dias e só refaz as tabelas quando há arquivo novo na origem.
+						</>
+					) : (
+						'A data da última atualização está temporariamente indisponível.'
+					)
+				}
+			</p>
+		</section>
+
+		<section class="ds-paper" aria-labelledby="fontes">
+			<header class="ds-section__header"><h2 class="ds-section__title" id="fontes">Fontes de dados</h2></header>
+			<ul class="ds-stack ds-stack--sm">
+				<li>
+					<strong>Notificações de dengue</strong>: SINAN (Sistema de Informação de Agravos de Notificação), do Ministério
+					da Saúde, em dados abertos, desde 2000.
+				</li>
+				<li>
+					<strong>População</strong>: IBGE (censos e estimativas anuais por UF), usada no denominador da incidência.
+				</li>
+			</ul>
+		</section>
+
+		<section class="ds-paper" aria-labelledby="definicoes">
+			<header class="ds-section__header"><h2 class="ds-section__title" id="definicoes">Definições</h2></header>
+			<div class="ds-accordion">
+				<details class="ds-accordion__item" open>
+					<summary>Caso provável</summary>
+					<div class="ds-accordion__body">
+						Toda notificação de dengue que não foi descartada (classificação final diferente de “descartado”), como nos
+						boletins do Ministério da Saúde. Inclui casos confirmados, inconclusivos e ainda em investigação.
+					</div>
+				</details>
+				<details class="ds-accordion__item">
+					<summary>Semana e ano epidemiológicos</summary>
+					<div class="ds-accordion__body">
+						Os casos são contados pela semana de início dos sintomas. A semana epidemiológica vai de domingo a sábado; a
+						semana 1 é a que contém o dia 4 de janeiro, e o ano epidemiológico é o ano da quarta-feira da semana. Por
+						isso alguns anos têm 53 semanas.
+					</div>
+				</details>
+				<details class="ds-accordion__item">
+					<summary>Incidência</summary>
+					<div class="ds-accordion__body">
+						Casos prováveis ÷ população residente × 100 mil habitantes. Permite comparar lugares de tamanhos diferentes.
+						No mapa, as faixas são fixas (0, 50, 100, 300, 500 e 1.000+ por 100 mil no ano); 300 por 100 mil é o limiar
+						de incidência alta usado pelo Ministério da Saúde.
+					</div>
+				</details>
+				<details class="ds-accordion__item">
+					<summary>Semanas recentes e ano em andamento</summary>
+					<div class="ds-accordion__body">
+						As notificações chegam com atraso e são revisadas depois. Os números das últimas semanas, e do ano
+						epidemiológico corrente, tendem a subir nas próximas atualizações.
+					</div>
+				</details>
+			</div>
+		</section>
+	</div>
+</BaseLayout>

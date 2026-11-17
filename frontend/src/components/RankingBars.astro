@@ -1,0 +1,47 @@
+---
+// Ranking em barras horizontais (HTML puro, sem JavaScript): nome, valor e barra proporcional.
+export interface ItemRanking {
+	nome: string;
+	href?: string;
+	/** Valor já formatado */
+	valor: string;
+	/** 0..1, relativo ao maior valor */
+	proporcao: number;
+}
+
+interface Props {
+	titulo: string;
+	subtitulo?: string;
+	itens: readonly ItemRanking[];
+}
+const { titulo, subtitulo, itens } = Astro.props;
+const id = `ranking-${titulo.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+---
+
+<section class="ds-card" aria-labelledby={id}>
+	<div class="ds-card__header">
+		<div>
+			<h2 class="ds-card__title" id={id}>{titulo}</h2>
+			{subtitulo && <p class="ds-card__subtitle">{subtitulo}</p>}
+		</div>
+	</div>
+	<ol class="ds-rank">
+		{
+			itens.map((item) => (
+				<li class="ds-rank__item">
+					{item.href ? (
+						<a class="ds-rank__name" href={item.href}>
+							{item.nome}
+						</a>
+					) : (
+						<span class="ds-rank__name">{item.nome}</span>
+					)}
+					<span class="ds-rank__value">{item.valor}</span>
+					<span class="ds-rank__bar" aria-hidden="true">
+						<span style={`--value:${Math.max(0, Math.min(1, item.proporcao)).toFixed(3)}`} />
+					</span>
+				</li>
+			))
+		}
+	</ol>
+</section>

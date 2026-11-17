@@ -1,0 +1,29 @@
+---
+// Topo das páginas de seção: trilha "Início › Seção", título, subtítulo, metadados e ações
+// (slot "acoes", ex.: FilterForm). O conteúdo do slot padrão entra abaixo (ex.: KpiStrip).
+interface Props {
+	titulo: string;
+	subtitulo?: string;
+}
+const { titulo, subtitulo } = Astro.props;
+---
+
+<section class="ds-hero">
+	<div class="ds-container ds-stack">
+		<nav class="ds-breadcrumb" aria-label="Você está em">
+			<ol>
+				<li><a href="/">Início</a></li>
+				<li><span aria-current="page">{titulo}</span></li>
+			</ol>
+		</nav>
+		<div class="ds-subheader__row">
+			<div>
+				<h1>{titulo}</h1>
+				{subtitulo && <p class="ds-hero__lead">{subtitulo}</p>}
+				{Astro.slots.has('meta') && <div class="ds-subheader__meta"><slot name="meta" /></div>}
+			</div>
+			<slot name="acoes" />
+		</div>
+		<slot />
+	</div>
+</section>

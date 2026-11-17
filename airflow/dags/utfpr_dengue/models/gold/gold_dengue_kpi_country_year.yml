@@ -1,0 +1,89 @@
+version: 2
+
+models:
+  - name: gold_dengue_kpi_country_year
+    description: >
+      Indicadores executivos anuais de dengue por país: volume, letalidade,
+      crescimento ano a ano e completude de reporte. Grão: país × ano
+      epidemiológico. Fontes Silver: silver_dengue_weekly_cases,
+      silver_dim_country.
+    columns:
+      - name: country_iso3
+        description: Código ISO3 do país. Identificador.
+      - name: country_name
+        description: Nome do país. Dimensão.
+      - name: year
+        description: Ano epidemiológico. Dimensão temporal.
+      - name: total_cases
+        description: Métrica. Soma de casos no ano.
+      - name: total_confirmed_cases
+        description: Métrica. Soma de casos confirmados no ano (pode ser nulo se a fonte não permitir derivar).
+      - name: total_severe_cases
+        description: Métrica. Soma de casos graves no ano.
+      - name: total_deaths
+        description: Métrica. Soma de óbitos no ano.
+      - name: distinct_weeks_reported
+        description: Métrica. Nº de semanas epidemiológicas distintas com dado no ano (sinal de completude).
+      - name: distinct_admin1_reporting
+        description: Métrica. Nº de unidades administrativas distintas que reportaram no ano.
+      - name: data_source_priority
+        description: "'national' ou 'paho_fallback'. Status."
+      - name: source_status
+        description: Status da fonte conforme silver_dim_country. Dimensão.
+      - name: primary_source_name
+        description: Nome da fonte primária do país. Dimensão.
+      - name: case_fatality_rate_pct
+        description: "Métrica calculada. Regra: 100 * total_deaths / total_cases."
+      - name: pct_severe_cases
+        description: "Métrica calculada. Regra: 100 * total_severe_cases / total_cases."
+      - name: pct_confirmed_cases
+        description: "Métrica calculada. Regra: 100 * total_confirmed_cases / total_cases."
+      - name: avg_weekly_cases
+        description: "Métrica calculada. Regra: total_cases / distinct_weeks_reported."
+      - name: yoy_growth_pct
+        description: "Métrica calculada (indicador de crescimento). Regra: 100 * (total_cases_ano - total_cases_ano_anterior) / total_cases_ano_anterior, via LAG por país ordenado por ano."
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP() — estável (mesmo valor) em todas as linhas da mesma execução. Coluna de auditoria/freshness, usada pelo job de exportação pra decidir se precisa baixar a tabela de novo."
+
+semantic_models:
+  - name: gold_dengue_kpi_country_year
+    description: Modelo semântico dos indicadores executivos anuais de dengue por país.
+    model: ref('gold_dengue_kpi_country_year')
+    entities:
+      - name: country
+        type: foreign
+        expr: country_iso3
+    dimensions:
+      - name: country_name
+        type: categorical
+      - name: year
+        type: categorical
+      - name: data_source_priority
+        type: categorical
+      - name: source_status
+        type: categorical
+      - name: primary_source_name
+        type: categorical
+    measures:
+      - name: total_cases
+        agg: sum
+      - name: total_confirmed_cases
+        agg: sum
+      - name: total_severe_cases
+        agg: sum
+      - name: total_deaths
+        agg: sum
+      - name: distinct_weeks_reported
+        agg: sum
+      - name: distinct_admin1_reporting
+        agg: sum
+      - name: case_fatality_rate_pct
+        agg: average
+      - name: pct_severe_cases
+        agg: average
+      - name: pct_confirmed_cases
+        agg: average
+      - name: avg_weekly_cases
+        agg: average
+      - name: yoy_growth_pct
+        agg: average

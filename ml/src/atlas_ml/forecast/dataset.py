@@ -1,0 +1,141 @@
+"""Painel UF × semana de incidência de casos prováveis de dengue (gold do SINAN, spec forecast-dataset)."""
+
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+from pathlib import Path
+from typing import Any
+
+import mlflow
+import pandas as pd
+
+from atlas_ml.config import Settings
+from atlas_ml.data.bigquery import DataSummary, read_features
+from atlas_ml.forecast import EXPERIMENT
+from atlas_ml.tracking import atlas_run
+
+GOLD = "ppgcc-dengue-project.gold"
+CASES_TABLE = f"{GOLD}.gold_dengue_casos_provaveis_uf_semanal"
+PANEL_ARTIFACT = "panel.parquet"
+STATIC_COVARIATES = ["mean_elevation_m", "mean_slope_deg"]
+PANEL_COLUMNS = [
+    "uf",
+    "uf_code",
+    "week_start",
+    "year",
+    "epi_week",
+    "cases",
+    "population",
+    "incidence",
+    "filled",
+    *STATIC_COVARIATES,
+]
+
+# Casos prováveis (notificações não descartadas) por UF de residência e semana do início
+# dos sintomas, com população do ano epidemiológico e relevo da UF. A gold já garante a
+# série regular (27 UFs × todas as semanas); build_panel só valida e completa por segurança.
+QUERY = f"""
+SELECT uf, week_start, epi_year AS year, epi_week, probable_cases AS cases, population,
+       {", ".join(STATIC_COVARIATES)}
+FROM `{CASES_TABLE}`
+"""
+
+
+def build_panel(raw: pd.DataFrame) -> pd.DataFrame:
+    """Normaliza o resultado da consulta num painel regular (semanas faltantes → 0, filled=True)."""
+    df = raw.copy()
+    df["week_start"] = pd.to_datetime(df["week_start"])
+    for col in STATIC_COVARIATES:
+        if col not in df:
+            df[col] = float("nan")
+    missing = sorted(df.loc[df["population"].isna(), "uf"].unique())
+    if missing:
+        raise ValueError(f"UFs sem população na gold: {', '.join(missing)}")
+    if df.duplicated(["uf", "week_start"]).any():
+        raise ValueError("A consulta retornou mais de uma linha por UF e semana.")
+
+    frames = []
+    for uf, g in df.groupby("uf", sort=True):
+        g = g.set_index("week_start").sort_index()
+        full = pd.date_range(g.index.min(), g.index.max(), freq="7D")
+        g = g.reindex(full)
+        g.index.name = "week_start"
+        g["filled"] = g["cases"].isna()
+        g["uf"] = uf
+        g["cases"] = g["cases"].fillna(0).astype("int64")
+        g["population"] = g["population"].ffill().bfill()
+        for col in STATIC_COVARIATES:
+            g[col] = g[col].ffill().bfill()
+        iso = g.index.isocalendar()
+        g["year"] = g["year"].fillna(pd.Series(iso.year.values, index=g.index)).astype("int64")
+        g["epi_week"] = g["epi_week"].fillna(pd.Series(iso.week.values, index=g.index)).astype("int64")
+        frames.append(g.reset_index())
+
+    panel = pd.concat(frames, ignore_index=True)
+    codes = {uf: i for i, uf in enumerate(sorted(panel["uf"].unique()))}
+    panel["uf_code"] = panel["uf"].map(codes).astype("int64")
+    panel["population"] = panel["population"].astype("float64")
+    for col in STATIC_COVARIATES:
+        panel[col] = panel[col].astype("float64")
+    panel["incidence"] = panel["cases"] / panel["population"] * 1e5
+    return panel[PANEL_COLUMNS].sort_values(["uf", "week_start"]).reset_index(drop=True)
+
+
+def summarize(panel: pd.DataFrame, summary: DataSummary) -> dict[str, Any]:
+    return {
+        "data_version": summary.data_version,
+        "sources": summary.sources,
+        "rows": len(panel),
+        "ufs": sorted(panel["uf"].unique().tolist()),
+        "period": [str(panel["week_start"].min().date()), str(panel["week_start"].max().date())],
+        "filled_weeks": int(panel["filled"].sum()),
+        "total_cases": int(panel["cases"].sum()),
+    }
+
+
+def pipeline_tags() -> dict[str, str]:
+    return {"atlas.pipeline_run": os.environ.get("ATLAS_PIPELINE_RUN", "manual")}
+
+
+def prepare(settings: Settings, client: Any) -> str:
+    """Lê a gold, monta o painel e registra o snapshot numa run `dataset`. Devolve o run_id."""
+    raw, summary = read_features(client, query=QUERY, source_tables=[CASES_TABLE])
+    panel = build_panel(raw)
+    with (
+        atlas_run(
+            settings,
+            EXPERIMENT,
+            data_version=summary.data_version,
+            run_name="dataset",
+            extra_tags={**pipeline_tags(), "atlas.model_family": "dataset"},
+        ) as run,
+        tempfile.TemporaryDirectory() as tmp,
+    ):
+        path = Path(tmp) / PANEL_ARTIFACT
+        panel.to_parquet(path, index=False)
+        mlflow.log_artifact(str(path))
+        info = summarize(panel, summary)
+        mlflow.log_dict(info, "data_summary.json")
+        mlflow.log_params(
+            {"rows": info["rows"], "ufs": len(info["ufs"]), "filled_weeks": info["filled_weeks"]}
+        )
+    return run.info.run_id
+
+
+def load_snapshot(dataset_run_id: str) -> tuple[pd.DataFrame, str]:
+    """Baixa o painel de uma run `dataset` (nunca relê o BigQuery). Devolve (painel, data_version)."""
+    run = mlflow.get_run(dataset_run_id)
+    data_version = run.data.tags.get("atlas.data_version")
+    if not data_version:
+        raise ValueError(f"A run {dataset_run_id} não é um snapshot de dataset (sem atlas.data_version).")
+    with tempfile.TemporaryDirectory() as tmp:
+        local = mlflow.artifacts.download_artifacts(f"runs:/{dataset_run_id}/{PANEL_ARTIFACT}", dst_path=tmp)
+        panel = pd.read_parquet(local)
+    panel["week_start"] = pd.to_datetime(panel["week_start"])
+    return panel, data_version
+
+
+def dump_summary(info: dict[str, Any]) -> str:
+    return json.dumps(info, ensure_ascii=False, indent=2)

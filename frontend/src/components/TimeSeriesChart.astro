@@ -1,0 +1,118 @@
+---
+// Série semanal (casos prováveis) com zoom no período. No servidor: figura, tabela alternativa
+// (resumida, passada pela página) e os pontos em JSON. No navegador: ECharts (tree-shaken),
+// carregado só nas páginas que usam este componente.
+import type { Coluna } from './DataTable.astro';
+import DataTable from './DataTable.astro';
+
+export interface Ponto {
+	/** week_start (AAAA-MM-DD) */
+	data: string;
+	valor: number;
+	/** Rótulo da semana no tooltip, ex.: "SE 7/2026" */
+	semana: string;
+}
+
+interface Props {
+	titulo: string;
+	subtitulo?: string;
+	rotuloSerie: string;
+	pontos: readonly Ponto[];
+	/** Zoom inicial: últimos N anos (o controle permite ver a série inteira). */
+	anosIniciais?: number;
+	tabela: { colunas: readonly Coluna[]; linhas: readonly Record<string, string | number>[]; legenda: string };
+	fonte?: string;
+}
+const { titulo, subtitulo, rotuloSerie, pontos, anosIniciais = 5, tabela, fonte } = Astro.props;
+
+// [data, valor, rótulo] compacto; "<" escapado para não fechar o <script> do JSON
+const dados = JSON.stringify({ rotulo: rotuloSerie, anosIniciais, pontos: pontos.map((p) => [p.data, p.valor, p.semana]) }).replace(
+	/</g,
+	'\\u003c',
+);
+const descricao = `${titulo}: ${pontos.length} semanas; valores na tabela.`;
+---
+
+<figure class="ds-card ds-figure" data-grafico="serie-semanal">
+	<div class="ds-figure__header">
+		<div>
+			<h2 class="ds-figure__title">{titulo}</h2>
+			{subtitulo && <p class="ds-figure__subtitle">{subtitulo}</p>}
+		</div>
+		<ul class="ds-legend">
+			<li class="ds-legend__item"><span class="ds-legend__swatch ds-legend__swatch--line" style="--swatch: var(--viz-cat-1)"></span>{rotuloSerie}</li>
+		</ul>
+	</div>
+	<div class="ds-figure__plot" role="img" aria-label={descricao}></div>
+	<div class="ds-figure__fallback">
+		<DataTable colunas={tabela.colunas} linhas={tabela.linhas} legenda={tabela.legenda} compacta rolagem />
+	</div>
+	{fonte && <figcaption class="ds-figure__caption"><span>{fonte}</span></figcaption>}
+	<script is:inline type="application/json" data-serie set:html={dados} />
+</figure>
+
+<script>
+	import { LineChart } from 'echarts/charts';
+	import { DataZoomComponent, GridComponent, TooltipComponent } from 'echarts/components';
+	import * as echarts from 'echarts/core';
+	import { SVGRenderer } from 'echarts/renderers';
+
+	import { fmt } from '../scripts/ds/ds.js';
+	import { mountChart, tooltipHTML } from '../scripts/ds/echarts-theme.js';
+
+	echarts.use([LineChart, GridComponent, TooltipComponent, DataZoomComponent, SVGRenderer]);
+
+	type Dados = { rotulo: string; anosIniciais: number; pontos: [string, number, string][] };
+
+	for (const figura of document.querySelectorAll<HTMLElement>('figure[data-grafico="serie-semanal"]')) {
+		const json = figura.querySelector('script[data-serie]')?.textContent;
+		const plot = figura.querySelector<HTMLElement>('.ds-figure__plot');
+		if (!json || !plot) continue;
+		const { rotulo, anosIniciais, pontos }: Dados = JSON.parse(json);
+		if (!pontos.length) continue;
+		const semanaPorData = new Map(pontos.map(([d, , s]) => [d, s]));
+		const ultima = pontos.at(-1)![0];
+		const inicio = new Date(Date.parse(`${ultima}T00:00:00Z`));
+		inicio.setUTCFullYear(inicio.getUTCFullYear() - anosIniciais);
+		const dataBr = (iso: string) => iso.split('-').reverse().join('/');
+
+		mountChart(echarts, plot, (v: { categorical: string[]; muted: string; grid: string }) => ({
+			grid: { left: 8, right: 16, top: 16, bottom: 64, containLabel: true },
+			tooltip: {
+				trigger: 'axis',
+				formatter: (ps: { value: [string, number]; color: string }[]) => {
+					const [data, valor] = ps[0].value;
+					return tooltipHTML(`${semanaPorData.get(data)} · semana de ${dataBr(data)}`, [
+						{ label: rotulo, value: fmt.int(valor), color: ps[0].color, line: true },
+					]);
+				},
+			},
+			xAxis: { type: 'time' },
+			yAxis: { type: 'value', axisLabel: { formatter: (n: number) => fmt.compact(n) } },
+			dataZoom: [
+				{ type: 'inside', startValue: inicio.toISOString().slice(0, 10), endValue: ultima, filterMode: 'none' },
+				{
+					type: 'slider',
+					startValue: inicio.toISOString().slice(0, 10),
+					endValue: ultima,
+					height: 28,
+					bottom: 12,
+					filterMode: 'none',
+					labelFormatter: (valor: number) => dataBr(new Date(valor).toISOString().slice(0, 10)),
+					borderColor: v.grid,
+					textStyle: { color: v.muted },
+				},
+			],
+			series: [
+				{
+					name: rotulo,
+					type: 'line',
+					data: pontos.map(([d, n]) => [d, n]),
+					color: v.categorical[0],
+					areaStyle: { color: v.categorical[0], opacity: 0.08 },
+					sampling: 'lttb',
+				},
+			],
+		}));
+	}
+</script>

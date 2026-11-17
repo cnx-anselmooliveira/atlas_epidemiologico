@@ -1,9 +1,9 @@
-# Plataforma de ML — desenvolvimento local (Postgres + MLflow + Airflow [+ Jupyter]).
+# Plataforma local (Postgres + MLflow + Airflow + API gold/Redis + site [+ Jupyter]).
 # Use pelo script:   ./platform/dev.ps1 up        (define ATLAS_GIT_SHA e o .env)
 # Ou direto:         $env:ATLAS_GIT_SHA = git rev-parse HEAD
 #                    docker compose -f platform/compose.dev.yml --env-file platform/.env up -d
-# Portas só em 127.0.0.1: MLflow :5000 · Airflow :8080 · Jupyter :8888 (profile notebook)
-# (MLFLOW_PORT, AIRFLOW_PORT e JUPYTER_PORT mudam as portas do host; o teste de ponta a ponta usa outras)
+# Portas só em 127.0.0.1: MLflow :5000 · Airflow :8080 · API gold :8000 · site :4321 · Jupyter :8888 (profile notebook)
+# (MLFLOW_PORT, AIRFLOW_PORT, BACKEND_PORT, FRONTEND_PORT e JUPYTER_PORT mudam as portas do host; o teste de ponta a ponta usa outras)
 
 name: atlas-platform-dev
 
@@ -28,8 +28,23 @@ x-airflow-common: &airflow-common
     ATLAS_IMAGE_TAG: local
     GCP_PROJECT: ${GCP_PROJECT:-}
     GOOGLE_APPLICATION_CREDENTIALS: /secrets/training-sa.json
+    # dbt (DAGs process_etl_atlas e process_dbt_docs_atlas, via Cosmos): mesma service account do treino
+    DBT_BQ_KEYFILE: /secrets/training-sa.json
+    DBT_PARTIAL_PARSE: "false"
+    # Connection do GCS (dbt docs): só o caminho da chave montada, nunca o conteúdo
+    AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: '{"conn_type": "google_cloud_platform", "extra": {"key_path": "/secrets/training-sa.json", "project": "ppgcc-dengue-project"}}'
+    # Cache do `dbt ls` do Cosmos no bucket: dag-processor e tarefas leem o mesmo lugar. O
+    # cache padrão (Variables) não é lido dentro das tarefas no Airflow 3, e cada tarefa
+    # repetia os 4 `dbt ls` (~60 s) antes de rodar o model.
+    AIRFLOW__COSMOS__REMOTE_CACHE_DIR: gs://ppgcc-bucket/cosmos_cache/dev
+    # explícito: no Cosmos 1.16 o padrão por esquema (gs → google_cloud_default) passa uma
+    # função no lugar do nome da Connection ("conn_id `<function _default_gcs_conn>`")
+    AIRFLOW__COSMOS__REMOTE_CACHE_DIR_CONN_ID: google_cloud_default
+    # Plugin de dbt docs do Cosmos: lê a documentação publicada pela process_dbt_docs_atlas
+    AIRFLOW__COSMOS__DBT_DOCS_PROJECTS: '{"atlas": {"dir": "gs://ppgcc-bucket/dbt_docs/dev", "conn_id": "google_cloud_default", "index": "index.html", "name": "dbt Docs (Atlas)"}}'
   volumes:
     - ../airflow/dags:/opt/airflow/dags            # DAGs ao vivo, sem rebuild
+    - hf-cache:/opt/airflow/hf-cache               # checkpoint do Chronos (HF_HOME da imagem)
     - ../ml/src:/opt/atlas-ml-src/src               # atlas_ml editável
     - airflow-logs:/opt/airflow/logs
     - airflow-shared:/opt/airflow/shared
@@ -141,6 +156,54 @@ services:
       retries: 10
       start_period: 60s
 
+  # API gold (backend/) + cache: o site (frontend/) chama http://localhost:8000 em dev
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    image: atlas-epidemiologia-backend:local
+    build:
+      context: ../backend
+    # --reload: o código de backend/app é montado ao vivo, sem rebuild
+    command: ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      GCP_PROJECT: ${GCP_PROJECT:-ppgcc-dengue-project}
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/training-sa.json
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ../backend/app:/app/app
+      - ./secrets:/secrets:ro
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Site (frontend/, Astro SSR): fala com a API pela rede interna; o navegador só vê :4321.
+  # Imagem de produção (sem hot reload); para desenvolver o site: `npm run dev` em frontend/.
+  frontend:
+    image: atlas-epidemiologia-frontend:local
+    build:
+      context: ../frontend
+    environment:
+      API_INTERNAL_URL: http://backend:8000
+      PUBLIC_SITE_URL: http://localhost:${FRONTEND_PORT:-4321}
+      PAGE_CACHE_SECONDS: "60"
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-4321}:4321"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
   jupyter:
     profiles: ["notebook"]
     image: atlas-epidemiologia-ml:notebook
@@ -149,8 +212,10 @@ services:
       target: notebook
       args:
         ATLAS_GIT_SHA: ${ATLAS_GIT_SHA:?}
+        ATLAS_ML_EXTRAS: models                     # CatBoost, PyTorch, PyMC, Chronos no notebook
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      HF_HOME: /home/atlas/hf-cache
       ATLAS_ENV: dev
       ATLAS_GIT_SHA: ${ATLAS_GIT_SHA:?}
       GCP_PROJECT: ${GCP_PROJECT:-}
@@ -159,6 +224,7 @@ services:
     volumes:
       - ../ml/src:/app/src                          # atlas_ml editável
       - ../ml/notebooks:/home/atlas/work/notebooks
+      - hf-cache:/home/atlas/hf-cache
       - ./secrets:/secrets:ro
     ports:
       - "127.0.0.1:${JUPYTER_PORT:-8888}:8888"
@@ -171,4 +237,5 @@ volumes:
   pgdata:
   mlartifacts:
   airflow-logs:
+  hf-cache:
   airflow-shared:

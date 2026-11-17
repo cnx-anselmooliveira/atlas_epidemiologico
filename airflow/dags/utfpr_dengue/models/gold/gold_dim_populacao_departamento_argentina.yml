@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: gold_dim_populacao_departamento_argentina
+    description: >
+      População por departamento da Argentina (INDEC Censo 2022) — usada
+      pra calcular incidência (casos por 1.000 habitantes) no mapa de
+      departamento. Grão: província × departamento.
+    columns:
+      - name: province_code
+        description: Código INDEC de província. Identificador (junto com department_name).
+      - name: department_name
+        description: Bate exatamente com department_name de gold_dengue_departamento_epi_curve_weekly_argentina. Identificador.
+      - name: population
+        description: Métrica. População total do departamento, Censo 2022.
+      - name: population_year
+        description: Sempre 2022.
+      - name: source_name
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP()."
+
+semantic_models:
+  - name: gold_dim_populacao_departamento_argentina
+    description: Modelo semântico da população por departamento da Argentina.
+    model: ref('gold_dim_populacao_departamento_argentina')
+    entities:
+      - name: departamento
+        type: primary
+        expr: concat(province_code, '-', department_name)
+    dimensions:
+      - name: department_name
+        type: categorical
+    measures:
+      - name: population
+        agg: sum

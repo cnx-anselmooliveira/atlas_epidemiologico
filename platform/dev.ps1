@@ -43,7 +43,13 @@ if ($ExtraCa) {
     if (-not (Test-Path $ExtraCaPath)) { throw "EXTRA_CA_PATH aponta para um arquivo inexistente: $ExtraCaPath" }
     $Certs = Join-Path $Platform 'certs'
     New-Item -ItemType Directory -Force $Certs | Out-Null
-    $Public = docker run --rm --entrypoint cat python:3.12-slim /etc/ssl/certs/ca-certificates.crt
+    # Na primeira vez o docker baixa a imagem e escreve o progresso em stderr; no PowerShell 5.1
+    # com 'Stop' isso viraria erro. O stderr fica de fora do bundle; o código de saída decide.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $Public = docker run --rm --entrypoint cat python:3.12-slim /etc/ssl/certs/ca-certificates.crt 2>$null }
+    finally { $ErrorActionPreference = $previous }
+    if ($LASTEXITCODE -ne 0 -or -not $Public) { throw "Não consegui ler os certificados públicos de python:3.12-slim." }
     $Bundle = ($Public -join "`n") + "`n" + (Get-Content $ExtraCaPath -Raw)
     [System.IO.File]::WriteAllText((Join-Path $Certs 'ca-bundle.pem'), $Bundle)
     $ComposeFiles += @('-f', (Join-Path $Platform 'compose.ca.yml'))

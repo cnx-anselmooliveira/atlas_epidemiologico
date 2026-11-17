@@ -16,8 +16,30 @@ dependencies = [
     "skops>=0.10",
 ]
 
+[project.optional-dependencies]
+# Modelos de previsão (add-dengue-forecast-models). Fora da imagem `runtime` leve.
+# nutpie: amostrador NUTS compilado com numba para o PyMC (dispensa compilador C).
+models = [
+    "catboost>=1.2",
+    "torch>=2.5",
+    "pymc>=5.20",
+    "nutpie>=0.13",
+    "h5netcdf>=1.3",  # idata.nc do baseline bayesiano
+    "h5py>=3.11",
+    "chronos-forecasting>=1.5",
+]
+
 [project.scripts]
 atlas-ml = "atlas_ml.cli:app"
+
+# torch só do índice CPU do PyTorch (sem CUDA: ~2 GB a menos nas imagens)
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 dev = [

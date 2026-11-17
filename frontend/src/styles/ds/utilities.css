@@ -1,0 +1,33 @@
+/* =============================================================================
+   Atlas DS · Painel — utilitários
+   Cópia de frontend/design-system/status_invest/css/utilities.css (cópia local de consulta, fora do Git).
+   Para mudar: altere o original e copie de novo.
+   ========================================================================== */
+
+/* Contexto de faixa escura: aplique em qualquer bloco com fundo --band-* */
+.ds-on-band { color: var(--band-text-1); }
+.ds-on-band .ds-text-2 { color: var(--band-text-2); }
+.ds-on-band .ds-text-3 { color: var(--band-text-3); }
+
+.ds-text-1 { color: var(--text-1); }
+.ds-text-2 { color: var(--text-2); }
+.ds-text-3 { color: var(--text-3); }
+.ds-text-link { color: var(--text-link); }
+
+.ds-text-right  { text-align: right; }
+.ds-text-center { text-align: center; }
+.ds-nowrap   { white-space: nowrap; }
+.ds-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ds-weight-medium   { font-weight: var(--weight-medium); }
+.ds-weight-semibold { font-weight: var(--weight-semibold); }
+
+.ds-mt-0 { margin-top: 0; }
+.ds-mt-2 { margin-top: var(--space-2); }
+.ds-mt-4 { margin-top: var(--space-4); }
+.ds-mt-6 { margin-top: var(--space-6); }
+.ds-mt-8 { margin-top: var(--space-8); }
+.ds-mb-4 { margin-bottom: var(--space-4); }
+
+.ds-w-full { width: 100%; }
+.ds-hide-mobile { display: none; }
+@media (min-width: 768px) { .ds-hide-mobile { display: initial; } .ds-hide-desktop { display: none; } }

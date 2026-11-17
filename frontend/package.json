@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "atlas-epidemiologia-frontend",
   "type": "module",
   "version": "0.0.1",
   "engines": {
@@ -9,9 +9,30 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "start": "node scripts/start.mjs",
+    "check": "astro check",
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "dev:mock": "node scripts/dev-mock.mjs"
   },
   "dependencies": {
-    "astro": "^7.4.12"
+    "@astrojs/node": "11.1.13",
+    "@fontsource/source-code-pro": "5.3.1",
+    "@fontsource/source-sans-3": "5.3.1",
+    "@fontsource/source-serif-4": "5.3.1",
+    "astro": "^7.4.12",
+    "echarts": "6.1.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "@playwright/test": "1.65.1",
+    "@types/node": "22.20.5",
+    "eslint": "10.15.0",
+    "eslint-plugin-astro": "3.2.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0",
+    "vitest": "5.1.0"
   }
 }

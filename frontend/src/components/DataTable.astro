@@ -1,0 +1,50 @@
+---
+// Tabela de dados (valores já formatados). Também é a alternativa textual dos gráficos.
+export interface Coluna {
+	chave: string;
+	rotulo: string;
+	numerica?: boolean;
+}
+
+interface Props {
+	colunas: readonly Coluna[];
+	linhas: readonly Record<string, string | number>[];
+	legenda?: string;
+	compacta?: boolean;
+	/** Altura limitada com rolagem (tabelas longas). */
+	rolagem?: boolean;
+}
+const { colunas, linhas, legenda, compacta = false, rolagem = false } = Astro.props;
+---
+
+<div class:list={['ds-table-wrap', { 'ds-table-wrap--scroll': rolagem }]}>
+	<table class:list={['ds-table', { 'ds-table--compact': compacta }]}>
+		{legenda && <caption>{legenda}</caption>}
+		<thead>
+			<tr>
+				{
+					colunas.map((c) => (
+						<th scope="col" class:list={{ 'is-num': c.numerica }}>
+							{c.rotulo}
+						</th>
+					))
+				}
+			</tr>
+		</thead>
+		<tbody>
+			{
+				linhas.map((l) => (
+					<tr>
+						{colunas.map((c, i) =>
+							i === 0 ? (
+								<th scope="row">{l[c.chave]}</th>
+							) : (
+								<td class:list={{ 'is-num': c.numerica }}>{l[c.chave]}</td>
+							),
+						)}
+					</tr>
+				))
+			}
+		</tbody>
+	</table>
+</div>

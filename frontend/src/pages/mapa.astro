@@ -1,0 +1,121 @@
+---
+// Mapa por UF: incidência de casos prováveis por 100 mil habitantes no ano (?ano=2024), com o
+// ranking das UFs. Clique numa UF abre a série histórica dela.
+import BackendError from '../components/BackendError.astro';
+import ChoroplethMap from '../components/ChoroplethMap.astro';
+import EmptyState from '../components/EmptyState.astro';
+import FilterForm from '../components/FilterForm.astro';
+import Icon from '../components/Icon.astro';
+import KpiCard from '../components/KpiCard.astro';
+import KpiStrip from '../components/KpiStrip.astro';
+import PageHeader from '../components/PageHeader.astro';
+import RankingBars from '../components/RankingBars.astro';
+import SourceNote from '../components/SourceNote.astro';
+import { nomeDaUf } from '../data/ufs';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { LIMITES_INCIDENCIA } from '../lib/classes';
+import { parseAno } from '../lib/filtros';
+import { formatarInteiro, formatarSemana, formatarTaxa } from '../lib/format';
+import { anoEmAndamento, anosDisponiveis, incidenciaPorUf, totaisPorAno, ultimaSemana } from '../lib/series';
+import { gold } from '../lib/server/gold';
+import { carregar } from '../lib/server/pagina';
+
+const INCIDENCIA_ALTA = LIMITES_INCIDENCIA[2]; // 300 por 100 mil
+
+const dados = await carregar(Astro, async () => {
+	const g = await gold();
+	const brasil = await g.serieBrasil();
+	const anos = anosDisponiveis(brasil);
+	if (!anos.length) return { brasil, anos, filtro: null, ufs: [] };
+	const filtro = parseAno(Astro.url.searchParams.get('ano'), anos);
+	return { brasil, anos, filtro, ufs: await g.ufsDoAno(filtro.ano) };
+});
+
+const filtro = dados?.filtro ?? null;
+const ano = filtro?.ano;
+const ranking = dados ? incidenciaPorUf(dados.ufs) : [];
+const totalBrasil = dados && ano ? totaisPorAno(dados.brasil).find((t) => t.ano === ano) : undefined;
+const emAndamento = dados && ano ? anoEmAndamento(dados.brasil, ano) : false;
+const ultima = dados ? ultimaSemana(dados.brasil) : undefined;
+const maior = ranking[0];
+const acimaDoLimiar = ranking.filter((r) => r.incidencia >= INCIDENCIA_ALTA).length;
+const maxIncidencia = maior?.incidencia || 1;
+const titulo = 'Mapa por UF';
+---
+
+<BaseLayout
+	titulo={ano ? `${titulo} · ${ano}` : titulo}
+	descricao={`Incidência de casos prováveis de dengue por UF${ano ? ` em ${ano}` : ''}, por 100 mil habitantes.`}
+>
+	<PageHeader titulo={titulo} subtitulo="Casos prováveis de dengue por 100 mil habitantes em cada UF, no ano epidemiológico.">
+		<Fragment slot="meta">
+			{ultima && <SourceNote geradoEm={ultima.gold_generated_at} />}
+		</Fragment>
+		{filtro && dados && <FilterForm slot="acoes" ano={{ valor: filtro.ano, opcoes: dados.anos }} rotulo="Ano do mapa" />}
+		{
+			filtro?.ajustado && (
+				<div class="ds-callout ds-callout--warning" role="status">
+					<Icon nome="alert" />
+					<div>
+						Não há dados para “{filtro.pedido}”. Exibindo <strong>{filtro.ano}</strong>, o ano mais recente.
+					</div>
+				</div>
+			)
+		}
+		{
+			emAndamento && ultima && (
+				<div class="ds-callout">
+					<Icon nome="info" />
+					<div>
+						<strong>{ano} ainda está em andamento</strong>: dados até {formatarSemana(ultima.epi_year, ultima.epi_week)}, e
+						as semanas recentes ainda recebem notificações.
+					</div>
+				</div>
+			)
+		}
+		{
+			totalBrasil && maior && (
+				<KpiStrip rotulo={`Indicadores de ${ano}`}>
+					<KpiCard destaque rotulo={`Incidência no Brasil em ${ano}`} valor={formatarTaxa(totalBrasil.incidencia)} unidade="/100 mil" nota={`${formatarInteiro(totalBrasil.casos)} casos prováveis`} />
+					<KpiCard rotulo="Maior incidência" valor={nomeDaUf(maior.uf)} nota={`${formatarTaxa(maior.incidencia)} /100 mil`} />
+					<KpiCard
+						rotulo={`UFs com ${INCIDENCIA_ALTA}+ /100 mil`}
+						valor={`${acimaDoLimiar} de ${ranking.length}`}
+						ajuda="Incidência alta, no limiar usado pelo Ministério da Saúde (300 casos por 100 mil habitantes no ano)."
+					/>
+				</KpiStrip>
+			)
+		}
+	</PageHeader>
+
+	<div class="ds-container ds-stack ds-stack--xl ds-main">
+		{dados === null && <BackendError />}
+		{dados && ranking.length === 0 && <EmptyState texto={ano ? `Não há dados das UFs para ${ano}.` : undefined} />}
+		{
+			dados && ranking.length > 0 && (
+				<div class="ds-layout">
+					<div class="ds-span-8">
+						<ChoroplethMap
+							titulo={`Incidência por UF · ${ano}`}
+							subtitulo="Clique numa UF para ver a série histórica"
+							valores={ranking.map((r) => ({ uf: r.uf, incidencia: r.incidencia, casos: r.casos }))}
+							fonte="Fonte: SINAN/Ministério da Saúde e população do IBGE."
+						/>
+					</div>
+					<div class="ds-span-4">
+						<RankingBars
+							titulo="Ranking das UFs"
+							subtitulo={`Incidência por 100 mil · ${ano}`}
+							itens={ranking.map((r) => ({
+								nome: nomeDaUf(r.uf),
+								href: `/serie-historica?uf=${r.uf}`,
+								valor: formatarTaxa(r.incidencia),
+								proporcao: r.incidencia / maxIncidencia,
+							}))}
+						/>
+					</div>
+				</div>
+			)
+		}
+	</div>
+</BaseLayout>

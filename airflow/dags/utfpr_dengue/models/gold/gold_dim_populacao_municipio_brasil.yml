@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: gold_dim_populacao_municipio_brasil
+    description: >
+      População de todos os 5.570 municípios do Brasil (IBGE, Censo
+      2022) — usada pra calcular incidência (casos por 1.000 habitantes)
+      no mapa de município. Grão: município. Fonte: seed_populacao_municipio_brasil.
+    columns:
+      - name: municipality_id
+        description: Código IBGE de 7 dígitos. Identificador — mesma chave de gold_dengue_municipio_epi_curve_weekly.municipality_id.
+      - name: municipality_name
+        description: Nome do município (sem sufixo de UF). Dimensão.
+      - name: state_code
+        description: Sigla da UF. Dimensão.
+      - name: population
+        description: Métrica. População total do município, Censo 2022.
+      - name: population_year
+        description: Sempre 2022 (Censo IBGE).
+      - name: source_name
+        description: "'IBGE Censo 2022' pra todas as linhas."
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP()."
+
+semantic_models:
+  - name: gold_dim_populacao_municipio_brasil
+    description: Modelo semântico da população por município do Brasil.
+    model: ref('gold_dim_populacao_municipio_brasil')
+    entities:
+      - name: municipality
+        type: primary
+        expr: municipality_id
+    dimensions:
+      - name: municipality_name
+        type: categorical
+      - name: state_code
+        type: categorical
+    measures:
+      - name: population
+        agg: sum

@@ -1,0 +1,68 @@
+version: 2
+
+models:
+  - name: gold_dengue_kpi_country_month
+    description: >
+      Série temporal mensal de casos de dengue por país, para consumo em
+      dashboards. Grão: país × ano × mês (mês aproximado a partir da
+      semana epidemiológica). Fonte Silver: silver_dengue_weekly_cases.
+    columns:
+      - name: country_iso3
+        description: Código ISO3 do país. Identificador.
+      - name: country_name
+        description: Nome do país. Dimensão.
+      - name: year
+        description: Ano epidemiológico. Dimensão temporal.
+      - name: month
+        description: Mês (1-12), aproximado a partir de epi_week_start_date. Dimensão temporal.
+      - name: month_ref
+        description: Primeiro dia do mês de referência (date_trunc). Dimensão temporal.
+      - name: total_cases
+        description: Métrica. Soma de casos no mês.
+      - name: total_confirmed_cases
+        description: Métrica. Soma de casos confirmados no mês.
+      - name: total_severe_cases
+        description: Métrica. Soma de casos graves no mês.
+      - name: total_deaths
+        description: Métrica. Soma de óbitos no mês.
+      - name: distinct_weeks_reported
+        description: Métrica. Nº de semanas epidemiológicas distintas no mês.
+      - name: case_fatality_rate_pct
+        description: "Métrica calculada. Regra: 100 * total_deaths / total_cases."
+      - name: gold_generated_at
+        description: "Timestamp de quando esta tabela foi (re)gerada pelo dbt. Regra: CURRENT_TIMESTAMP() — estável (mesmo valor) em todas as linhas da mesma execução. Coluna de auditoria/freshness, usada pelo job de exportação pra decidir se precisa baixar a tabela de novo."
+
+semantic_models:
+  - name: gold_dengue_kpi_country_month
+    description: Modelo semântico da série temporal mensal de casos de dengue por país.
+    model: ref('gold_dengue_kpi_country_month')
+    defaults:
+      agg_time_dimension: month_ref
+    entities:
+      - name: country
+        type: foreign
+        expr: country_iso3
+    dimensions:
+      - name: country_name
+        type: categorical
+      - name: year
+        type: categorical
+      - name: month
+        type: categorical
+      - name: month_ref
+        type: time
+        type_params:
+          time_granularity: month
+    measures:
+      - name: total_cases
+        agg: sum
+      - name: total_confirmed_cases
+        agg: sum
+      - name: total_severe_cases
+        agg: sum
+      - name: total_deaths
+        agg: sum
+      - name: distinct_weeks_reported
+        agg: sum
+      - name: case_fatality_rate_pct
+        agg: average

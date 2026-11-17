@@ -1,0 +1,19 @@
+---
+import Icon from '../components/Icon.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+Astro.response.status = 404;
+---
+
+<BaseLayout titulo="Página não encontrada" descricao="A página procurada não existe no Atlas Epidemiológico da Dengue.">
+	<div class="ds-container ds-main">
+		<div class="ds-card">
+			<div class="ds-state">
+				<span class="ds-state__icon"><Icon nome="search" tamanho="lg" /></span>
+				<h1 class="ds-state__title">Página não encontrada</h1>
+				<p class="ds-state__text">O endereço não existe ou mudou de lugar.</p>
+				<a class="ds-btn ds-btn--primary" href="/">Ir para o início</a>
+			</div>
+		</div>
+	</div>
+</BaseLayout>

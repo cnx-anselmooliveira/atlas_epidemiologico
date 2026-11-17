@@ -30,9 +30,22 @@ e2e-logs/
 *-sa.json
 ppgcc-dengue-project*.json
 platform/secrets/
+**/secrets/
+*.pfx
+*.p12
+*.jks
+client_secret*.json
+*credentials*.json
+*service_account*.json
+gcp-*.json
+id_rsa
+id_ed25519
 extra_ca.pem
 
 # Sistema / editor
 .DS_Store
 Thumbs.db
 .idea/
+
+# Artefatos do dbt rodado localmente (airflow/dags/utfpr_dengue/dbt.sh|ps1)
+.dbt-local/

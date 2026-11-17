@@ -1,0 +1,29 @@
+---
+// Rodapé: descrição, navegação das seções disponíveis e fonte dos dados.
+import { SECOES } from '../data/secoes';
+---
+
+<footer class="ds-footer">
+	<div class="ds-container">
+		<div class="ds-footer__grid">
+			<div>
+				<p class="ds-footer__title">Atlas Epidemiológico da Dengue</p>
+				<p>Painel acadêmico de vigilância da dengue no Brasil, com dados abertos do Ministério da Saúde.</p>
+			</div>
+			<div>
+				<p class="ds-footer__title">Seções</p>
+				<ul>
+					{SECOES.filter((s) => s.status === 'disponivel').map((s) => <li><a href={s.href}>{s.titulo}</a></li>)}
+				</ul>
+			</div>
+			<div>
+				<p class="ds-footer__title">Fonte dos dados</p>
+				<ul>
+					<li>SINAN · Ministério da Saúde</li>
+					<li>População: IBGE</li>
+				</ul>
+			</div>
+		</div>
+		<div class="ds-footer__bottom"><span>PPGCC · UTFPR</span><span>Casos prováveis: notificações não descartadas.</span></div>
+	</div>
+</footer>

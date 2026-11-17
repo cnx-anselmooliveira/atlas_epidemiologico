@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: silver_dengue_casos_uf_semana_brasil
+    description: >
+      Notificações de dengue do SINAN agregadas por UF de residência e semana
+      epidemiológica do início dos sintomas, com contagens por classificação
+      final (macro sinan_classificacao) e dos fallbacks de data e de lugar.
+      Grão: UF × semana (só semanas com notificação). Base da
+      gold_dengue_casos_provaveis_uf_semanal.
+    data_tests:
+      - unique:
+          column_name: "concat(uf, '|', cast(week_start as string))"
+    columns:
+      - name: uf
+        description: Sigla da UF de residência (cai para a UF de notificação).
+        data_tests: [not_null]
+      - name: week_start
+        description: Domingo que inicia a semana epidemiológica do início dos sintomas (ou da notificação, no fallback).
+        data_tests: [not_null]
+      - name: notified_cases
+        description: Total de notificações.
+      - name: probable_cases
+        description: Notificações não descartadas (casos prováveis).
+
+  - name: silver_populacao_uf_anual
+    description: População residente por UF e ano (seed_populacao_uf_anual). Grão UF × ano.
+    data_tests:
+      - unique:
+          column_name: "concat(uf, '|', cast(year as string))"
+
+  - name: silver_relevo_uf_brasil
+    description: >
+      Elevação (m) e declividade (graus) médias por UF, do Copernicus DEM ADM2
+      ponderado pela área, com UF atribuída por cruzamento espacial com os
+      centroides do IBGE. Grão: UF.
+    columns:
+      - name: uf
+        description: Sigla da UF.
+        data_tests: [unique, not_null]
+      - name: mean_elevation_m
+        description: Elevação média ponderada pela área (metros).
+        data_tests: [not_null]
+      - name: mean_slope_deg
+        description: Declividade média ponderada pela área (graus).
+        data_tests: [not_null]
+      - name: municipios_dem
+        description: Polígonos ADM2 do DEM atribuídos à UF.
+      - name: municipios_casados
+        description: Polígonos atribuídos por conter um centroide do IBGE (o resto, pelo centroide mais próximo).
+      - name: taxa_casamento
+        description: municipios_casados / municipios_dem.

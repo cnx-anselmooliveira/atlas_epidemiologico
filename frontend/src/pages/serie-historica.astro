@@ -1,0 +1,148 @@
+---
+// Série histórica: casos prováveis por semana epidemiológica do Brasil ou de uma UF (?uf=SP).
+import BackendError from '../components/BackendError.astro';
+import DataTable from '../components/DataTable.astro';
+import EmptyState from '../components/EmptyState.astro';
+import FilterForm from '../components/FilterForm.astro';
+import Icon from '../components/Icon.astro';
+import KpiCard from '../components/KpiCard.astro';
+import KpiStrip from '../components/KpiStrip.astro';
+import PageHeader from '../components/PageHeader.astro';
+import SourceNote from '../components/SourceNote.astro';
+import TimeSeriesChart from '../components/TimeSeriesChart.astro';
+import { nomeDaUf } from '../data/ufs';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { parseUf } from '../lib/filtros';
+import { formatarInteiro, formatarSemana, formatarTaxa } from '../lib/format';
+import { comparacaoAnoAnterior, ordenar, totaisPorAno } from '../lib/series';
+import { gold } from '../lib/server/gold';
+import { carregar } from '../lib/server/pagina';
+
+const filtro = parseUf(Astro.url.searchParams.get('uf'));
+const local = filtro.uf ? nomeDaUf(filtro.uf) : 'Brasil';
+const semanas = await carregar(Astro, async () => {
+	const g = await gold();
+	return ordenar(filtro.uf ? await g.serieUf(filtro.uf) : await g.serieBrasil());
+});
+
+const totais = semanas ? totaisPorAno(semanas) : [];
+const anoAtual = totais.at(-1);
+const anterior = totais.at(-2);
+const comparacao = semanas ? comparacaoAnoAnterior(semanas) : undefined;
+const maiorAno = totais.reduce<(typeof totais)[number] | undefined>((m, t) => (!m || t.casos > m.casos ? t : m), undefined);
+const ultima = comparacao?.atual;
+
+const pontos = (semanas ?? []).map((s) => ({
+	data: s.week_start,
+	valor: s.probable_cases,
+	semana: formatarSemana(s.epi_year, s.epi_week),
+}));
+const recentes = (semanas ?? [])
+	.slice(-12)
+	.reverse()
+	.map((s) => ({ semana: formatarSemana(s.epi_year, s.epi_week), inicio: s.week_start.split('-').reverse().join('/'), casos: formatarInteiro(s.probable_cases) }));
+const porAno = [...totais].reverse().map((t) => ({
+	ano: t.emAndamento ? `${t.ano} (em andamento)` : String(t.ano),
+	casos: formatarInteiro(t.casos),
+	incidencia: formatarTaxa(t.incidencia),
+	semanas: t.semanas,
+}));
+const titulo = 'Série histórica';
+---
+
+<BaseLayout
+	titulo={filtro.uf ? `${titulo} · ${local}` : titulo}
+	descricao={`Casos prováveis de dengue por semana epidemiológica desde 2000 — ${local}.`}
+>
+	<PageHeader titulo={titulo} subtitulo={`Casos prováveis de dengue por semana epidemiológica — ${local}.`}>
+		<Fragment slot="meta">
+			{ultima && <SourceNote geradoEm={ultima.gold_generated_at} />}
+		</Fragment>
+		<FilterForm slot="acoes" uf={{ valor: filtro.uf }} rotulo="Local da série" />
+		{
+			filtro.invalida && (
+				<div class="ds-callout ds-callout--warning" role="status">
+					<Icon nome="alert" />
+					<div>
+						A UF “{filtro.pedido}” não existe. Exibindo a série do <strong>Brasil</strong>.
+					</div>
+				</div>
+			)
+		}
+		{
+			anoAtual && ultima && (
+				<KpiStrip rotulo={`Indicadores — ${local}`}>
+					<KpiCard
+						destaque
+						rotulo={`Casos em ${anoAtual.ano}`}
+						valor={formatarInteiro(anoAtual.casos)}
+						nota={anoAtual.emAndamento ? `ano em andamento, até ${formatarSemana(ultima.epi_year, ultima.epi_week)}` : 'ano completo'}
+					/>
+					<KpiCard
+						rotulo={`Incidência em ${anoAtual.ano}`}
+						valor={formatarTaxa(anoAtual.incidencia)}
+						unidade="/100 mil"
+						nota={anterior ? `${anterior.ano}: ${formatarTaxa(anterior.incidencia)}` : undefined}
+					/>
+					<KpiCard
+						rotulo="Semana mais recente"
+						valor={formatarInteiro(ultima.probable_cases)}
+						variacao={{ pct: comparacao?.variacao ?? null, referencia: `vs. ${formatarSemana(ultima.epi_year - 1, ultima.epi_week)}` }}
+						ajuda="Casos prováveis da última semana epidemiológica com dados. Semanas recentes ainda recebem notificações."
+					/>
+					{maiorAno && <KpiCard rotulo="Ano com mais casos" valor={String(maiorAno.ano)} nota={`${formatarInteiro(maiorAno.casos)} casos`} />}
+				</KpiStrip>
+			)
+		}
+	</PageHeader>
+
+	<div class="ds-container ds-stack ds-stack--xl ds-main">
+		{semanas === null && <BackendError />}
+		{semanas && semanas.length === 0 && <EmptyState texto={`Não há semanas com dados para ${local}.`} />}
+		{
+			semanas && semanas.length > 0 && (
+				<>
+					<TimeSeriesChart
+						titulo={`Casos prováveis por semana — ${local}`}
+						subtitulo={`${formatarSemana(semanas[0].epi_year, semanas[0].epi_week)} a ${formatarSemana(ultima!.epi_year, ultima!.epi_week)} · use o controle abaixo do gráfico para mudar o período`}
+						rotuloSerie="Casos prováveis"
+						pontos={pontos}
+						tabela={{
+							colunas: [
+								{ chave: 'semana', rotulo: 'Semana' },
+								{ chave: 'inicio', rotulo: 'Início' },
+								{ chave: 'casos', rotulo: 'Casos prováveis', numerica: true },
+							],
+							linhas: recentes,
+							legenda: `12 semanas mais recentes — ${local}`,
+						}}
+						fonte="Fonte: SINAN/Ministério da Saúde. Casos prováveis = notificações não descartadas, pela semana de início dos sintomas."
+					/>
+					<div class="ds-callout">
+						<Icon nome="info" />
+						<div>
+							<strong>Semanas recentes sujeitas a revisão.</strong> As notificações chegam com atraso, então os números das
+							últimas semanas tendem a subir nas próximas atualizações.
+						</div>
+					</div>
+					<section class="ds-paper" aria-labelledby="totais-ano">
+						<header class="ds-section__header">
+							<h2 class="ds-section__title" id="totais-ano">Totais por ano — {local}</h2>
+						</header>
+						<DataTable
+							colunas={[
+								{ chave: 'ano', rotulo: 'Ano epidemiológico' },
+								{ chave: 'casos', rotulo: 'Casos prováveis', numerica: true },
+								{ chave: 'incidencia', rotulo: 'Incidência /100 mil', numerica: true },
+								{ chave: 'semanas', rotulo: 'Semanas', numerica: true },
+							]}
+							linhas={porAno}
+							legenda={`Casos prováveis por ano epidemiológico — ${local}`}
+							compacta
+						/>
+					</section>
+				</>
+			)
+		}
+	</div>
+</BaseLayout>
