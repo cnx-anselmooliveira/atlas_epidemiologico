@@ -54,7 +54,7 @@
   - Andamento: seguindo a convenção do repositório, os testes entraram como jobs `frontend` e `backend` do `ci.yml` (no `ci-ok`) e as duas imagens na matriz `images` (build sem publicar); actionlint e `compose config` passam localmente. Falta: rodar num PR para `hml` e a publicação no DockerHub + webhook do Portainer, que depende do pipeline de imagens (`_image.yml`, mudança `add-ml-platform`) e dos segredos `DOCKERHUB_*`/`PORTAINER_WEBHOOK_*`.
 - [ ] 8.3 Ajustar o serviço `frontend` em `deploy/app.stack.yml` (imagem Node, porta Traefik 4321, `API_INTERNAL_URL=http://backend:8000`, redes pública e interna); verificar com `docker stack config` e, no host temporário, as páginas renderizando com dados reais
   - Andamento: `deploy/app.stack.yml` criado (frontend, backend e redis; Traefik em hosts temporários; `API_INTERNAL_URL=http://backend:8000`; chave do BigQuery só como variável da stack) e validado com `docker stack config`. Falta: criar a stack `atlas-app` no Portainer e conferir as páginas com dados reais no host temporário (precisa da VPS, das imagens publicadas e da chave).
-- [ ] 8.4 Reescrever `frontend/README.md` (hierarquia, componentes, design system copiado, variáveis, `dev:mock`, testes, imagem) e manter `AGENTS.md` coerente; verificar seguindo o passo a passo do README numa cópia limpa
+- [x] 8.4 Reescrever `frontend/README.md` (hierarquia, componentes, design system copiado, variáveis, `dev:mock`, testes, imagem) e manter `AGENTS.md` coerente; verificar seguindo o passo a passo do README numa cópia limpa
 
 ## Workflow follow-up
 
