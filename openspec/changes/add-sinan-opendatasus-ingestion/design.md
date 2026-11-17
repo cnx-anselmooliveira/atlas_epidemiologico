@@ -163,7 +163,7 @@ As etapas por ano, do jeito que já estão implementadas e medidas (seção 8):
 - **Carga por ano isolada:** `carregar_bronze → validar → marcar_carregado` virou um grupo mapeado por ano (`sinan.carga_ano`).
   - **Problema:** com três tarefas mapeadas encadeadas, uma falha num ano (2008) deixou `upstream_failed` o `validar` e o `marcar_carregado` de **todos** os anos. O Airflow só expande a tarefa seguinte quando todas as instâncias da anterior terminam bem.
   - **Agora:** cada ano tem sua cadeia; um ano ruim não impede os outros de serem marcados. O dbt continua sem rodar naquele dia (`decidir_dbt` com `none_failed`), e a execução fica vermelha.
-- **Caracteres de controle:** o arquivo de 2008 tem um byte nulo (` `) em `DT_OBITO` (linha 617.303). O load job agora usa `preserve_ascii_control_characters=True`, e a bronze guarda o dado como veio, em vez de rejeitar o arquivo.
+- **Caracteres de controle:** o arquivo de 2008 tem um byte nulo (`\x00`) em `DT_OBITO` (linha 617.303). O load job agora usa `preserve_ascii_control_characters=True`, e a bronze guarda o dado como veio, em vez de rejeitar o arquivo.
 
 ### 9. Medições do landing (16/11/2026)
 

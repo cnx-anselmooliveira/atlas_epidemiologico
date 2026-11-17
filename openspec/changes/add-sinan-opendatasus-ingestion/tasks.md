@@ -83,9 +83,12 @@
   - trigger rule;
   - parâmetro e agendamento.
 - [x] 5.2 Alinhar a `add-cosmos-dbt-dags`: o requisito "Disparo sem configuração" passa a "diário, com sync do SINAN antes e `forcar_dbt` opcional", e o teste `assert not dag.params` muda para o parâmetro novo; verificar `openspec validate add-cosmos-dbt-dags --strict`
-- [ ] 5.3 Primeira execução em dev com o bucket parcialmente carregado: os anos que faltam são baixados e todos vão para a bronze, com o dbt ainda em `basedosdados`; registrar tempo total, registros por ano e bytes no landing
-- [ ] 5.4 Execução sem mudança na origem: o sync não faz nada e os grupos do dbt ficam pulados; depois, um disparo manual com `forcar_dbt=true` roda o dbt sem esperar o sensor. Verificar nos estados das tarefas e que o sensor não consultou o BigQuery.
+- [x] 5.3 Primeira execução em dev com o bucket parcialmente carregado: os anos que faltam são baixados e todos vão para a bronze, com o dbt ainda em `basedosdados`; registrar tempo total, registros por ano e bytes no landing
+  - Resultado (17/11/2026): 23 anos carregados em 13 min por `carga_ano` (2008 incluído) e execução completa de 23 min, com o dbt todo verde; landing com 27 anos (0,85 GB zip, 8,2 GB CSV); registros por ano em `docs/referencias/sinan-opendatasus.md`.
+- [x] 5.4 Execução sem mudança na origem: o sync não faz nada e os grupos do dbt ficam pulados; depois, um disparo manual com `forcar_dbt=true` roda o dbt sem esperar o sensor. Verificar nos estados das tarefas e que o sensor não consultou o BigQuery.
+  - Resultado: sem mudança na origem, 38 s com os quatro grupos do dbt pulados (`decidir_dbt` → False) e o sensor só falando com o OpenDataSUS e o GCS; com `forcar_dbt=true`, 12 min rodando só o dbt (`carga_ano` pulada).
 - [ ] 5.5 Comparar as fontes (teste 4.3 e consultas por ano/UF/classificação) e registrar em `docs/referencias/sinan-opendatasus.md`; com o critério da 4.3 atendido, mudar o padrão de `sinan_source` para `opendatasus` e rodar a `process_etl_atlas` com `forcar_dbt`, com os testes verdes e a gold de casos prováveis chegando à semana mais recente
+  - **Bloqueada pelo critério:** a comparação (`docs/referencias/sinan-opendatasus.md`) mostrou que 2014 e 2015 não são equivalentes: o OpenDataSUS não traz os descartados nem os confirmados do esquema antigo, e os casos prováveis ficam 8,4% e 4,5% abaixo da Base dos Dados. O padrão de `sinan_source` **não** foi trocado; aguarda decisão.
 - [ ] 5.6 Commits em `dev` (`feat(airflow): sync do SINAN dentro da process_etl_atlas`; `docs: SINAN pelo OpenDataSUS e comparação de fontes`); verificar `git log --oneline -2`
 
 ## 6. Documentação
