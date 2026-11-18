@@ -43,7 +43,7 @@ Observado no código:
    - pool `atlas_treino` com 2 vagas; tarefas pesadas (LSTM, Bayesiano, Chronos) pesam 2, as leves (SVR, CatBoost, ensemble) pesam 1: no máximo um treino pesado por vez;
    - `max_active_tasks=2` na `atlas_dengue_forecast_br` e `ATLAS_THREADS=2` no stack;
    - `execution_timeout` por tarefa de treino (3 h) e da DAG de treino (12 h), para uma tarefa travada não segurar o fluxo para sempre;
-   - limites no `docker-compose.yml`: scheduler (onde as tarefas rodam) com até 3 CPUs e 5 GB, os outros serviços do Airflow com limites menores (api-server, dag-processor e triggerer de 0,5 a 1 CPU e até 1 GB), e reservas para Postgres, backend e frontend.
+   - limites no `docker-compose.yml`, revistos depois de medir a VPS (18/11/2026: cerca de 5,7 GB em uso **sem treino**, 2,2 GB só no MLflow com 2 workers e cerca de 2 GB de outros stacks): MLflow com **1 worker** (`MLFLOW_WORKERS`, limite de 2 GB); scheduler, onde o treino roda, com até 3 CPUs e **3,5 GB**; dag-processor 1 GB; api-server e triggerer 768 MB; backend 512 MB; frontend e Redis 384 MB; Postgres 1 GB. Os 5 GB previstos para o scheduler não cabiam no nó.
    Os valores são o ponto de partida; a primeira execução completa mede tempo e memória por tarefa e a tabela vai para `docs/referencias/resultados-forecast-br.md`.
 
 7. **Falha:** cada `TriggerDagRunOperator` falha se a filha falhar (`failed_states=["failed"]`), e as etapas seguintes não rodam (dependência normal). A exportação só roda depois de um treino bem-sucedido, então o ponteiro de modelos vigentes e as previsões do site não mudam numa falha. `retries=0` no fluxo, como já é na ETL; a reexecução é manual e idempotente.
