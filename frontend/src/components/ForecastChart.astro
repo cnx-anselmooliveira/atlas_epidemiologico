@@ -90,7 +90,7 @@ const descricao = `${titulo}: ${serie.observado.length} semanas observadas, ${se
 		const fim = serie.consolidacao.at(-1)?.data ?? serie.futuro.at(-1)?.data ?? serie.observado.at(-1)?.data;
 
 		mountChart(echarts, plot, (v: { categorical: string[]; ink2: string; nodata: string; muted: string; grid: string }) => ({
-			grid: { left: 8, right: 16, top: 16, bottom: 64, containLabel: true },
+			grid: { left: 8, right: 16, top: 36, bottom: 64, containLabel: true },
 			tooltip: {
 				trigger: 'axis',
 				formatter: (ps: { seriesName: string; value: [string, number]; color: string }[]) => {
@@ -108,7 +108,7 @@ const descricao = `${titulo}: ${serie.observado.length} semanas observadas, ${se
 				},
 			},
 			xAxis: { type: 'time' },
-			yAxis: { type: 'value', name: 'casos por 100 mil', axisLabel: { formatter: (n: number) => fmt.compact(n) } },
+			yAxis: { type: 'value', name: 'casos por 100 mil', nameGap: 14, nameTextStyle: { align: 'left' }, axisLabel: { formatter: (n: number) => fmt.compact(n) } },
 			dataZoom: [
 				{ type: 'inside', startValue: inicio, endValue: fim, filterMode: 'none' },
 				{ type: 'slider', startValue: inicio, endValue: fim, height: 26, bottom: 10, filterMode: 'none', borderColor: v.grid, textStyle: { color: v.muted } },

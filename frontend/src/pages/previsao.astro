@@ -141,7 +141,7 @@ const titulo = 'Previsão';
 						<div>
 							<strong>Previsões são estimativas.</strong> Este é o modelo <strong>{info.nome}</strong> ({info.familia.toLowerCase()}): {info.resumo}
 							{vigente?.trained_at && <> Treinado em {formatarData(vigente.trained_at)}{vigente.model_version && <>, versão {vigente.model_version}</>}.</>}
-							<a href={`/previsao/modelos/${modelo}`}>Como funciona</a>
+							{' '}<a href={`/previsao/modelos/${modelo}`}>Como funciona</a>
 						</div>
 					</div>
 
