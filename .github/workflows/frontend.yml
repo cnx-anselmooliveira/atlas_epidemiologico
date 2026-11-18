@@ -1,5 +1,4 @@
-# Publica a imagem do site (frontend/): dev e hml por push (só com mudança em frontend/),
-# X.Y por tag. Testes e builds vêm do ci.yml via _image.yml.
+# Publica a imagem do site (frontend/): dev e hml por push (só com mudança em frontend/), X.Y por tag, ou à mão (workflow_dispatch).
 name: frontend
 
 on:
@@ -10,6 +9,7 @@ on:
       - ".github/workflows/frontend.yml"
       - ".github/workflows/_image.yml"
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,7 +24,4 @@ jobs:
     with:
       image: frontend
       context: frontend
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      PORTAINER_WEBHOOK: ${{ secrets.PORTAINER_WEBHOOK_FRONTEND }}
+    secrets: inherit

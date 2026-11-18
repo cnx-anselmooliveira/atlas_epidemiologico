@@ -7,6 +7,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 ## [Não lançado]
 
 ### Adicionado
+- **Esteira de imagens para hml:** publicação no DockerHub de `airflow`, `mlflow` e `ml` (além de `frontend` e `backend`), disparo manual, verificação de secrets antes dos testes e deploy no Portainer por GitHub Environment (`hml` e `prod`). Passo a passo em `deploy/README.md`.
 - **Plataforma de ML local** (`platform/`): Postgres, MLflow 3.18 e Airflow 3.3 em compose, com artefatos no GCS (`gs://ppgcc-bucket/mlflow/dev/`) ou em volume local, e Jupyter opcional.
 - **Pacote `atlas_ml`** com o CLI `atlas-ml`:
   - configuração por ambiente;
@@ -16,7 +17,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
   - promoção de modelos `@dev` → `@hml` → `@prod`.
 - **Imagens:**
   - servidor MLflow com autenticação;
-  - Airflow com o `atlas_ml` num ambiente isolado e a DAG `atlas_ml_example_training`;
+  - Airflow com o `atlas_ml` num ambiente isolado;
   - imagem de treino.
 - **Núcleo de previsão de incidência por UF** (em andamento): painel da gold do SINAN, divisões temporais sem vazamento.
 - **Documentação:** levantamento dos modelos do ESA-UNICEF Dengue Forecast Project.

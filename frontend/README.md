@@ -78,7 +78,7 @@ Node 22+. A partir de `frontend/`:
 
 ```sh
 npm ci
-cp .env.example .env     # API_INTERNAL_URL=http://localhost:8000 (API da stack platform/)
+cp ../.env.example ../.env   # um único .env na raiz; o npm run dev o lê (API_INTERNAL_URL=http://localhost:8000, a API da stack platform/)
 npm run dev              # http://localhost:4321, contra a API real
 npm run dev:mock         # sem backend: sobe o backend mock (mock-backend/) e aponta o site para ele
 ```

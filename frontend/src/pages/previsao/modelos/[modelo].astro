@@ -1,0 +1,212 @@
+---
+// Documentação de um modelo: explicação para público não técnico, entradas, alvo e hiperparâmetros,
+// métricas por horizonte e por UF e as figuras do MLflow (horizonte em ?h=). Texto em
+// src/content/modelos/<id>.md; modelo desconhecido responde 404.
+import type { MarkdownInstance } from 'astro';
+import BackendError from '../../../components/BackendError.astro';
+import ComoPrevemos from '../../../components/ComoPrevemos.astro';
+import DataTable from '../../../components/DataTable.astro';
+import EmptyState from '../../../components/EmptyState.astro';
+import PageHeader from '../../../components/PageHeader.astro';
+import { nomeDaUf } from '../../../data/ufs';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { HORIZONTES, modeloPorId, parseHorizonte } from '../../../lib/forecast';
+import { formatarDecimal } from '../../../lib/format';
+import { forecast } from '../../../lib/server/forecast';
+import { carregar } from '../../../lib/server/pagina';
+
+type Documento = MarkdownInstance<{ entradas: string; alvo: string; hiperparametros: string[]; referencia: string }>;
+const docs = import.meta.glob<Documento>('../../../content/modelos/*.md', { eager: true });
+
+const id = Astro.params.modelo ?? '';
+const info = modeloPorId(id);
+const doc = Object.entries(docs).find(([caminho]) => caminho.endsWith(`/${id}.md`))?.[1];
+if (!info || !doc) return new Response(null, { status: 404, headers: { 'cache-control': 'no-store' } });
+
+const { entradas, alvo, hiperparametros, referencia } = doc.frontmatter;
+const { Content } = doc;
+const horizonte = parseHorizonte(Astro.url.searchParams.get('h'));
+const semanas = `${horizonte.horizonte} ${horizonte.horizonte === 1 ? 'semana' : 'semanas'} à frente`;
+
+const dados = await carregar(Astro, async () => {
+	const f = await forecast();
+	const [metricas, figuras, modelos, futuras] = await Promise.all([
+		f.metricasUf({ model: id, split: 'test' }),
+		f.figuras(id, horizonte.horizonte),
+		f.modelos(),
+		f.previsoes({ model: id, uf: 'BR', split: 'future' }),
+	]);
+	return { metricas, figuras, modelos, origem: futuras.find((p) => p.origin_date)?.origin_date ?? null };
+}, { status503: false }); // o texto do modelo segue útil sem os números
+
+const brPorHorizonte = HORIZONTES.map((h) => dados?.metricas.find((m) => m.horizon === h && m.uf === 'BR'));
+const porUf = (dados?.metricas ?? [])
+	.filter((m) => m.horizon === horizonte.horizonte && m.uf !== 'BR')
+	.sort((a, b) => (a.nrmse ?? Infinity) - (b.nrmse ?? Infinity));
+const vigente = dados?.modelos.find((m) => m.model === id && m.horizon === horizonte.horizonte);
+const voltar = `/previsao?modelo=${id}&h=${horizonte.horizonte}`;
+---
+
+<BaseLayout titulo={`${info.nome} · Como funciona`} descricao={`Como funciona o modelo ${info.nome} de previsão de dengue: ${info.resumo}`}>
+	<PageHeader titulo={info.nome} subtitulo={info.resumo}>
+		<Fragment slot="meta"><span class="ds-badge">{info.familia}</span></Fragment>
+		<a slot="acoes" class="ds-btn ds-btn--primary ds-btn--sm" href={voltar}>Ver a previsão do {info.nome}</a>
+	</PageHeader>
+
+	<div class="ds-container ds-stack ds-stack--xl ds-main">
+		<section class="ds-paper ds-stack" aria-labelledby="como-funciona">
+			<header class="ds-section__header"><h2 class="ds-section__title" id="como-funciona">Como funciona</h2></header>
+			<div class="ds-prose"><Content /></div>
+			<dl class="ficha">
+				<dt>Entradas</dt><dd>{entradas}</dd>
+				<dt>O que prevê</dt><dd>{alvo}</dd>
+				<dt>Configuração</dt>
+				<dd><ul>{hiperparametros.map((h) => <li>{h}</li>)}</ul></dd>
+				<dt>Referência</dt><dd>{referencia}</dd>
+				{vigente?.model_version && <><dt>Versão vigente</dt><dd>{vigente.model_version}</dd></>}
+			</dl>
+		</section>
+
+		{dados === null && <BackendError />}
+
+		{
+			dados && (
+				<>
+					<section class="ds-paper" aria-labelledby="por-horizonte">
+						<header class="ds-section__header"><h2 class="ds-section__title" id="por-horizonte">Erro por horizonte — Brasil</h2></header>
+						{
+							brPorHorizonte.some(Boolean) ? (
+								<DataTable
+									colunas={[
+										{ chave: 'h', rotulo: 'Horizonte' },
+										{ chave: 'nrmse', rotulo: 'NRMSE', numerica: true },
+										{ chave: 'mae', rotulo: 'MAE', numerica: true },
+										{ chave: 'rmse', rotulo: 'RMSE', numerica: true },
+										{ chave: 'r2', rotulo: 'R²', numerica: true },
+									]}
+									linhas={HORIZONTES.map((h, i) => ({
+										h: `H${h}`,
+										nrmse: formatarDecimal(brPorHorizonte[i]?.nrmse, 3),
+										mae: formatarDecimal(brPorHorizonte[i]?.mae, 2),
+										rmse: formatarDecimal(brPorHorizonte[i]?.rmse, 2),
+										r2: formatarDecimal(brPorHorizonte[i]?.r2, 2),
+									}))}
+									legenda={`Métricas de teste do ${info.nome} no Brasil`}
+									compacta
+								/>
+							) : (
+								<EmptyState texto="Este modelo ainda não foi exportado." />
+							)
+						}
+					</section>
+
+					<nav class="ds-cluster" aria-label="Horizonte das tabelas e figuras">
+						{HORIZONTES.map((h) => (
+							<a
+								class:list={['ds-btn', 'ds-btn--sm', h === horizonte.horizonte ? 'ds-btn--primary' : 'ds-btn--ghost']}
+								href={`?h=${h}`}
+								aria-current={h === horizonte.horizonte ? 'true' : undefined}
+							>
+								{h} {h === 1 ? 'semana' : 'semanas'}
+							</a>
+						))}
+					</nav>
+
+					<section class="ds-paper" aria-labelledby="por-uf">
+						<header class="ds-section__header"><h2 class="ds-section__title" id="por-uf">Erro por UF — {semanas}</h2></header>
+						{
+							porUf.length ? (
+								<DataTable
+									colunas={[
+										{ chave: 'uf', rotulo: 'UF' },
+										{ chave: 'nrmse', rotulo: 'NRMSE', numerica: true },
+										{ chave: 'mae', rotulo: 'MAE', numerica: true },
+										{ chave: 'r2', rotulo: 'R²', numerica: true },
+									]}
+									linhas={porUf.map((m) => ({
+										uf: nomeDaUf(m.uf),
+										nrmse: formatarDecimal(m.nrmse, 3),
+										mae: formatarDecimal(m.mae, 2),
+										r2: formatarDecimal(m.r2, 2),
+									}))}
+									legenda={`Métricas de teste do ${info.nome} por UF, do menor para o maior erro`}
+									compacta
+								/>
+							) : (
+								<EmptyState />
+							)
+						}
+					</section>
+
+					<section class="ds-paper ds-stack" aria-labelledby="figuras">
+						<header class="ds-section__header"><h2 class="ds-section__title" id="figuras">Figuras do treino — {semanas}</h2></header>
+						{
+							dados.figuras.length ? (
+								<div class="ds-grid ds-grid--cards">
+									{dados.figuras.map((fig) => (
+										<figure class="ds-card ds-figure">
+											<img
+												src={`/previsao/imagens/${id}/${encodeURIComponent(fig.name)}?h=${horizonte.horizonte}`}
+												alt={`${fig.caption ?? fig.name} (${info.nome}, ${semanas})`}
+												loading="lazy"
+												style="max-width:100%;height:auto"
+											/>
+											{fig.caption && <figcaption class="ds-figure__caption"><span>{fig.caption}</span></figcaption>}
+										</figure>
+									))}
+								</div>
+							) : (
+								<EmptyState texto="O MLflow ainda não tem figuras deste modelo neste horizonte." />
+							)
+						}
+					</section>
+
+					{
+						dados.origem && (
+							<section class="ds-paper" aria-labelledby="esquema">
+								<header class="ds-section__header"><h2 class="ds-section__title" id="esquema">Como a previsão é feita</h2></header>
+								<ComoPrevemos origem={dados.origem} horizontes={4} />
+							</section>
+						)
+					}
+				</>
+			)
+		}
+
+		<p><a href={voltar}>← Voltar à previsão do {info.nome}</a></p>
+	</div>
+</BaseLayout>
+
+<style>
+	.ficha {
+		display: grid;
+		grid-template-columns: minmax(8rem, 12rem) 1fr;
+		gap: var(--ds-space-3, 0.75rem) var(--ds-space-5, 1.25rem);
+		margin: 0;
+		padding-top: var(--ds-space-4, 1rem);
+		border-top: 1px solid var(--ds-border, #d9dee5);
+	}
+	.ficha dt {
+		font-size: 0.75rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--ds-text-muted, #5b6675);
+	}
+	.ficha dd {
+		margin: 0;
+	}
+	.ficha ul {
+		margin: 0;
+		padding-left: 1.1rem;
+	}
+	@media (max-width: 40rem) {
+		.ficha {
+			grid-template-columns: 1fr;
+			gap: 0.25rem;
+		}
+		.ficha dd {
+			margin-bottom: 0.75rem;
+		}
+	}
+</style>

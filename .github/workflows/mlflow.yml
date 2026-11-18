@@ -1,0 +1,27 @@
+# Publica a imagem do servidor MLflow (infra/mlflow/): dev e hml por push, X.Y por tag, ou à mão.
+name: mlflow
+
+on:
+  push:
+    branches: [dev, hml]
+    paths:
+      - "infra/mlflow/**"
+      - ".github/workflows/mlflow.yml"
+      - ".github/workflows/_image.yml"
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mlflow-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    uses: ./.github/workflows/_image.yml
+    with:
+      image: mlflow
+      context: infra/mlflow
+    secrets: inherit

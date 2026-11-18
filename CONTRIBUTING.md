@@ -22,7 +22,7 @@ git switch dev
 - **Plataforma local** (Postgres, MLflow, Airflow): `./platform/dev.ps1 up`. Veja [`platform/README.md`](platform/README.md).
 - **Site:** `cd frontend && npm ci && npm run dev`.
 
-Nunca versione credenciais. Chaves de service account ficam em `platform/secrets/` e configurações locais em `platform/.env`; os dois são ignorados pelo git.
+Nunca versione credenciais. Chaves de service account ficam em `platform/secrets/` e configurações locais no `.env` da raiz (modelo: `.env.example`); os dois são ignorados pelo git.
 
 ## Rodar os testes
 

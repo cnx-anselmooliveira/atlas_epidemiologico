@@ -1,2 +1,9 @@
 # Mantenedor revisa todas as mudanças
 * @cnx-anselmooliveira
+
+# Stack de hml e prod e o que ele lê do repositório: mudança aqui chega a hml e prod pelo Portainer
+/docker-compose.yml @cnx-anselmooliveira
+/.env.example @cnx-anselmooliveira
+/platform/postgres/ @cnx-anselmooliveira
+/deploy/ @cnx-anselmooliveira
+/.github/workflows/ @cnx-anselmooliveira

@@ -1,9 +1,15 @@
-# Workflow reutilizável: testa, builda e publica UMA imagem no DockerHub e atualiza o serviço
-# no Portainer. Chamado por frontend.yml, backend.yml (e, na add-ml-platform, ml/airflow/mlflow).
+# Workflow reutilizável: confere os secrets, testa, builda e publica UMA imagem no DockerHub e
+# atualiza o serviço no Portainer. Chamado por frontend, backend, airflow, mlflow e ml.
 #
-# Tag pela origem: branch dev → "dev", hml → "hml", tag vX.Y (ou vX.Y.Z) → "X.Y".
+# Tag pela origem: branch dev → "dev", hml → "hml", tag vX.Y (ou vX.Y.Z) → "X.Y". Nunca "latest".
 # Tag de versão: só de commit que está em origin/main e que ainda não existe no DockerHub
-# (versão imutável). Webhook do Portainer só em hml e em versão (dev não é implantado).
+# (versão imutável).
+#
+# Deploy: job separado, com o GitHub Environment da origem (hml → "hml", tag → "prod"; dev não
+# implanta). O webhook é o secret PORTAINER_WEBHOOK_STACK do Environment (webhook do STACK no Portainer,
+# que refaz o deploy baixando as imagens de novo), então um push em hml nunca chega ao stack de
+# produção, e o Environment "prod" pode exigir aprovação.
+# Os chamadores usam `secrets: inherit`: DOCKERHUB_* são secrets do repositório.
 name: _image
 
 on:
@@ -21,36 +27,60 @@ on:
         required: false
         type: string
         default: ""
+      target:
+        description: Alvo do Dockerfile (multi-stage); vazio usa o último estágio
+        required: false
+        type: string
+        default: ""
       build_args:
         description: Build args extras, um KEY=VALUE por linha
         required: false
         type: string
         default: ""
-    secrets:
-      DOCKERHUB_USERNAME:
-        required: true
-      DOCKERHUB_TOKEN:
-        required: true
-      PORTAINER_WEBHOOK:
-        description: URL do webhook de serviço do Portainer (opcional; sem ele não há deploy)
-        required: false
 
 permissions:
   contents: read
 
 jobs:
+  secrets-check:
+    # Falha em segundos, antes dos testes e do build, dizendo o que falta e onde criar
+    name: Secrets do DockerHub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conferir DOCKERHUB_USERNAME e DOCKERHUB_TOKEN
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          faltam=()
+          [ -n "${DOCKERHUB_USERNAME}" ] || faltam+=(DOCKERHUB_USERNAME)
+          [ -n "${DOCKERHUB_TOKEN}" ] || faltam+=(DOCKERHUB_TOKEN)
+          if [ "${#faltam[@]}" -gt 0 ]; then
+            echo "::error::Faltam secrets do repositório: ${faltam[*]}. Crie em Settings › Secrets and variables › Actions (passo a passo em deploy/README.md)."
+            exit 1
+          fi
+          echo "Secrets do DockerHub presentes."
+
   tests:
     # Nenhuma imagem é publicada se o pipeline de testes falhar (add-ci-test-pipeline)
     name: Testes (pipeline ci.yml)
+    needs: secrets-check
     uses: ./.github/workflows/ci.yml
 
   publish:
     name: Publicar ${{ inputs.image }}
     needs: tests
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     env:
       REPO: anselmomendes/atlas-epidemiologia-${{ inputs.image }}
     steps:
+      - name: Liberar espaço em disco (a imagem do Airflow passa de 10 GB nas camadas)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker image prune -af >/dev/null 2>&1 || true
+          df -h / | tail -1
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -103,6 +133,7 @@ jobs:
         with:
           context: ${{ inputs.context }}
           file: ${{ inputs.file != '' && inputs.file || format('{0}/Dockerfile', inputs.context) }}
+          target: ${{ inputs.target }}
           push: true
           tags: ${{ env.REPO }}:${{ steps.tag.outputs.tag }}
           build-args: |
@@ -111,11 +142,26 @@ jobs:
             ${{ inputs.build_args }}
           cache-from: type=gha,scope=${{ inputs.image }}
           cache-to: type=gha,mode=max,scope=${{ inputs.image }}
-      - name: Atualiza o serviço no Portainer (hml e versões)
-        if: steps.tag.outputs.tag != 'dev' && env.PORTAINER_WEBHOOK != ''
+
+  deploy:
+    # dev não é implantado. hml usa o Environment "hml"; versão usa "prod" (pode exigir aprovação).
+    name: Implantar ${{ inputs.image }}
+    needs: publish
+    if: needs.publish.outputs.tag != 'dev'
+    runs-on: ubuntu-latest
+    environment: ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'hml' }}
+    steps:
+      - name: Atualiza o serviço no Portainer
         env:
-          PORTAINER_WEBHOOK: ${{ secrets.PORTAINER_WEBHOOK }}
-          TAG: ${{ steps.tag.outputs.tag }}
+          PORTAINER_WEBHOOK: ${{ secrets.PORTAINER_WEBHOOK_STACK }}
+          TAG: ${{ needs.publish.outputs.tag }}
+          AMBIENTE: ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'hml' }}
+          IMAGEM: ${{ inputs.image }}
         run: |
+          if [ -z "${PORTAINER_WEBHOOK}" ]; then
+            echo "::warning::Deploy não acionado: o Environment ${AMBIENTE} não tem o secret PORTAINER_WEBHOOK_STACK. A imagem foi publicada (tag ${TAG}); atualize o serviço no Portainer à mão."
+            exit 0
+          fi
           # -f: resposta de erro derruba o job (falha visível)
-          curl -fsS -X POST "${PORTAINER_WEBHOOK}?tag=${TAG}"
+          curl -fsS -X POST "${PORTAINER_WEBHOOK}"
+          echo "Portainer (${AMBIENTE}) acionado para ${IMAGEM}:${TAG}"

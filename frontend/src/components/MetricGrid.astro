@@ -1,0 +1,54 @@
+---
+// Cartões das métricas de erro do modelo (no horizonte e na UF escolhidos), cada um com a
+// explicação curta. Reaproveita KpiCard/KpiStrip; o primeiro cartão usa o bloco de destaque.
+import { formatarDecimal, formatarDuracao, formatarPercentual } from '../lib/format';
+import KpiCard from './KpiCard.astro';
+import KpiStrip from './KpiStrip.astro';
+
+interface Props {
+	nrmse: number | null;
+	mae: number | null;
+	rmse: number | null;
+	r2: number | null;
+	/** Parte dos observados dentro do intervalo (null: o modelo não produz intervalo) */
+	cobertura: number | null;
+	tempoTreino: number | null;
+	/** Onde as métricas foram calculadas, ex.: "Brasil" ou "São Paulo" */
+	local: string;
+	horizonte: number;
+}
+const { nrmse, mae, rmse, r2, cobertura, tempoTreino, local, horizonte } = Astro.props;
+---
+
+<KpiStrip rotulo={`Métricas de erro — ${local}, H${horizonte}`}>
+	<KpiCard
+		destaque
+		rotulo="NRMSE"
+		valor={formatarDecimal(nrmse, 3)}
+		nota={`${local} · teste, H${horizonte}`}
+		ajuda="Erro típico (RMSE) dividido pela amplitude da série. Quanto menor, melhor; 0 seria perfeito."
+	/>
+	<KpiCard
+		rotulo="MAE"
+		valor={formatarDecimal(mae, 2)}
+		unidade="/100 mil"
+		ajuda="Erro absoluto médio: em quantos casos por 100 mil habitantes a previsão erra, por semana."
+	/>
+	<KpiCard
+		rotulo="RMSE"
+		valor={formatarDecimal(rmse, 2)}
+		unidade="/100 mil"
+		ajuda="Como o MAE, mas dá mais peso aos erros grandes (picos de epidemia errados pesam mais)."
+	/>
+	<KpiCard
+		rotulo="R²"
+		valor={formatarDecimal(r2, 2)}
+		ajuda="Quanto da variação da série o modelo explica. 1 é perfeito; perto de 0 é como prever a média."
+	/>
+	<KpiCard
+		rotulo="Cobertura do intervalo"
+		valor={cobertura == null ? 'sem intervalo' : formatarPercentual(cobertura)}
+		ajuda="Parte dos valores reais que caiu dentro do intervalo previsto. Só existe nos modelos que o produzem."
+	/>
+	<KpiCard rotulo="Tempo de treino" valor={formatarDuracao(tempoTreino)} />
+</KpiStrip>

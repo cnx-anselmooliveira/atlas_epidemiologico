@@ -4,10 +4,10 @@
 # Obrigatórias:
 #   MLFLOW_BACKEND_STORE_URI   postgresql://usuario:senha@postgres:5432/mlflow
 #   Destino dos artefatos, em ordem de precedência:
-#     MLFLOW_ARTIFACTS_BUCKET + MLFLOW_INSTALLATION (dev|vps) → gs://<bucket>/mlflow/<instalação>
+#     MLFLOW_ARTIFACTS_BUCKET + MLFLOW_INSTALLATION (dev|hml|prod; vps = prod) → gs://<bucket>/mlflow/<instalação>
 #     MLFLOW_ARTIFACTS_DESTINATION                            → outro destino (ex.: volume local no dev)
 # Opcionais:
-#   MLFLOW_AUTH=true           liga a autenticação (basic-auth) — exigido na VPS
+#   MLFLOW_AUTH=true           liga a autenticação (basic-auth) — exigido em hml e prod
 #   MLFLOW_AUTH_DATABASE_URI   banco de usuários/permissões (ex.: …/mlflow_auth)
 #   MLFLOW_ADMIN_USERNAME / MLFLOW_ADMIN_PASSWORD   admin criado no primeiro boot
 #   MLFLOW_FLASK_SERVER_SECRET_KEY                  chave fixa do CSRF (obrigatória com auth)
@@ -20,11 +20,14 @@ fail() { echo "mlflow-entrypoint: $*" >&2; exit 1; }
 [ -n "${MLFLOW_BACKEND_STORE_URI:-}" ] || fail "MLFLOW_BACKEND_STORE_URI não definida"
 
 if [ -n "${MLFLOW_ARTIFACTS_BUCKET:-}" ]; then
-  case "${MLFLOW_INSTALLATION:-}" in
-    dev|vps) ;;
-    *) fail "MLFLOW_INSTALLATION deve ser dev ou vps (recebido: '${MLFLOW_INSTALLATION:-}')" ;;
+  INSTALL="${MLFLOW_INSTALLATION:-}"
+  # "vps" é o nome antigo da produção
+  [ "$INSTALL" = "vps" ] && INSTALL=prod
+  case "$INSTALL" in
+    dev|hml|prod) ;;
+    *) fail "MLFLOW_INSTALLATION deve ser dev, hml ou prod (recebido: '${MLFLOW_INSTALLATION:-}')" ;;
   esac
-  DEST="gs://${MLFLOW_ARTIFACTS_BUCKET}/mlflow/${MLFLOW_INSTALLATION}"
+  DEST="gs://${MLFLOW_ARTIFACTS_BUCKET}/mlflow/${INSTALL}"
 elif [ -n "${MLFLOW_ARTIFACTS_DESTINATION:-}" ]; then
   DEST="$MLFLOW_ARTIFACTS_DESTINATION"
 else

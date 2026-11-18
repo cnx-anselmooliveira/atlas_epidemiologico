@@ -33,16 +33,6 @@ def test_sem_erros_de_import():
     assert bag.dags, "nenhuma DAG carregada"
 
 
-def test_dag_de_exemplo():
-    dag = _dagbag().dags["atlas_ml_example_training"]
-    assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
-    assert dag.max_active_runs == 1
-    task = dag.get_task("train_example")
-    assert task.retries == 2
-    assert "atlas-ml train example --register" in task.bash_command
-    assert "run_id=" in task.bash_command
-
-
 ETL_LAYERS = ["seed", "bronze", "silver", "gold"]
 
 
@@ -54,6 +44,8 @@ def _project_nodes() -> dict[str, str]:
     nodes = {p.stem: "seed" for p in (root / "seeds").glob("*.csv")}
     for p in (root / "models").rglob("*.sql"):
         rel = p.relative_to(root / "models").parts
+        if rel[0] == "adhoc":  # modelos avulsos (desligados por padrão, fora da ETL)
+            continue
         nodes[p.stem] = rel[0] if len(rel) > 1 else "gold"  # raiz de models/ (time spine) → gold
     return nodes
 
@@ -158,37 +150,94 @@ def test_docs_dag():
 
 
 FORECAST_BASES = ["baseline_bayes", "chronos", "catboost", "svr", "lstm"]
+FORECAST_STACKED = ["catboost", "svr", "lstm"]
+
+
+def _forecast():
+    return _dagbag().dags["atlas_dengue_forecast_br"]
 
 
 def test_forecast_estrutura_e_regras():
-    dag = _dagbag().dags["atlas_dengue_forecast_br"]
+    dag = _forecast()
     assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
     assert dag.max_active_runs == 1 and dag.max_active_tasks == 3
-    tasks = {f"train_{b}" for b in FORECAST_BASES}
-    assert set(dag.task_ids) == {"prepare", *tasks, "train_ensemble", "compare"}
-    assert dag.get_task("prepare").downstream_task_ids == tasks
+    por_horizonte = {f"horizonte.train_{b}" for b in FORECAST_BASES}
+    esperado = {
+        "prepare",
+        "configuracao",
+        "lista_de_horizontes",
+        *por_horizonte,
+        "horizonte.train_ensemble",
+        "horizonte.comparar",
+        "exportar",
+    }
+    assert set(dag.task_ids) == esperado
     # o ensemble depende só dos modelos empilhados
-    assert dag.get_task("train_ensemble").upstream_task_ids == {"train_catboost", "train_svr", "train_lstm"}
-    compare = dag.get_task("compare")
-    assert compare.upstream_task_ids == {"train_baseline_bayes", "train_chronos", "train_ensemble"}
-    assert compare.trigger_rule == "all_done"
-    for t in tasks | {"prepare", "train_ensemble"}:
+    ensemble = dag.get_task("horizonte.train_ensemble")
+    do_grupo = lambda t: {u for u in t.upstream_task_ids if u.startswith("horizonte.")}  # noqa: E731
+    assert do_grupo(ensemble) == {f"horizonte.train_{b}" for b in FORECAST_STACKED}
+    assert {"prepare", "configuracao"} <= ensemble.upstream_task_ids  # snapshot, janela e semente
+    comparar = dag.get_task("horizonte.comparar")
+    assert do_grupo(comparar) == {
+        "horizonte.train_baseline_bayes",
+        "horizonte.train_chronos",
+        "horizonte.train_ensemble",
+    }
+    assert comparar.trigger_rule == "all_done" and comparar.retries == 0
+    for t in por_horizonte | {"prepare", "horizonte.train_ensemble"}:
         assert dag.get_task(t).retries == 1, t
+    # um grupo por horizonte (mapeado) e a exportação depois dele
+    from airflow.sdk.definitions.mappedoperator import MappedOperator
+
+    for t in por_horizonte | {"horizonte.train_ensemble", "horizonte.comparar"}:
+        assert dag.get_task(t).get_closest_mapped_task_group() is not None, t
+    assert isinstance(dag.get_task("exportar"), MappedOperator) is False
+    exportar = dag.get_task("exportar")
+    assert exportar.trigger_dag_id == "process_forecast_export_atlas"
+    assert exportar.trigger_rule == "none_failed_min_one_success" and exportar.retries == 0
+    assert "horizonte.comparar" in exportar.upstream_task_ids
 
 
 def test_forecast_parametros_e_ambiente():
-    dag = _dagbag().dags["atlas_dengue_forecast_br"]
-    assert dag.params["window"] == 12 and dag.params["horizon"] == 1 and dag.params["seed"] == 42
-    for task in dag.tasks:
-        assert task.env["ATLAS_PIPELINE_RUN"] == "{{ run_id }}", task.task_id
-        assert "params." not in task.bash_command, task.task_id
-    cat = dag.get_task("train_catboost")
-    assert "atlas-ml forecast train catboost" in cat.bash_command
-    assert "xcom_pull(task_ids='prepare')" in cat.env["DATASET_RUN"]
-    base_runs = dag.get_task("train_ensemble").env["BASE_RUNS"]
-    for b in ("catboost", "svr", "lstm"):
-        assert f"{b}=" in base_runs and f"train_{b}" in base_runs
-    assert "forecast compare" in dag.get_task("compare").bash_command
+    dag = _forecast()
+    assert dag.params["window"] == 12 and dag.params["seed"] == 42
+    assert dag.params["horizons"] == [1, 2, 3, 4]
+    assert "horizon" not in dag.params  # substituído por horizons
+    # tudo roda em Python no venv do atlas_ml, sem scripts de shell
+    for t in dag.tasks:
+        assert type(t).__name__ != "BashOperator", t.task_id
+    for t in ["prepare", "horizonte.train_catboost", "horizonte.train_ensemble", "horizonte.comparar"]:
+        assert dag.get_task(t).python == "/opt/atlas-ml/bin/python", t
+
+
+def test_exportacao_das_previsoes():
+    from airflow.sdk.definitions.mappedoperator import MappedOperator
+
+    dag = _dagbag().dags["process_forecast_export_atlas"]
+    assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
+    assert dag.max_active_runs == 1
+    assert set(dag.task_ids) == {
+        "configuracao",
+        "listar_versoes",
+        "entradas",
+        "montar",
+        "consolidar",
+        "publicar_figuras",
+        "carregar_bigquery",
+        "atualizar_visoes",
+    }
+    for t in dag.tasks:
+        assert type(t).__name__ != "BashOperator", t.task_id  # DAG em Python, sem scripts de shell
+    assert isinstance(dag.get_task("montar"), MappedOperator)  # um por modelo e horizonte
+    assert (
+        dag.get_task("listar_versoes").python == "/opt/atlas-ml/bin/python"
+    )  # MLflow só no venv do atlas_ml
+    # a visão vigente só muda na última tarefa, depois da carga e das figuras
+    assert dag.get_task("carregar_bigquery").upstream_task_ids >= {"consolidar", "publicar_figuras"}
+    assert "carregar_bigquery" in dag.get_task("atualizar_visoes").upstream_task_ids
+    assert dag.get_task("atualizar_visoes").downstream_task_ids == set()
+    treino = dag.dag_id == "process_forecast_export_atlas" and _forecast().get_task("exportar")
+    assert treino.trigger_dag_id == dag.dag_id  # a DAG de treino dispara esta
 
 
 def test_projeto_dbt_ignorado():

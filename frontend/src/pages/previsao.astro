@@ -1,0 +1,210 @@
+---
+// Previsão: as 4 semanas à frente da origem de cada modelo, métricas de erro e comparação.
+// Estado na URL: ?modelo=catboost&uf=SP&h=2 (valores inválidos voltam ao padrão, com aviso).
+import BackendError from '../components/BackendError.astro';
+import ComoPrevemos from '../components/ComoPrevemos.astro';
+import DataTable from '../components/DataTable.astro';
+import EmptyState from '../components/EmptyState.astro';
+import ForecastChart from '../components/ForecastChart.astro';
+import Icon from '../components/Icon.astro';
+import MetricGrid from '../components/MetricGrid.astro';
+import ModelComparison from '../components/ModelComparison.astro';
+import ModelSwitcher from '../components/ModelSwitcher.astro';
+import PageHeader from '../components/PageHeader.astro';
+import SourceNote from '../components/SourceNote.astro';
+import { nomeDaUf } from '../data/ufs';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { parseUf } from '../lib/filtros';
+import {
+	HORIZONTES,
+	compararMetricas,
+	erroPorHorizonteDe,
+	modeloPorId,
+	montarSerie,
+	parseHorizonte,
+	parseModelo,
+} from '../lib/forecast';
+import { formatarData, formatarDecimal } from '../lib/format';
+import { forecast } from '../lib/server/forecast';
+import { gold } from '../lib/server/gold';
+import { carregar } from '../lib/server/pagina';
+
+const buscar = Astro.url.searchParams;
+const horizonte = parseHorizonte(buscar.get('h'));
+const filtroUf = parseUf(buscar.get('uf'));
+const ufConsulta = filtroUf.uf ?? 'BR';
+const local = filtroUf.uf ? nomeDaUf(filtroUf.uf) : 'Brasil';
+
+const dados = await carregar(Astro, async () => {
+	const f = await forecast();
+	const modelos = await f.modelos();
+	if (!modelos.length) return { modelos, vazio: true as const };
+	const escolhido = parseModelo(buscar.get('modelo'), modelos, horizonte.horizonte);
+	const modelo = escolhido.modelo!;
+	const g = await gold();
+	const [observado, teste, futuro, metricasTeste, metricasModelo] = await Promise.all([
+		filtroUf.uf ? g.serieUf(filtroUf.uf) : g.serieBrasil(),
+		f.previsoes({ model: modelo, horizon: horizonte.horizonte, uf: ufConsulta, split: 'test' }),
+		f.previsoes({ model: modelo, uf: ufConsulta, split: 'future' }),
+		f.metricasUf({ horizon: horizonte.horizonte, split: 'test', uf: ufConsulta }),
+		f.metricasUf({ model: modelo, split: 'test', uf: ufConsulta }),
+	]);
+	return { modelos, escolhido, observado, teste, futuro, metricasTeste, metricasModelo, vazio: false as const };
+});
+
+const pronto = dados && !dados.vazio ? dados : null;
+const modelo = pronto?.escolhido.modelo ?? null;
+const info = modelo ? modeloPorId(modelo) : undefined;
+const vigente = pronto?.modelos.find((m) => m.model === modelo && m.horizon === horizonte.horizonte);
+const serie = pronto ? montarSerie(pronto.observado, [...pronto.teste, ...pronto.futuro]) : null;
+const metricas = pronto?.metricasTeste.find((m) => m.model === modelo);
+const comparacao = pronto ? compararMetricas(pronto.metricasTeste) : [];
+const porHorizonte = pronto ? erroPorHorizonteDe(pronto.metricasModelo) : [];
+const exportados = dados && !dados.vazio ? dados.modelos.filter((m) => m.horizon === horizonte.horizonte).map((m) => m.model) : [];
+const titulo = 'Previsão';
+---
+
+<BaseLayout
+	titulo={info ? `${titulo} · ${info.nome} · ${local}` : titulo}
+	descricao="Previsão de casos de dengue pelos modelos do Atlas: as semanas à frente da última semana consolidada, métricas de erro e comparação entre modelos."
+>
+	<PageHeader titulo={titulo} subtitulo={`Casos prováveis de dengue previstos pelos modelos do Atlas — ${local}.`}>
+		<Fragment slot="meta">
+			{vigente?.trained_at && <SourceNote fonte="MLflow" geradoEm={vigente.trained_at} />}
+		</Fragment>
+		<form slot="acoes" class="ds-cluster" method="get" aria-label="Local e horizonte" data-ds-autosubmit>
+			{modelo && <input type="hidden" name="modelo" value={modelo} />}
+			<label class="ds-field">
+				<span class="ds-field__label">Local</span>
+				<select class="ds-select" name="uf">
+					<option value="" selected={!filtroUf.uf}>Brasil</option>
+					{
+						['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'].map((sigla) => (
+							<option value={sigla} selected={sigla === filtroUf.uf}>{nomeDaUf(sigla)}</option>
+						))
+					}
+				</select>
+			</label>
+			<label class="ds-field">
+				<span class="ds-field__label">Horizonte</span>
+				<select class="ds-select" name="h">
+					{HORIZONTES.map((h) => <option value={h} selected={h === horizonte.horizonte}>{h} {h === 1 ? 'semana' : 'semanas'} à frente</option>)}
+				</select>
+			</label>
+			<button class="ds-btn ds-btn--primary ds-btn--sm" type="submit" data-ds-hide-when-enhanced>Aplicar</button>
+		</form>
+		{
+			filtroUf.invalida && (
+				<div class="ds-callout ds-callout--warning" role="status">
+					<Icon nome="alert" />
+					<div>A UF “{filtroUf.pedido}” não existe. Exibindo o <strong>Brasil</strong>.</div>
+				</div>
+			)
+		}
+		{
+			horizonte.ajustado && (
+				<div class="ds-callout ds-callout--warning" role="status">
+					<Icon nome="alert" />
+					<div>O horizonte “{horizonte.pedido}” não existe (use de 1 a 4). Exibindo <strong>1 semana à frente</strong>.</div>
+				</div>
+			)
+		}
+		{
+			pronto?.escolhido.ajustado && info && (
+				<div class="ds-callout ds-callout--warning" role="status">
+					<Icon nome="alert" />
+					<div>O modelo “{pronto.escolhido.pedido}” não está disponível neste horizonte. Exibindo <strong>{info.nome}</strong>, o de menor erro.</div>
+				</div>
+			)
+		}
+	</PageHeader>
+
+	<div class="ds-container ds-stack ds-stack--xl ds-main">
+		{dados === null && <BackendError />}
+		{
+			dados?.vazio && (
+				<>
+					<ModelSwitcher atual={null} exportados={[]} uf={filtroUf.uf} horizonte={horizonte.horizonte} />
+					<EmptyState
+						texto="As previsões ainda não foram exportadas do MLflow: a primeira execução da DAG de exportação ainda não rodou."
+					/>
+				</>
+			)
+		}
+		{
+			pronto && serie && info && modelo && (
+				<>
+					<ModelSwitcher atual={modelo} exportados={exportados} uf={filtroUf.uf} horizonte={horizonte.horizonte} />
+
+					<div class="ds-callout">
+						<Icon nome="info" />
+						<div>
+							<strong>Previsões são estimativas.</strong> Este é o modelo <strong>{info.nome}</strong> ({info.familia.toLowerCase()}): {info.resumo}
+							{vigente?.trained_at && <> Treinado em {formatarData(vigente.trained_at)}{vigente.model_version && <>, versão {vigente.model_version}</>}.</>}
+							{' '}<a href={`/previsao/modelos/${modelo}`}>Como funciona</a>
+						</div>
+					</div>
+
+					<ForecastChart
+						titulo={`${info.nome} — ${local}`}
+						subtitulo={`Casos prováveis por 100 mil habitantes · semanas à frente da origem${serie.origem ? ` (${formatarData(serie.origem)})` : ''}`}
+						modelo={info.nome}
+						serie={serie}
+						horizonte={horizonte.horizonte}
+						fonte="Fonte: SINAN/Ministério da Saúde e modelos do Atlas (MLflow)."
+					/>
+
+					{
+						serie.retroativa && serie.origem && serie.futuro.length > 0 && (
+							<div class="ds-callout ds-callout--warning">
+								<Icon nome="info" />
+								<div>
+									<strong>Previsão retroativa.</strong> O modelo parte da última semana consolidada ({formatarData(serie.origem)}) e prevê as {serie.futuro.length}{' '}
+									semanas seguintes ({formatarData(serie.futuro[0].data)} a {formatarData(serie.futuro.at(-1)!.data)}), que já aconteceram. Dá para conferir com o que foi
+									notificado depois (em consolidação no gráfico), mas as semanas mais recentes ainda recebem notificações.
+								</div>
+							</div>
+						)
+					}
+
+					<section class="ds-paper" aria-labelledby="metricas">
+						<header class="ds-section__header"><h2 class="ds-section__title" id="metricas">Erro do modelo — {local}, {horizonte.horizonte} {horizonte.horizonte === 1 ? 'semana' : 'semanas'} à frente</h2></header>
+						<MetricGrid
+							nrmse={metricas?.nrmse ?? null}
+							mae={metricas?.mae ?? null}
+							rmse={metricas?.rmse ?? null}
+							r2={metricas?.r2 ?? null}
+							cobertura={vigente?.interval_coverage ?? null}
+							tempoTreino={vigente?.fit_seconds ?? null}
+							local={local}
+							horizonte={horizonte.horizonte}
+						/>
+					</section>
+
+					<div class="ds-layout">
+						<section class="ds-paper ds-span-8" aria-labelledby="comparacao">
+							<header class="ds-section__header"><h2 class="ds-section__title" id="comparacao">Comparação entre os modelos</h2></header>
+							<ModelComparison linhas={comparacao} atual={modelo} uf={filtroUf.uf} horizonte={horizonte.horizonte} legenda={`NRMSE no teste — ${local}, H${horizonte.horizonte}`} />
+						</section>
+						<section class="ds-paper ds-span-4" aria-labelledby="por-horizonte">
+							<header class="ds-section__header"><h2 class="ds-section__title" id="por-horizonte">Erro por horizonte</h2></header>
+							<DataTable
+								colunas={[{ chave: 'h', rotulo: 'Horizonte' }, { chave: 'nrmse', rotulo: `NRMSE (${info.nome})`, numerica: true }]}
+								linhas={porHorizonte.map((e) => ({ h: `H${e.horizonte}`, nrmse: formatarDecimal(e.nrmse, 3) }))}
+								legenda={`Como o erro cresce com o horizonte — ${local}`}
+								compacta
+							/>
+						</section>
+					</div>
+
+					<details class="ds-accordion__item">
+						<summary>Como a previsão é feita</summary>
+						<div class="ds-accordion__body">
+							{serie.origem ? <ComoPrevemos origem={serie.origem} horizontes={serie.futuro.length || 4} /> : <p>A semana de origem aparece quando o modelo tem previsão exportada.</p>}
+						</div>
+					</details>
+				</>
+			)
+		}
+	</div>
+</BaseLayout>

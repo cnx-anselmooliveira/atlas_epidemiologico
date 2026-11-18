@@ -30,14 +30,23 @@ def criar_cliente(project: str, location: str | None, credentials_json: str | No
 
 
 class GoldRepository:
-    def __init__(self, client: bigquery.Client, project: str, dataset: str, max_bytes_billed: int):
+    def __init__(
+        self,
+        client: bigquery.Client,
+        project: str,
+        dataset: str,
+        max_bytes_billed: int,
+        forecast_dataset: str = "forecast",
+    ):
         self.client = client
         self.project = project
         self.dataset = dataset
+        self.forecast_dataset = forecast_dataset
         self.max_bytes_billed = max_bytes_billed
 
     def _ref(self, t: GoldTable) -> str:
-        return f"{self.project}.{self.dataset}.{t.table}"
+        dataset = self.forecast_dataset if t.origem == "forecast" else self.dataset
+        return f"{self.project}.{dataset}.{t.table}"
 
     def montar_consulta(
         self, t: GoldTable, filtros: dict[str, Any], limit: int, offset: int

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Teste de ponta a ponta da plataforma de ML (spec ci-test-pipeline):
-#   sobe Postgres + MLflow + Airflow a partir do código do commit, dispara a DAG
-#   atlas_ml_example_training e confere o resultado no MLflow.
+#   sobe Postgres + MLflow + Airflow a partir do código do commit, treina o experimento de
+#   exemplo no ambiente do Airflow (atlas-ml train example --register) e confere o MLflow.
 #
 # Uso (raiz do repositório; Linux, WSL ou Git Bash):
 #   bash platform/ci/e2e.sh
@@ -23,8 +23,6 @@ export MLFLOW_PORT="${E2E_MLFLOW_PORT:-15000}"
 export AIRFLOW_PORT="${E2E_AIRFLOW_PORT:-18080}"
 export ATLAS_GIT_SHA="${ATLAS_GIT_SHA:-$(git rev-parse HEAD)}"
 MLFLOW="http://127.0.0.1:${MLFLOW_PORT}"
-AIRFLOW="http://127.0.0.1:${AIRFLOW_PORT}"
-DAG="atlas_ml_example_training"
 # Primeiro interpretador que realmente executa (no Windows, "python3" pode ser o atalho da Store)
 PY=""
 for candidate in python3 python; do
@@ -96,34 +94,14 @@ while :; do
 done
 log "plataforma saudável"
 
-TOKEN="$(curl -fsS -H 'Content-Type: application/json' \
-  -d "{\"username\":\"admin\",\"password\":\"${ADMIN_PASSWORD}\"}" "${AIRFLOW}/auth/token" | json "d['access_token']")"
-AUTH=(-H "Authorization: Bearer ${TOKEN}")
-
-log "aguardando a DAG ${DAG} ser carregada"
-deadline=$((SECONDS + 180))
-until curl -fsS -o /dev/null "${AUTH[@]}" "${AIRFLOW}/api/v2/dags/${DAG}"; do
-  [ "$SECONDS" -lt "$deadline" ] || fail "DAG ${DAG} não apareceu no Airflow"
-  sleep 5
-done
-
-curl -fsS -o /dev/null -X PATCH "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d '{"is_paused": false}' "${AIRFLOW}/api/v2/dags/${DAG}"
-RUN_ID="$(curl -fsS -X POST "${AUTH[@]}" -H 'Content-Type: application/json' \
-  -d '{"logical_date": null}' "${AIRFLOW}/api/v2/dags/${DAG}/dagRuns" | json "d['dag_run_id']")"
-log "DAG disparada: ${RUN_ID}"
-
-deadline=$((SECONDS + 600))
-while :; do
-  state="$(curl -fsS "${AUTH[@]}" "${AIRFLOW}/api/v2/dags/${DAG}/dagRuns/${RUN_ID}" | json "d['state']")"
-  case "$state" in
-    success) break ;;
-    failed) fail "a execução da DAG terminou em failed" ;;
-  esac
-  [ "$SECONDS" -lt "$deadline" ] || fail "tempo esgotado esperando a DAG (estado: ${state})"
-  sleep 5
-done
-log "DAG terminou com sucesso"
+# O treino roda no ambiente isolado do Airflow (/opt/atlas-ml), com o mesmo ambiente do worker
+# (MLFLOW_TRACKING_URI, ATLAS_ENV, ATLAS_IMAGE_TAG): sem DAG de exemplo, o comando é o mesmo.
+log "treinando o experimento de exemplo no container do Airflow"
+out="$(compose exec -T airflow-scheduler sh -c 'exec /opt/atlas-ml/bin/atlas-ml train example --register')" \
+  || fail "atlas-ml train example falhou"
+echo "$out"
+echo "$out" | grep -q '^run_id=' || fail "run não registrada no MLflow"
+log "treino terminou com sucesso"
 
 EXP_ID="$(curl -fsS "${MLFLOW}/api/2.0/mlflow/experiments/get-by-name?experiment_name=atlas%2Fexample" \
   | json "d['experiment']['experiment_id']")"

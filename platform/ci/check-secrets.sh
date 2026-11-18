@@ -52,6 +52,48 @@ for p in "${padroes[@]}"; do
   fi
 done
 
+# 3) stacks em deploy/: campo de credencial só recebe referência (${VAR}, /run/secrets/...) ou fica vazio
+cred='^[[:space:]]*-?[[:space:]]*[A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|KEY|WEBHOOK)[A-Za-z0-9_]*:[[:space:]]*[^[:space:]#]'
+ok='(:[[:space:]]*"?(\$\{|/run/secrets/)|:[[:space:]]*""[[:space:]]*$)'
+if achados="$(git grep "${cached[@]}" -nE -e "$cred" -- 'docker-compose.yml' 'deploy/*.yml' 'deploy/*.yaml' 2>/dev/null | grep -vE "$ok" | cut -d: -f1,2)"; [ -n "$achados" ]; then
+  while IFS= read -r loc; do
+    echo "::error file=${loc%%:*},line=${loc##*:}::valor literal em campo de credencial do stack ou de deploy/ (use \${VARIAVEL} ou /run/secrets/...)"
+  done <<< "$achados"
+  falhou=1
+fi
+
+# 4) .env.example: um só, em dia com compose e stack, e só com valores de exemplo
+if [ "$modo" = "--all" ]; then
+  while IFS= read -r extra; do
+    echo "::error file=${extra}::só existe um exemplo de variáveis: o .env.example da raiz (${extra} deve ser removido)"
+    falhou=1
+  done < <(git ls-files | grep -E '(^|/)\.env\.example$|\.env\.example$' | grep -vx '\.env\.example' || true)
+  if [ ! -f .env.example ]; then
+    echo "::error::falta o .env.example da raiz"
+    falhou=1
+  else
+    # toda ${VARIAVEL} de compose e stack precisa estar no exemplo (ATLAS_GIT_SHA vem do script; HOSTNAME é do container)
+    for arq in platform/compose.dev.yml platform/compose.ca.yml docker-compose.yml; do
+      [ -f "$arq" ] || continue
+      while IFS= read -r nome; do
+        case "$nome" in ATLAS_GIT_SHA|HOSTNAME) continue ;; esac
+        if ! grep -qE "^${nome}=" .env.example; then
+          echo "::error file=${arq}::variável ${nome} não está no .env.example"
+          falhou=1
+        fi
+      done < <(grep -oE '\$\{[A-Z_][A-Z0-9_]*' "$arq" | sed 's/^\${//' | sort -u)
+    done
+    # campos de credencial do exemplo: vazios ou valores de exemplo reconhecíveis
+    while IFS=: read -r num linha; do
+      valor="${linha#*=}"
+      case "$valor" in ""|troque-esta-senha|atlas) ;; *)
+        echo "::error file=.env.example,line=${num}::valor real em campo de credencial do exemplo (use troque-esta-senha ou deixe vazio)"
+        falhou=1 ;;
+      esac
+    done < <(grep -nE '^[A-Z0-9_]*(PASSWORD|TOKEN|SECRET|KEY)[A-Z0-9_]*=' .env.example)
+  fi
+fi
+
 if [ "$falhou" -ne 0 ]; then
   echo "Credenciais não vão para o Git. Use variáveis da stack no Portainer, Connections/Variables do Airflow ou secrets do GitHub (deploy/README.md)." >&2
   exit 1

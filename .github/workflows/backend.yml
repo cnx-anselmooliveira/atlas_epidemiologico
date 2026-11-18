@@ -1,5 +1,4 @@
-# Publica a imagem da API gold (backend/): dev e hml por push (só com mudança em backend/),
-# X.Y por tag. Testes e builds vêm do ci.yml via _image.yml.
+# Publica a imagem da API gold (backend/): dev e hml por push (só com mudança em backend/), X.Y por tag, ou à mão (workflow_dispatch).
 name: backend
 
 on:
@@ -10,6 +9,7 @@ on:
       - ".github/workflows/backend.yml"
       - ".github/workflows/_image.yml"
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,7 +24,4 @@ jobs:
     with:
       image: backend
       context: backend
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      PORTAINER_WEBHOOK: ${{ secrets.PORTAINER_WEBHOOK_BACKEND }}
+    secrets: inherit

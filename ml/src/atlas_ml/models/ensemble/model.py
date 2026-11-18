@@ -1,7 +1,8 @@
 """Ensemble por stacking sobre previsões out-of-fold (README.md desta pasta).
 
 Meta-features por janela:
-    - previsões dos modelos-base (CatBoost, SVR, LSTM): OOF no treino; modelo final em val/teste;
+    - previsões dos modelos-base (CatBoost, SVR, LSTM): OOF no treino; modelo final em val/teste
+      e, no futuro, as previsões futuras de cada base (mesmo horizonte e mesmo snapshot);
     - extrapolações polinomiais (graus 0, 1 e 2) da janela de incidência até t + horizon.
 O meta-modelo (RandomForest) só vê linhas OOF — nunca previsões in-sample dos modelos-base.
 Intervalo de 95%: percentis 2,5 e 97,5 entre as árvores.
@@ -14,9 +15,9 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 
-from atlas_ml.forecast.base import OOF_PREDICTIONS, PREDICTIONS
+from atlas_ml.forecast.base import FUTURE_PREDICTIONS, OOF_PREDICTIONS, PREDICTIONS
 from atlas_ml.forecast.config import ForecastConfig
-from atlas_ml.forecast.windows import Batch
+from atlas_ml.forecast.windows import FUTURE, Batch
 
 KEY = ["uf", "target_date"]
 DEGREES = (0, 1, 2)
@@ -74,6 +75,14 @@ class StackingEnsemble:
         # recusa treinar se faltar alguma OOF (falha já na construção)
         self.oof = {b: _download(self.base_runs[b], OOF_PREDICTIONS) for b in bases}
         self.pred = {b: _download(self.base_runs[b], PREDICTIONS) for b in bases}
+        # previsões das próximas semanas de cada base (recusa treinar se faltar alguma)
+        self.future = {b: _download(self.base_runs[b], FUTURE_PREDICTIONS) for b in bases}
+        horizons = {int(self.pred[b]["horizon"].iloc[0]) for b in bases if "horizon" in self.pred[b]}
+        if horizons - {cfg.horizon}:
+            raise ValueError(
+                f"Ensemble com horizonte {cfg.horizon}, mas as runs-base têm horizonte(s) "
+                f"{sorted(horizons)}: use só bases do mesmo horizonte."
+            )
         self.model: RandomForestRegressor | None = None
         self.train_rows: pd.DataFrame | None = None
 
@@ -115,7 +124,8 @@ class StackingEnsemble:
         self.train_rows = X[KEY]
 
     def predict(self, batch: Batch) -> pd.DataFrame:
-        X, rows = self._meta(batch, self.pred)
+        is_future = "split" in batch.meta and len(batch) > 0 and bool((batch.meta["split"] == FUTURE).all())
+        X, rows = self._meta(batch, self.future if is_future else self.pred)
         if len(rows) != len(batch):
             raise ValueError(f"{len(batch) - len(rows)} janelas sem previsão de algum modelo-base.")
         F = self._features(X)

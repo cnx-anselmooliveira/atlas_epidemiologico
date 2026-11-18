@@ -83,20 +83,23 @@
   - trigger rule;
   - parâmetro e agendamento.
 - [x] 5.2 Alinhar a `add-cosmos-dbt-dags`: o requisito "Disparo sem configuração" passa a "diário, com sync do SINAN antes e `forcar_dbt` opcional", e o teste `assert not dag.params` muda para o parâmetro novo; verificar `openspec validate add-cosmos-dbt-dags --strict`
-- [ ] 5.3 Primeira execução em dev com o bucket parcialmente carregado: os anos que faltam são baixados e todos vão para a bronze, com o dbt ainda em `basedosdados`; registrar tempo total, registros por ano e bytes no landing
-- [ ] 5.4 Execução sem mudança na origem: o sync não faz nada e os grupos do dbt ficam pulados; depois, um disparo manual com `forcar_dbt=true` roda o dbt sem esperar o sensor. Verificar nos estados das tarefas e que o sensor não consultou o BigQuery.
-- [ ] 5.5 Comparar as fontes (teste 4.3 e consultas por ano/UF/classificação) e registrar em `docs/referencias/sinan-opendatasus.md`; com o critério da 4.3 atendido, mudar o padrão de `sinan_source` para `opendatasus` e rodar a `process_etl_atlas` com `forcar_dbt`, com os testes verdes e a gold de casos prováveis chegando à semana mais recente
-- [ ] 5.6 Commits em `dev` (`feat(airflow): sync do SINAN dentro da process_etl_atlas`; `docs: SINAN pelo OpenDataSUS e comparação de fontes`); verificar `git log --oneline -2`
+- [x] 5.3 Primeira execução em dev com o bucket parcialmente carregado: os anos que faltam são baixados e todos vão para a bronze, com o dbt ainda em `basedosdados`; registrar tempo total, registros por ano e bytes no landing
+  - Resultado (17/11/2026): 23 anos carregados em 13 min por `carga_ano` (2008 incluído) e execução completa de 23 min, com o dbt todo verde; landing com 27 anos (0,85 GB zip, 8,2 GB CSV); registros por ano em `docs/referencias/sinan-opendatasus.md`.
+- [x] 5.4 Execução sem mudança na origem: o sync não faz nada e os grupos do dbt ficam pulados; depois, um disparo manual com `forcar_dbt=true` roda o dbt sem esperar o sensor. Verificar nos estados das tarefas e que o sensor não consultou o BigQuery.
+  - Resultado: sem mudança na origem, 38 s com os quatro grupos do dbt pulados (`decidir_dbt` → False) e o sensor só falando com o OpenDataSUS e o GCS; com `forcar_dbt=true`, 12 min rodando só o dbt (`carga_ano` pulada).
+- [x] 5.5 Comparar as fontes (teste 4.3 e consultas por ano/UF/classificação) e registrar em `docs/referencias/sinan-opendatasus.md`; com o critério da 4.3 atendido, mudar o padrão de `sinan_source` para `opendatasus` e rodar a `process_etl_atlas` com `forcar_dbt`, com os testes verdes e a gold de casos prováveis chegando à semana mais recente
+  - Resultado (17/11/2026): critério não atendido em 2014 e 2015; decisão do usuário de usar o OpenDataSUS em todos os anos. Padrão de `sinan_source` trocado para `opendatasus`, UF corrompida tratada no bronze, teste do Cosmos corrigido (`BUILDABLE`) e `process_etl_atlas` completa com `forcar_dbt` e todos os testes verdes; gold de casos prováveis até 25/10/2026. Detalhes em `docs/referencias/sinan-opendatasus.md`.
+- [x] 5.6 Commits em `dev` (`feat(airflow): sync do SINAN dentro da process_etl_atlas`; `docs: SINAN pelo OpenDataSUS e comparação de fontes`); verificar `git log --oneline -2`
 
 ## 6. Documentação
 
-- [ ] 6.1 Atualizar:
+- [x] 6.1 Atualizar:
   - `airflow/README.md`: `process_etl_atlas` diária com o sync antes do dbt, `forcar_dbt`, sync espelho, metadata dos objetos, como forçar a recarga de um ano apagando o `bronze_etag` ou o objeto;
   - `airflow/dags/utfpr_dengue/README.md`: nova source e variável `sinan_source`;
   - `airflow/dags/utfpr_dengue/docs/architecture.md`: Brasil vindo do OpenDataSUS.
 
   Verificar links com lychee.
-- [ ] 6.2 Commit em `dev` (`docs: ingestão do SINAN`); verificar `git push`
+- [x] 6.2 Commit em `dev` (`docs: ingestão do SINAN`); verificar `git push`
 
 ## Workflow follow-up
 

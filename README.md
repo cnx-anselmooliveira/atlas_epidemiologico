@@ -51,7 +51,7 @@ Pré-requisitos: Docker Desktop, Git, PowerShell e [uv](https://docs.astral.sh/u
 ```powershell
 git clone https://github.com/cnx-anselmooliveira/atlas_epidemiologico.git
 cd atlas_epidemiologico
-./platform/dev.ps1 up        # na 1ª vez cria platform/.env; preencha as senhas e rode de novo
+./platform/dev.ps1 up        # na 1ª vez cria .env (a partir do .env.example); preencha as senhas e rode de novo
 ./platform/dev.ps1 status    # aguarde todos "healthy"
 ```
 
@@ -61,7 +61,7 @@ cd atlas_epidemiologico
 | Airflow | <http://127.0.0.1:8080> (usuário `admin`) |
 | JupyterLab (opcional, `./platform/dev.ps1 notebook`) | <http://127.0.0.1:8888> |
 
-No Airflow, dispare a DAG `atlas_ml_example_training` e veja a run no MLflow. O passo a passo completo, inclusive o uso do bucket GCS e da rede corporativa, está em [`platform/README.md`](platform/README.md).
+No Airflow, dispare a DAG `atlas_dengue_forecast_br` e veja as runs no MLflow. O passo a passo completo, inclusive o uso do bucket GCS e da rede corporativa, está em [`platform/README.md`](platform/README.md).
 
 ## Estrutura do repositório
 

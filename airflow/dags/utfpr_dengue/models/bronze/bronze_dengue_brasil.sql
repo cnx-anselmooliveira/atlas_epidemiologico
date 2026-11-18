@@ -1,5 +1,5 @@
 -- Bronze: casos de dengue do Brasil (SINAN), nível de caso.
--- Fonte escolhida por var('sinan_source'):
+-- Fonte escolhida por var('sinan_source') (padrão: opendatasus):
 --   basedosdados → microdados.raw_uftpr_microdados_brasil (cópia da Base dos Dados, já
 --                  harmonizada: UF em sigla, município com 7 dígitos, colunas em português)
 --   opendatasus  → bronze.sinan_dengue_opendatasus (arquivos do OpenDataSUS, nomes originais
@@ -11,7 +11,7 @@
 -- As duas fontes entregam as mesmas colunas e semânticas (contrato do bronze). A chave
 -- substituta (md5 das colunas naturais) serve só para deduplicação/idempotência.
 
-{% set fonte = var('sinan_source', 'basedosdados') %}
+{% set fonte = var('sinan_source', 'opendatasus') %}
 
 {% if fonte == 'basedosdados' %}
 
@@ -143,10 +143,11 @@ ufs as (
 traduzido as (
     select
         o.*,
-        -- UF: código numérico do IBGE (SINAN Net) → sigla; sigla (SINAN Windows) fica
-        coalesce(un.sigla, if(regexp_contains(o.uf_not, r'^[A-Z]{2}$'), o.uf_not, null)) as sg_uf_not,
-        coalesce(ur.sigla, if(regexp_contains(o.uf_res, r'^[A-Z]{2}$'), o.uf_res, null)) as sg_uf_res,
-        coalesce(ui.sigla, if(regexp_contains(o.uf_inf, r'^[A-Z]{2}$'), o.uf_inf, null)) as sg_uf_inf,
+        -- UF: código numérico do IBGE (SINAN Net) → sigla; sigla (SINAN Windows) fica só se for uma
+        -- das 27 UFs (o arquivo tem poucos valores corrompidos, ex.: MH, NG; viram nulo)
+        coalesce(un.sigla, if(o.uf_not in (select sigla from ufs), o.uf_not, null)) as sg_uf_not,
+        coalesce(ur.sigla, if(o.uf_res in (select sigla from ufs), o.uf_res, null)) as sg_uf_res,
+        coalesce(ui.sigla, if(o.uf_inf in (select sigla from ufs), o.uf_inf, null)) as sg_uf_inf,
         -- município: 6 dígitos (SINAN Net) → 7 pela dimensão; 7 dígitos (SINAN Windows) fica
         coalesce(mn.mun7, if(length(o.mun_not) = 7, safe_cast(o.mun_not as int64), null)) as id_mun_not,
         coalesce(mr.mun7, if(length(o.mun_res) = 7, safe_cast(o.mun_res as int64), null)) as id_mun_res,

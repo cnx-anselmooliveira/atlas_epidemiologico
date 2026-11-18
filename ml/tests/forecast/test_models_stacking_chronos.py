@@ -114,3 +114,22 @@ def test_chronos_usa_contexto_longo_e_quantis(tracking_uri):
     assert np.allclose(pred.lower, pred.y_pred * 0.8, rtol=1e-5)
     assert np.allclose(pred.upper, pred.y_pred * 1.2, rtol=1e-5)
     assert "test_interval_coverage" in run.data.metrics
+
+
+def test_ensemble_preve_o_futuro_com_as_bases_e_recusa_horizonte_diferente(tracking_uri):
+    import dataclasses
+
+    ds = dataset_run()
+    cfg = dataclasses.replace(SMALL, horizon=2)
+    runs = {
+        n: run_model(_base(n, s), cfg, ds, load_settings(), register=False).run_id
+        for n, s in (("catboost", 1.0), ("svr", 0.9), ("lstm", 1.1))
+    }
+    res = run_model(get_factory("ensemble", base_runs=runs, n_estimators=20), cfg, ds, load_settings())
+    future = _artifact(res.run_id, "future_predictions.parquet")
+    assert (future.horizon == 2).all() and len(future) == future.uf.nunique() and (future.y_pred >= 0).all()
+    assert (future.lower <= future.upper).all()
+
+    # bases de horizonte 2 não servem para um Ensemble de horizonte 1
+    with pytest.raises(ValueError, match="mesmo horizonte"):
+        get_factory("ensemble", base_runs=runs)(SMALL)

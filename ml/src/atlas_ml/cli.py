@@ -94,18 +94,22 @@ def _forecast_config(window: int, horizon: int, seed: int, features: str):
 
 
 @forecast_app.command("prepare")
-def forecast_prepare() -> None:
+def forecast_prepare(
+    source_table: str = typer.Option(
+        "", "--source-table", help="Outra tabela projeto.dataset.tabela com as mesmas colunas (ex.: amostra)."
+    ),
+) -> None:
     """Lê a gold do BigQuery e grava o painel numa run `dataset` (imprime dataset_run_id=)."""
     import mlflow
 
     from atlas_ml.data.bigquery import bigquery_client
-    from atlas_ml.forecast.dataset import prepare
+    from atlas_ml.forecast.dataset import CASES_TABLE, prepare
 
     try:
         settings = load_settings()
         _ = settings.git_sha
         mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
-        run_id = prepare(settings, bigquery_client(settings))
+        run_id = prepare(settings, bigquery_client(settings), source_table or CASES_TABLE)
     except (ConfigError, ValueError) as exc:
         _fail(str(exc))
     typer.echo(f"dataset_run_id={run_id}")
@@ -122,7 +126,9 @@ def forecast_train(
     base_runs: str = typer.Option(
         "", "--base-runs", help="Só ensemble: catboost=ID,svr=ID,lstm=ID (runs com OOF)."
     ),
-    register: bool = typer.Option(True, "--register/--no-register", help="Registra atlas-br-<modelo>."),
+    register: bool = typer.Option(
+        True, "--register/--no-register", help="Registra atlas-br-<modelo>-h<horizonte>."
+    ),
 ) -> None:
     """Treina um modelo sobre o snapshot, avalia e registra no MLflow (imprime run_id=)."""
     import mlflow
@@ -152,6 +158,7 @@ def forecast_train(
 @forecast_app.command("compare")
 def forecast_compare(
     pipeline_run: str = typer.Option(..., "--pipeline-run", help="Valor da tag atlas.pipeline_run."),
+    horizon: int = typer.Option(0, help="Compara só as runs deste horizonte (0 = todas)."),
 ) -> None:
     """Compara as runs de uma execução e registra a run `compare` (imprime run_id=)."""
     import mlflow
@@ -162,7 +169,7 @@ def forecast_compare(
         settings = load_settings()
         _ = settings.git_sha
         mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
-        run_id, table = compare(settings, pipeline_run)
+        run_id, table = compare(settings, pipeline_run, horizon or None)
     except (ConfigError, ValueError) as exc:
         _fail(str(exc))
     typer.echo(table)

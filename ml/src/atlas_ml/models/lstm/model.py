@@ -11,6 +11,7 @@ import torch
 from torch import nn
 
 from atlas_ml.forecast.config import ForecastConfig
+from atlas_ml.forecast.threads import threads
 from atlas_ml.forecast.windows import Batch, augment
 
 
@@ -82,11 +83,12 @@ class LSTMForecast:
         self.net = None
         self.best_epoch: int | None = None
         self.epochs_run = 0
+        self.val_curve: list[float] = []  # erro de validação por época (figura de aprendizado)
 
     def fit(self, train: Batch, val: Batch) -> None:
         torch.manual_seed(self.cfg.seed)
         torch.use_deterministic_algorithms(True)
-        torch.set_num_threads(max(1, torch.get_num_threads()))
+        torch.set_num_threads(threads())  # um terço dos núcleos: várias tarefas rodam juntas
         rng = np.random.default_rng(self.cfg.seed)
         n_ufs = max(self.hp["n_ufs"], int(train.meta["uf_code"].max()) + 1)
         aug = augment(train, self.cfg, rng)  # aumento só no treino
@@ -116,6 +118,7 @@ class LSTMForecast:
             self.net.eval()
             with torch.no_grad():
                 v = float(loss_fn(self.net(*val_t[:3]), val_t[3]))
+            self.val_curve.append(v)
             if v < best - 1e-6:
                 best, best_state, wait, self.best_epoch = (
                     v,

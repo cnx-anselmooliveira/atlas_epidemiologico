@@ -5,8 +5,8 @@
 ```
 FONTES (raw, já carregadas)                    BRONZE                                  SILVER                                    GOLD
 ─────────────────────────────                  ──────                                  ──────                                    ────
-raw_uftpr_microdados_brasil          ──►  bronze_dengue_brasil            ──┐
-  (SINAN, case-level, 151 cols)                                             │
+sinan_dengue_opendatasus (bronze)    ──►  bronze_dengue_brasil            ──┐
+  (SINAN/OpenDataSUS, case-level; fallback: raw_uftpr_microdados_brasil)                                             │
 municipios (br_ms_sinan.duckdb)      ──►  bronze_dim_municipio_brasil     ──┼──► silver_dim_municipio_brasil
                                                                              │
 raw_uftpr_microdados_colombia         ──►  bronze_dengue_colombia          ──┤
@@ -42,3 +42,8 @@ Tabelas Gold adicionais no estilo dos gráficos do info.dengue.mat.br (todas a p
 4. **PAHO é usado como fallback**: por ser o único source com Paraguai, Chile, Uruguai, Venezuela etc. na `silver_dim_country`, mas o "Total of Dengue Cases" é cumulativo dentro do ano civil (validado no README) — a Silver descumula isso via `LAG()` por país/ano.
 5. **Sem PK nativa exposta** (Brasil/Colômbia/Peru vindos de bases anonimizadas de vigilância): geramos uma chave substituta (`md5` das colunas naturais) só para deduplicação/idempotência, nunca como identificador de paciente real.
 6. **Semana epidemiológica → data**: convertida de forma aproximada (`epi_year` + `(epi_week-1)*7` dias) só para permitir agregação mensal na Gold — está documentado como aproximação nas descrições de coluna, não como data exata de calendário epidemiológico de cada país (que varia).
+
+## Brasil: SINAN pelo OpenDataSUS
+
+Desde a mudança `add-sinan-opendatasus-ingestion`, o Brasil vem dos arquivos anuais do OpenDataSUS (`DENGBR<aa>.csv.zip`). A DAG `process_etl_atlas` sincroniza esses arquivos com o landing do bucket, que é um espelho exato da origem, e os carrega na tabela `bronze.sinan_dengue_opendatasus`, uma partição por ano, sem transformação. O model `bronze_dengue_brasil` lê essa tabela, com `var('sinan_source')`, e harmoniza os dois layouts do SINAN. A antiga cópia da Base dos Dados (`raw_uftpr_microdados_brasil`) fica como fallback.
+

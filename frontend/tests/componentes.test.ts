@@ -28,7 +28,7 @@ describe('SectionCard', () => {
 	});
 
 	it('seção em breve: sem link, com selo', async () => {
-		const html = await container.renderToString(SectionCard, { props: { secao: secao('previsao') } });
+		const html = await container.renderToString(SectionCard, { props: { secao: secao('qualidade-dos-dados') } });
 		expect(html).not.toContain('<a ');
 		expect(html).toContain('Em breve');
 		expect(html).toContain('data-status="em-breve"');
@@ -227,5 +227,33 @@ describe('mapa e ranking', () => {
 		expect(html).toContain('<span class="ds-rank__name">Pará</span>');
 		expect(html).toContain('--value:1.000');
 		expect(html).not.toContain('--value:1.700');
+	});
+});
+
+describe('ComoPrevemos', () => {
+	it('datas do esquema a partir da origem (janela, 4 alvos e semana mais recente)', async () => {
+		const { default: ComoPrevemos } = await import('../src/components/ComoPrevemos.astro');
+		const html = await container.renderToString(ComoPrevemos, { props: { origem: '2026-08-30' } });
+		expect(html).toContain('role="img"');
+		const rotulo = html.match(/aria-label="([^"]+)"/)![1];
+		expect(rotulo).toContain('janela de 12 semanas termina em 30/08/2026');
+		expect(rotulo).toContain('de 06/09/2026 a 27/09/2026');
+		// início da janela (12 semanas), origem, os 4 alvos e o dado mais recente (8 semanas depois)
+		for (const data of ['14/06', '30/08', '06/09', '13/09', '20/09', '27/09', '25/10']) expect(html).toContain(`>${data}<`);
+		expect(html.match(/class="celula celula--janela"/g)).toHaveLength(12);
+		expect(html.match(/class="celula celula--alvo"/g)).toHaveLength(4);
+		expect(html.match(/class="celula celula--incompleta"/g)).toHaveLength(4); // 8 incompletas, 4 são os alvos
+		expect(html).toContain('previsão retroativa');
+		expect(html).toContain('mesma janela');
+	});
+
+	it('parâmetros: janela e horizontes diferentes', async () => {
+		const { default: ComoPrevemos } = await import('../src/components/ComoPrevemos.astro');
+		const html = await container.renderToString(ComoPrevemos, {
+			props: { origem: '2026-05-03', janela: 8, horizontes: 2, descartadas: 4 },
+		});
+		expect(html.match(/class="celula celula--janela"/g)).toHaveLength(8);
+		expect(html.match(/class="celula celula--alvo"/g)).toHaveLength(2);
+		expect(html).toContain('>17/05<'); // origem + 2 semanas
 	});
 });

@@ -15,16 +15,19 @@ from atlas_ml.tracking import atlas_run
 COLUMNS = ["test_nrmse_mean", "test_mae_mean", "test_rmse_mean", "test_r2_mean", "test_interval_coverage"]
 
 
-def collect(pipeline_run: str) -> tuple[pd.DataFrame, str | None]:
-    """Runs de modelo com a tag atlas.pipeline_run dada → (tabela, data_version)."""
+def collect(pipeline_run: str, horizon: int | None = None) -> tuple[pd.DataFrame, str | None]:
+    """Runs de modelo da execução (e do horizonte, se informado) → (tabela, data_version)."""
     from atlas_ml.models import MODELS
 
     experiment = mlflow.get_experiment_by_name(f"atlas/{EXPERIMENT}")
     if experiment is None:
         raise ValueError(f"Experimento atlas/{EXPERIMENT} não existe.")
+    filter_string = f"tags.`atlas.pipeline_run` = '{pipeline_run}'"
+    if horizon is not None:
+        filter_string += f" and tags.`atlas.horizon` = '{int(horizon)}'"
     runs = mlflow.search_runs(
         [experiment.experiment_id],
-        filter_string=f"tags.`atlas.pipeline_run` = '{pipeline_run}'",
+        filter_string=filter_string,
         output_format="list",
     )
     data_version = None
@@ -48,9 +51,9 @@ def collect(pipeline_run: str) -> tuple[pd.DataFrame, str | None]:
     return table.sort_values("test_nrmse_mean", na_position="last").reset_index(drop=True), data_version
 
 
-def compare(settings: Settings, pipeline_run: str) -> tuple[str, str]:
-    """Registra a run `compare` com comparison.csv e o melhor modelo. Devolve (run_id, tabela)."""
-    table, data_version = collect(pipeline_run)
+def compare(settings: Settings, pipeline_run: str, horizon: int | None = None) -> tuple[str, str]:
+    """Registra a run `compare` (por horizonte, se informado) com comparison.csv e o melhor modelo."""
+    table, data_version = collect(pipeline_run, horizon)
     if data_version is None:
         raise ValueError(f"Nenhuma run com atlas.pipeline_run={pipeline_run}.")
     ranked = table.dropna(subset=["test_nrmse_mean"])
@@ -58,6 +61,7 @@ def compare(settings: Settings, pipeline_run: str) -> tuple[str, str]:
     tags = {
         "atlas.pipeline_run": pipeline_run,
         "atlas.model_family": "compare",
+        **({"atlas.horizon": str(horizon)} if horizon is not None else {}),
         "atlas.missing_models": ",".join(missing) or "-",
     }
     if len(ranked):

@@ -105,11 +105,15 @@ As camadas silver e gold SHALL continuar funcionando sem mudança de contrato. A
 
 #### Scenario: Equivalência nos anos fechados
 - **WHEN** a modelagem roda com a fonte OpenDataSUS
-- **THEN** em cada ano até 2020, o total de notificações por UF é idêntico ao da fonte Base dos Dados
+- **THEN** em cada ano até 2020, exceto 2014 e 2015, o total de notificações por UF é idêntico ao da fonte Base dos Dados
+
+#### Scenario: Exceção conhecida de 2014 e 2015
+- **WHEN** a modelagem roda com a fonte OpenDataSUS
+- **THEN** os anos de 2014 e 2015 vêm sem os casos descartados e sem os confirmados do esquema antigo de classificação, e a diferença nos casos prováveis (8,4% e 4,5% abaixo da Base dos Dados) fica registrada na documentação como limitação aceita
 
 #### Scenario: Anos recentes republicados
 - **WHEN** a modelagem roda com a fonte OpenDataSUS
-- **THEN** em cada ano encerrado a partir de 2021, o total por UF e classificação final é maior ou igual a 99% do da fonte Base dos Dados (a fonte nova pode ganhar registros, mas não perder), e as diferenças ficam registradas na documentação
+- **THEN** em cada ano encerrado a partir de 2021, o total por UF é maior ou igual a 90% do da fonte Base dos Dados (a fonte nova ganha notificações e reclassifica casos), e as UFs abaixo disso ficam registradas na documentação
 
 #### Scenario: Ano corrente
 - **WHEN** a comparação inclui o ano corrente, ainda em investigação

@@ -1,0 +1,232 @@
+---
+// Esquema "como a previsão é feita": as 12 semanas de histórico (janela) terminando na origem,
+// as semanas ainda incompletas (descartadas) e as 4 semanas previstas, cada uma por um modelo
+// próprio a partir da MESMA janela. A origem vem como parâmetro (data real do último treino).
+import { formatarData } from '../lib/format';
+
+interface Props {
+	/** Domingo da última semana madura (AAAA-MM-DD): fim da janela */
+	origem: string;
+	janela?: number;
+	horizontes?: number;
+	/** Semanas recentes ainda incompletas, descartadas no treino */
+	descartadas?: number;
+}
+const { origem, janela = 12, horizontes = 4, descartadas = 8 } = Astro.props;
+
+const DIA = 86_400_000;
+const somar = (iso: string, semanas: number) =>
+	new Date(Date.parse(`${iso}T00:00:00Z`) + semanas * 7 * DIA).toISOString().slice(0, 10);
+const curta = (iso: string) => formatarData(iso).slice(0, 5); // dd/mm
+
+// geometria
+const L = 26; // largura da semana
+const FOLGA = 4;
+const X0 = 24;
+const total = janela + descartadas;
+const larguraSvg = X0 + total * (L + FOLGA) + 70; // folga à direita para o rótulo do dado mais recente
+const YC = 120; // topo das células
+const xCentro = (i: number) => X0 + i * (L + FOLGA) + L / 2;
+
+const semanas = Array.from({ length: total }, (_, i) => {
+	const dataIso = somar(origem, i - (janela - 1));
+	return { i, dataIso, tipo: i < janela ? 'janela' : i < janela + horizontes ? 'alvo' : 'incompleta' };
+});
+const iOrigem = janela - 1;
+const alvos = Array.from({ length: horizontes }, (_, k) => ({ h: k + 1, i: janela + k, dataIso: somar(origem, k + 1) }));
+const maisRecente = somar(origem, descartadas);
+
+// arco da origem até cada alvo, por cima das células (mais alto quanto mais longe)
+const topoArco = (h: number) => YC - 22 - h * 14;
+const arco = (de: number, ate: number, h: number) => {
+	const x1 = xCentro(de);
+	const x2 = xCentro(ate);
+	const topo = topoArco(h);
+	return `M ${x1} ${YC - 4} C ${x1} ${topo}, ${x2} ${topo}, ${x2} ${YC - 4}`;
+};
+// ápice da curva de Bézier (t = 0,5): 1/8 do início + 3/8 de cada controle + 1/8 do fim
+const apice = (h: number) => (YC - 4) * 0.25 + topoArco(h) * 0.75;
+const xJanela = [X0, X0 + janela * (L + FOLGA) - FOLGA];
+const xDescartadas = [X0 + janela * (L + FOLGA), X0 + total * (L + FOLGA) - FOLGA];
+const rotuloAlt = `Esquema: a janela de ${janela} semanas termina em ${formatarData(origem)}; ${horizontes} modelos, um por horizonte, preveem as semanas de ${formatarData(alvos[0].dataIso)} a ${formatarData(alvos.at(-1)!.dataIso)} a partir da mesma janela.`;
+---
+
+<figure class="como-prevemos">
+	<div class="como-prevemos__rolagem">
+		<svg
+			viewBox={`0 0 ${larguraSvg} 262`}
+			width={larguraSvg}
+			height="262"
+			role="img"
+			aria-label={rotuloAlt}
+			xmlns="http://www.w3.org/2000/svg"
+		>
+			<defs>
+				<pattern id="listrado" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+					<rect width="6" height="6" class="fundo-incompleta"></rect>
+					<line x1="0" y1="0" x2="0" y2="6" class="listra"></line>
+				</pattern>
+			</defs>
+
+			{
+				alvos.map((a) => (
+					<path d={arco(iOrigem, a.i, a.h)} class="arco" fill="none">
+						<title>{`Modelo do horizonte ${a.h}: prevê ${formatarData(a.dataIso)}`}</title>
+					</path>
+				))
+			}
+			{
+				alvos.map((a) => (
+					<text x={(xCentro(iOrigem) + xCentro(a.i)) / 2} y={apice(a.h) - 6} class="rotulo-h" text-anchor="middle">
+						{`H${a.h}`}
+					</text>
+				))
+			}
+
+			{
+				semanas.map((s) => (
+					<rect
+						x={X0 + s.i * (L + FOLGA)}
+						y={YC}
+						width={L}
+						height={L}
+						rx="4"
+						class={`celula celula--${s.tipo}`}
+						fill={s.tipo === 'incompleta' ? 'url(#listrado)' : undefined}
+					/>
+				))
+			}
+			<text x={xCentro(iOrigem)} y={YC + L / 2 + 4} class="marca-origem" text-anchor="middle">●</text>
+
+			<!-- datas: início da janela, origem, os 4 alvos e a semana mais recente -->
+			<text x={xCentro(0)} y={YC + L + 18} class="data" text-anchor="middle">{curta(semanas[0].dataIso)}</text>
+			<text x={xCentro(iOrigem)} y={YC + L + 18} class="data data--forte" text-anchor="middle">{curta(origem)}</text>
+			{
+				alvos.map((a) => (
+					<text x={xCentro(a.i)} y={YC + L + 18} class="data data--alvo" text-anchor="middle">
+						{curta(a.dataIso)}
+					</text>
+				))
+			}
+			<text x={xCentro(total - 1)} y={YC + L + 18} class="data" text-anchor="middle">{curta(maisRecente)}</text>
+			<text x={xCentro(iOrigem)} y={YC + L + 34} class="legenda" text-anchor="middle">origem</text>
+			<text x={xCentro(total - 1) + 14} y={YC + L + 34} class="legenda" text-anchor="end">dado mais recente</text>
+
+			<!-- colchetes: janela e semanas incompletas -->
+			<path d={`M ${xJanela[0]} ${YC + L + 52} v6 H ${xJanela[1]} v-6`} class="colchete colchete--janela" fill="none"></path>
+			<text x={(xJanela[0] + xJanela[1]) / 2} y={YC + L + 76} class="legenda legenda--janela" text-anchor="middle">
+				{`${janela} semanas de histórico (a janela que o modelo lê)`}
+			</text>
+			<path d={`M ${xDescartadas[0]} ${YC + L + 52} v6 H ${xDescartadas[1]} v-6`} class="colchete" fill="none"></path>
+			<text x={(xDescartadas[0] + xDescartadas[1]) / 2} y={YC + L + 76} class="legenda" text-anchor="middle">
+				{`${descartadas} semanas ainda incompletas`}
+			</text>
+			<text x={(xDescartadas[0] + xDescartadas[1]) / 2} y={YC + L + 92} class="legenda" text-anchor="middle">
+				(não entram no treino)
+			</text>
+		</svg>
+	</div>
+
+	<figcaption class="como-prevemos__texto">
+		<ol>
+			<li>
+				Cada modelo lê as <strong>{janela} semanas</strong> terminando na <strong>origem</strong>, {formatarData(origem)}.
+			</li>
+			<li>
+				Há <strong>{horizontes} modelos por tipo</strong>, um para cada horizonte: o <strong>H1</strong> responde “quantos casos na semana
+				seguinte?”, o <strong>H2</strong> “duas semanas depois?”, e assim até o <strong>H{horizontes}</strong>.
+			</li>
+			<li>
+				Todos recebem a <strong>mesma janela</strong>. Uma semana prevista não é calculada a partir da anterior, e por isso o erro cresce
+				com o horizonte.
+			</li>
+			<li>
+				As semanas previstas ({formatarData(alvos[0].dataIso)} a {formatarData(alvos.at(-1)!.dataIso)}) ficam antes do dado mais recente
+				({formatarData(maisRecente)}): é uma <strong>previsão retroativa</strong>, que dá para conferir com o que foi notificado depois.
+			</li>
+		</ol>
+	</figcaption>
+</figure>
+
+<style>
+	.como-prevemos {
+		margin: 0;
+		display: grid;
+		gap: var(--space-4);
+	}
+	/* rolagem só dentro da figura: a página nunca ganha barra horizontal */
+	.como-prevemos__rolagem {
+		overflow-x: auto;
+		max-width: 100%;
+	}
+	svg {
+		display: block;
+		font-family: var(--font-sans);
+	}
+	.celula {
+		stroke: var(--border-default);
+		stroke-width: 1;
+	}
+	.celula--janela {
+		fill: var(--viz-cat-1);
+		stroke: none;
+	}
+	.celula--alvo {
+		fill: var(--surface-card);
+		stroke: var(--viz-cat-2);
+		stroke-width: 2.5;
+	}
+	.fundo-incompleta {
+		fill: var(--viz-nodata);
+	}
+	.listra {
+		stroke: var(--viz-axis);
+		stroke-width: 2;
+	}
+	.arco {
+		stroke: var(--viz-cat-2);
+		stroke-width: 2;
+		stroke-dasharray: 5 4;
+	}
+	.rotulo-h {
+		fill: var(--text-1);
+		font-size: 13px;
+		font-weight: 700;
+	}
+	.marca-origem {
+		fill: var(--surface-card);
+		font-size: 11px;
+	}
+	.data {
+		fill: var(--text-3);
+		font-size: 11px;
+	}
+	.data--forte {
+		fill: var(--text-1);
+		font-weight: 700;
+	}
+	.data--alvo {
+		fill: var(--text-1);
+	}
+	.legenda {
+		fill: var(--text-2);
+		font-size: 12px;
+	}
+	.legenda--janela {
+		font-weight: 600;
+	}
+	.colchete {
+		stroke: var(--viz-axis);
+		stroke-width: 1.5;
+	}
+	.colchete--janela {
+		stroke: var(--viz-cat-1);
+	}
+	.como-prevemos__texto ol {
+		margin: 0;
+		padding-left: var(--space-5);
+		display: grid;
+		gap: var(--space-2);
+		color: var(--text-2);
+	}
+</style>

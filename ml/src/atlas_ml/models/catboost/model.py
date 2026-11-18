@@ -40,6 +40,8 @@ class CatBoostForecast:
     def fit(self, train: Batch, val: Batch) -> None:
         from catboost import CatBoostRegressor, Pool
 
+        from atlas_ml.forecast.threads import threads
+
         self.model = CatBoostRegressor(
             iterations=self.hp["iterations"],
             learning_rate=self.hp["learning_rate"],
@@ -50,7 +52,7 @@ class CatBoostForecast:
             od_wait=self.hp["od_wait"],
             verbose=False,
             allow_writing_files=False,
-            thread_count=-1,
+            thread_count=threads(),
         )
         train_pool = Pool(_frame(train), train.y, cat_features=["uf_code"])
         # early stopping só na validação; o teste nunca entra no ajuste
