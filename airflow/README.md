@@ -40,21 +40,37 @@ As tarefas herdam o ambiente do container (`MLFLOW_TRACKING_URI`, `ATLAS_ENV`, `
 
 | DAG | Agendamento | O que faz |
 |---|---|---|
-| `process_etl_atlas` | **diária** | Sync do SINAN (OpenDataSUS → landing → tabela bronze) e, se houver dados novos (ou com `forcar_dbt`), a modelagem dbt pelo **Cosmos**: grupos `seed → bronze → silver → gold`, uma tarefa por model com os testes logo depois |
+| `etl_brasil` | **diária, 03h00 de Brasília** (hml e prod; em dev, manual) | Orquestra o fluxo do Brasil: dispara e espera, em sequência, `ingestao_sinan_brasil`, `dbt_brasil` e o treino (`atlas_dengue_forecast_br`, base inteira). O dbt e o treino só rodam com dados novos. Parâmetros `forcar_dbt` e `forcar_treino` |
+| `ingestao_sinan_brasil` | disparada (ou manual) | Sync do SINAN: OpenDataSUS → landing no bucket → tabela bronze. Parâmetro `janela_horas` (0 = verifica uma vez; a `etl_brasil` usa 3) |
+| `dbt_brasil` | disparada (ou manual) | Modelagem dbt pelo **Cosmos**, `seed → bronze → silver → gold`, uma tarefa por model com os testes logo depois, só se a bronze do SINAN for mais nova que a gold (ou com `forcar_dbt`) |
 | `process_dbt_docs_atlas` | manual | Gera o dbt docs (`index.html`, `manifest.json`, `catalog.json`) e publica em `gs://ppgcc-bucket/dbt_docs/<ATLAS_ENV>/`; o Airflow mostra no menu de dbt docs |
-| `atlas_dengue_forecast_br` | manual | Previsão de dengue por UF: `prepare → 5 modelos-base (baseline bayesiano, Chronos, CatBoost, SVR, LSTM) → ensemble → compare`, com no máximo 3 tarefas em paralelo e 1 retentativa. Parâmetros opcionais `window`, `horizon` e `seed`. Todas as runs no MLflow (`atlas/dengue-forecast-br`) com a tag `atlas.pipeline_run` = run_id da DAG; modelos registrados como `atlas-br-<modelo>` |
+| `atlas_dengue_forecast_br` | disparada pela `etl_brasil` (ou manual) | Previsão de dengue por UF em 4 horizontes: `prepare → 5 modelos-base (baseline bayesiano, Chronos, CatBoost, SVR, LSTM) → ensemble → compare → exportar`. Treinos no pool `atlas_treino` (um pesado por vez), no máximo 2 tarefas em paralelo, até 3 h por treino. Parâmetros opcionais `window`, `horizons`, `seed` e `fonte` (vazio = gold completa). Modelos registrados como `atlas-br-<modelo>-h<H>` |
 
-### process_etl_atlas (sync do SINAN + Cosmos)
+### etl_brasil (fluxo diário do Brasil)
 
 ```
-[sinan]  detectar_diferencas (sensor) ─► baixar/apagar[arquivo] ─► carregar_bronze/validar/marcar_carregado[ano]
-         remover_da_bronze[ano]
-decidir_dbt ─► [seed] ─► [bronze] ─► [silver] ─► [gold]
+ingestao_sinan ─► modelagem_dbt ─► decidir_treino ─► treino_previsao
+(ingestao_sinan_brasil) (dbt_brasil)   (gold mudou?)    (atlas_dengue_forecast_br, base inteira → exportação)
 ```
 
-- **Agendamento:** diária (`@daily`, sem catchup).
-  - **No agendamento:** o sensor `detectar_diferencas` espera até haver diferença entre o OpenDataSUS e o landing, conferindo a cada 30 min por até 20 h, sem ocupar o worker entre as checagens. Se nada mudar, ele fica pulado.
-  - **Disparo manual:** verifica a origem uma vez, sem esperar.
+- **Agendamento:** todo dia às 03h00 de Brasília em hml e prod (`ATLAS_ENV`); em dev não há agendamento. Sem catchup, uma execução por vez.
+- **Sequência:** cada etapa é uma DAG própria; a seguinte só começa quando a anterior termina com sucesso. A espera fica no triggerer e não ocupa vaga de execução.
+- **Só com dados novos**, decidido pelo estado das tabelas (uma etapa que falhou ontem é retomada hoje):
+  - dbt: se `bronze.sinan_dengue_opendatasus` foi modificada depois de `gold.gold_dengue_casos_provaveis_uf_semanal`;
+  - treino: se a versão atual da gold não é a `atlas.data_version` dos 24 modelos vigentes (alias do ambiente) no MLflow, ou se falta algum.
+- **Forçar:** dispare a `etl_brasil` com `{"forcar_dbt": true}` ou `{"forcar_treino": true}`; ou dispare cada DAG sozinha.
+- **Falha:** as etapas seguintes não rodam e a `etl_brasil` fica com falha; o site continua com a gold e as previsões anteriores.
+- **Recursos (VPS de hml):** pool `atlas_treino` com 2 vagas (criado pelo `init.sh`; LSTM, Bayesiano e Chronos ocupam as duas), `ATLAS_THREADS=2`, scheduler limitado a 3 CPUs e 3,5 GB no stack.
+
+### ingestao_sinan_brasil e dbt_brasil (sync do SINAN + Cosmos)
+
+```
+ingestao_sinan_brasil: detectar_diferencas (sensor) ─► baixar/apagar[arquivo] ─► carregar_bronze/validar/marcar_carregado[ano]
+                       remover_da_bronze[ano] ─► resumo
+dbt_brasil:            decidir_dbt ─► [seed] ─► [bronze] ─► [silver] ─► [gold]
+```
+
+- **Sensor:** com `janela_horas` > 0 (a `etl_brasil` usa 3), espera até haver diferença entre o OpenDataSUS e o landing, conferindo a cada 30 min, sem ocupar o worker entre as checagens. Sem diferença na janela, termina "sem dados novos". Disparada à mão (`janela_horas` 0), verifica uma vez.
 - **Sync do SINAN (espelho exato):**
   - o sensor compara `ETag`/`Last-Modified` dos arquivos `DENGBR<aa>.csv.zip` com a metadata dos objetos em `gs://ppgcc-bucket/landing/sinan/dengue/`;
   - arquivo novo ou alterado é baixado (zip original + CSV) e substitui o anterior; arquivo que sumiu da origem é apagado do landing e o ano sai da bronze.
@@ -64,13 +80,13 @@ decidir_dbt ─► [seed] ─► [bronze] ─► [silver] ─► [gold]
 - **Estado:** fica na metadata dos objetos do landing (`origem_etag`, `origem_last_modified`, `registros`, `colunas`, `encoding`, `bronze_etag`). Não há tabela de controle.
 - **Forçar a recarga de um ano:** apague o `bronze_etag` do zip (recarrega só a bronze) ou o próprio objeto `DENGBR<aa>.csv.zip` (baixa de novo).
 - **dbt:**
-  - `decidir_dbt` roda os grupos só se algum ano foi carregado ou removido;
+  - `decidir_dbt` roda os grupos só se a bronze do SINAN for mais nova que a gold;
   - num disparo manual, `{"forcar_dbt": true}` roda o dbt mesmo sem dados novos (ex.: mudança só na modelagem);
   - para refazer só parte, limpe (Clear) a tarefa de um model ou um grupo inteiro (ex.: `gold`).
 - **Grafo:** o Cosmos monta as tarefas com `dbt ls` na leitura da DAG e guarda o resultado em cache. Um model novo em `models/<camada>/` aparece sozinho no grupo da camada. A primeira leitura leva alguns segundos (`AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT=120`).
 - **Falhas:** a tarefa do model que falhou fica vermelha, com o erro do dbt no log, e as dependentes ficam `upstream_failed`.
 - **Execução:** cada tarefa roda o dbt de `/opt/dbt` numa cópia temporária do projeto. Nada é escrito na pasta de DAGs.
-- **Credencial:** `DBT_BQ_KEYFILE`; em dev, `/secrets/training-sa.json`.
+- **Credencial:** `DBT_BQ_KEYFILE`; em dev, `/secrets/training-sa.json`; em hml/prod, o Docker secret montado como `/run/secrets/training_sa.json` (com extensão: o provider do Google recusa sem).
 - **Custo:** o build completo processa cerca de 9 GiB no BigQuery ([detalhes](dags/utfpr_dengue/README.md#custo-e-tempo-do-build-completo)).
 - **Pasta de DAGs:** o projeto dbt fica dentro dela e é ignorado pelo processador de DAGs (`dags/.airflowignore`).
 

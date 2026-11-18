@@ -25,7 +25,7 @@
 ## 5. Stack e documentação
 
 - [ ] 5.1 Limites de recurso no `docker-compose.yml` (scheduler até 3 CPUs e 5 GB; api-server, dag-processor e triggerer menores; reservas para Postgres, backend e frontend) e variáveis novas no `.env.example`; verificar com `check-stack.sh`, `check-secrets --all` e um deploy no Swarm local
-- [ ] 5.2 Atualizar `airflow/README.md` (fluxo diário, como rodar cada DAG à mão, parâmetros `forcar_*`) e `deploy/README.md` (horário, recursos, como acompanhar a primeira execução); verificar os nomes de DAG e parâmetros contra o código com `git grep`
+- [x] 5.2 Atualizar `airflow/README.md` (fluxo diário, como rodar cada DAG à mão, parâmetros `forcar_*`) e `deploy/README.md` (horário, recursos, como acompanhar a primeira execução); verificar os nomes de DAG e parâmetros contra o código com `git grep`
 
 ## 6. Verificação em hml
 
