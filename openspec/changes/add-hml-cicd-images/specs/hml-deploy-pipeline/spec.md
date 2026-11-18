@@ -18,7 +18,7 @@ A atualização do Portainer SHALL usar webhooks guardados como secrets de GitHu
 - **THEN** o job aguarda a aprovação do ambiente `prod` e só então chama o webhook de produção
 
 ### Requirement: Stacks versionados sem valores
-`deploy/` SHALL conter os stacks `app` (site, API e Redis) e `platform` (Postgres, MLflow e Airflow) com referências `${VARIAVEL}` e Docker secrets, nunca valores. Nenhum stack SHALL usar tag `latest` por padrão: a tag SHALL ser variável obrigatória.
+O repositório SHALL conter o stack único `docker-compose.yml` na raiz (site, API, Redis, Postgres, MLflow e Airflow, definido na mudança `add-hml-stack`) com referências `${VARIAVEL}` e Docker secrets, nunca valores. Nenhum stack SHALL usar tag `latest` por padrão: a tag SHALL ser variável obrigatória.
 
 #### Scenario: Tag não informada
 - **WHEN** o stack é criado sem `BACKEND_TAG`
@@ -35,9 +35,9 @@ A atualização do Portainer SHALL usar webhooks guardados como secrets de GitHu
 - **WHEN** alguém segue o passo a passo do zero
 - **THEN** consegue criar todos os secrets, variáveis e stacks sem consultar outro documento
 
-### Requirement: Barreira contra credencial em `deploy/`
-O job `secrets` SHALL falhar se um arquivo de `deploy/` tiver valor literal em campo de credencial (senha, token, chave, URL de webhook) em vez de referência a variável ou secret.
+### Requirement: Barreira contra credencial no stack e em `deploy/`
+O job `secrets` SHALL falhar se o `docker-compose.yml` da raiz ou um arquivo de `deploy/` tiver valor literal em campo de credencial (senha, token, chave, URL de webhook) em vez de referência a variável ou secret.
 
 #### Scenario: Senha digitada no stack
-- **WHEN** um commit coloca `POSTGRES_PASSWORD: abc123` em `deploy/platform.stack.yml`
+- **WHEN** um commit coloca `POSTGRES_PASSWORD: abc123` no `docker-compose.yml`
 - **THEN** o job `secrets` falha apontando o arquivo e a linha

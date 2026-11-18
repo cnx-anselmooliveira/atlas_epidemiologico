@@ -7,7 +7,7 @@ Dizer, sem vazar nada, quais variáveis o projeto precisa, com um único arquivo
 ## ADDED Requirements
 
 ### Requirement: Um único exemplo
-O repositório SHALL ter um único `.env.example`, na raiz, com todas as variáveis lidas pelo `platform/compose.dev.yml`, pelo `deploy/atlas.stack.yml`, pelo backend e pelo site. Cada variável SHALL ter comentário (para quê, obrigatória ou opcional, padrão, se é segredo) e os grupos SHALL separar o que vale só em desenvolvimento local do que vale no stack de hml e prod. Não SHALL existir outro arquivo `*.env.example` no repositório.
+O repositório SHALL ter um único `.env.example`, na raiz, com todas as variáveis lidas pelo `platform/compose.dev.yml`, pelo `docker-compose.yml` da raiz, pelo backend e pelo site. Cada variável SHALL ter comentário (para quê, obrigatória ou opcional, padrão, se é segredo) e os grupos SHALL separar o que vale só em desenvolvimento local do que vale no stack de hml e prod. Não SHALL existir outro arquivo `*.env.example` no repositório.
 
 #### Scenario: Clone novo
 - **WHEN** alguém copia `.env.example` para `.env` e troca apenas as senhas marcadas

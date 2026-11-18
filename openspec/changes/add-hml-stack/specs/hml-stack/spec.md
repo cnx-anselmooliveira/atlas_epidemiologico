@@ -7,7 +7,7 @@ Subir o Atlas inteiro na VPS, em hml e em produção, a partir das imagens publi
 ## ADDED Requirements
 
 ### Requirement: Stack único por ambiente
-O repositório SHALL ter um único arquivo `deploy/atlas.stack.yml` em formato Swarm com os serviços `postgres`, `mlflow`, `airflow-init`, `airflow-api-server`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-triggerer`, `backend`, `frontend` e `redis`. O arquivo SHALL usar só imagens do DockerHub escolhidas por variável de tag, sem `build`, sem volume de código e sem portas publicadas no host. A tag SHALL ser variável obrigatória e nunca `latest`.
+O repositório SHALL ter um único arquivo `docker-compose.yml` em formato Swarm com os serviços `postgres`, `mlflow`, `airflow-init`, `airflow-api-server`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-triggerer`, `backend`, `frontend` e `redis`. O arquivo SHALL usar só imagens do DockerHub escolhidas por variável de tag, sem `build`, sem volume de código e sem portas publicadas no host. A tag SHALL ser variável obrigatória e nunca `latest`.
 
 #### Scenario: Mesmo arquivo em hml e prod
 - **WHEN** o stack `atlas-hml` usa `IMAGE_TAG=hml` e o `atlas-prod` usa `IMAGE_TAG=1.0`
@@ -16,6 +16,17 @@ O repositório SHALL ter um único arquivo `deploy/atlas.stack.yml` em formato S
 #### Scenario: Tag não informada
 - **WHEN** o stack é criado sem a variável de tag
 - **THEN** o Portainer recusa o stack com a mensagem de variável obrigatória
+
+### Requirement: Arquivo na raiz do repositório
+O stack SHALL ficar na raiz do repositório, fora de `deploy/`, com o mesmo nome e caminho em todas as branches, e `deploy/` SHALL conter só documentação. O arquivo SHALL ficar fora dos contextos de build das imagens.
+
+#### Scenario: Caminho no Portainer
+- **WHEN** o stack é criado pela branch `hml` ou pela `main`
+- **THEN** o caminho do arquivo no Portainer é `docker-compose.yml` nos dois ambientes
+
+#### Scenario: Contexto de build
+- **WHEN** a imagem do Airflow é construída com o contexto da raiz
+- **THEN** o `docker-compose.yml` não é enviado ao daemon
 
 ### Requirement: Ordem de subida sem depends_on
 Como o Swarm ignora `depends_on`, a ordem SHALL vir de repetição e de espera: o `airflow-init` roda uma vez (migração do banco e usuário administrador) e os demais componentes do Airflow SHALL esperar a migração terminar antes de iniciar. O `backend` SHALL só ser considerado saudável quando responder ao health check, e o `frontend` SHALL tolerar o backend indisponível na subida.
@@ -50,7 +61,7 @@ O site e a API SHALL ser publicados pelo Traefik na rede pública com TLS, em ho
 - **THEN** não há porta publicada e a conexão não é possível
 
 ### Requirement: Stack criado a partir do repositório
-O stack SHALL ser criado no Portainer a partir do repositório (branch `hml` para `atlas-hml`, `main` para `atlas-prod`), lendo `deploy/atlas.stack.yml`. Os valores SHALL ser digitados nas variáveis do stack no Portainer, nunca no repositório.
+O stack SHALL ser criado no Portainer a partir do repositório (branch `hml` para `atlas-hml`, `main` para `atlas-prod`), lendo `docker-compose.yml`. Os valores SHALL ser digitados nas variáveis do stack no Portainer, nunca no repositório.
 
 #### Scenario: Valores fora do repositório
 - **WHEN** o stack é criado no Portainer pela branch `hml`
@@ -68,7 +79,7 @@ Depois de publicar uma imagem, o CI SHALL chamar o webhook do stack do Environme
 - **THEN** o job avisa que o deploy não foi acionado, sem falhar, e a imagem fica publicada
 
 #### Scenario: Mudança só no arquivo do stack
-- **WHEN** um commit em `hml` altera apenas `deploy/atlas.stack.yml`
+- **WHEN** um commit em `hml` altera apenas o `docker-compose.yml`
 - **THEN** o redeploy é acionado à mão no Portainer e aplica a nova definição
 
 ### Requirement: Validação antes da VPS

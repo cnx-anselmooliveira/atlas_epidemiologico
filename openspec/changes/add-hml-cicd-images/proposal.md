@@ -10,9 +10,9 @@ A esteira de hml está pela metade. Só `frontend` e `backend` têm workflow de 
 - **Disparo manual e por caminho:** os workflows de imagem ganham `workflow_dispatch`, para publicar a primeira tag `hml` de uma imagem sem precisar mexer em arquivo dela, e passam a observar também os arquivos de que cada imagem depende (o `airflow` depende de `airflow/**` e do `ml/**`).
 - **Verificação prévia de secrets:** um job inicial confere que os secrets obrigatórios existem (sem imprimir valor) e falha na hora com mensagem clara, antes dos testes e do build.
 - **Webhooks por ambiente:** `PORTAINER_WEBHOOK_*` de hml e de prod passam a ser secrets de **GitHub Environments** (`hml` e `prod`), de modo que hml nunca acione o stack de prod. Prod pode exigir aprovação.
-- **Stacks no repositório, sem valores:** além de `deploy/app.stack.yml` (corrigido: a tag deixa de cair em `latest`, que o CI nunca publica; entram as variáveis do bucket de figuras), um `deploy/platform.stack.yml` com Postgres, MLflow e Airflow lê só variáveis e Docker secrets do Portainer.
+- **Stack no repositório, sem valores:** o `docker-compose.yml` da raiz (definido na mudança `add-hml-stack`, que substituiu o `app.stack.yml` e o `platform.stack.yml` previstos aqui) lê só variáveis e Docker secrets do Portainer, sem tag `latest` e com as variáveis do bucket de figuras.
 - **Inventário de credenciais:** a tabela de `deploy/README.md` vira o contrato (nome, onde mora, quem usa, de qual ambiente) e um passo a passo para criar cada item, incluindo DockerHub, GitHub Environments, Portainer, Connection do Airflow e a conta de leitura do backend.
-- **Sem credencial no Git:** o `check-secrets.sh` passa a conferir que `deploy/*.yml` não tem valores literais nos campos de credencial, só referências.
+- **Sem credencial no Git:** o `check-secrets.sh` passa a conferir que o `docker-compose.yml` da raiz e os `deploy/*.yml` não têm valores literais nos campos de credencial, só referências.
 
 ## Capabilities
 
@@ -26,7 +26,7 @@ A esteira de hml está pela metade. Só `frontend` e `backend` têm workflow de 
 ## Impact
 
 - `.github/workflows/`: novos `airflow.yml`, `mlflow.yml`, `ml.yml`; `_image.yml` (job de verificação, uso de Environment), `frontend.yml` e `backend.yml` (`workflow_dispatch`, caminhos).
-- `deploy/`: `app.stack.yml` ajustado, novo `platform.stack.yml`, `README.md` com o passo a passo.
-- `platform/ci/check-secrets.sh`: regra para `deploy/`.
+- `deploy/README.md` com o passo a passo; o stack em si fica no `docker-compose.yml` da raiz (mudança `add-hml-stack`).
+- `platform/ci/check-secrets.sh`: regra de credencial para o `docker-compose.yml` da raiz e para `deploy/`.
 - GitHub (feito pelo usuário na interface): secrets `DOCKERHUB_*` (já criados), Environments `hml` e `prod` com os webhooks.
-- Portainer/VPS: criação dos stacks `atlas-app` e `atlas-platform` e dos Docker secrets; credenciais nunca entram em imagem, XCom, navegador ou Git.
+- Portainer/VPS: criação do stack (`atlas-hml` e `atlas-prod`, ver `add-hml-stack`) e dos Docker secrets; credenciais nunca entram em imagem, XCom, navegador ou Git.

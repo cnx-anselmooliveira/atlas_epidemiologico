@@ -15,6 +15,9 @@
 - [ ] 2.5 Rótulos do Traefik para site, API, Airflow e MLflow com hosts por variável e o middleware de origens permitidas nas duas interfaces administrativas; verificar por `docker stack config` e relendo os rótulos contra o `app.stack.yml`
 - [x] 2.6 Remover o `deploy/app.stack.yml` e atualizar as referências (`deploy/README.md`, `_image.yml`, comentários); verificar com `grep` que nada aponta mais para ele
 
+- [ ] 2.7 Mover `deploy/atlas.stack.yml` para `docker-compose.yml` na raiz (`git mv`) e trocar o caminho do Docker config do Postgres de `../platform/postgres/init-databases.sh` para `./platform/postgres/init-databases.sh`; verificar com `docker stack config -c docker-compose.yml` (com e sem as variáveis obrigatórias) e com a subida do stack no Swarm local de teste (as tarefas 2.1, 4.1 e 4.3, já concluídas, citam o caminho antigo)
+- [ ] 2.8 Acertar tudo o que aponta para o caminho antigo: a regra de credencial do `check-secrets.sh` (hoje `deploy/*.yml`) passa a cobrir também o `docker-compose.yml` da raiz, a conferência do `.env.example` lê o `docker-compose.yml`, o `.dockerignore` da raiz exclui o arquivo dos contextos de build, o script de teste do Swarm e os textos (comentários do stack, `.env.example`, READMEs); verificar com `grep` que nada cita `deploy/atlas.stack.yml`, com `check-secrets --all` passando e falhando nos casos de teste (senha literal no `docker-compose.yml`, variável sem exemplo) e com o build do Airflow sem o arquivo no contexto
+
 ## 3. Webhook do stack
 
 - [x] 3.1 Trocar no `_image.yml` e nos chamadores o webhook por serviço pelo webhook do stack (`PORTAINER_WEBHOOK_STACK`, um por Environment); verificar com `actionlint` e rodando o passo de deploy com e sem o secret (aviso sem falhar)
@@ -33,6 +36,6 @@
 
 ## 6. Documentação e hml
 
-- [ ] 6.1 Escrever em `deploy/README.md` o passo a passo de criação do stack `atlas-hml` pelo Portainer a partir do repositório (branch `hml`, variáveis carregadas do `.env.example`, Docker secrets e config, webhook do stack, sincronização por intervalo desligada, primeiro boot, rotação de secret e de senha do Postgres) e o roteiro de promoção para `atlas-prod`; verificar relendo contra os nomes reais do stack e do exemplo
+- [ ] 6.1 Escrever em `deploy/README.md` o passo a passo de criação do stack `atlas-hml` pelo Portainer a partir do repositório (branch `hml`, caminho `docker-compose.yml`, variáveis carregadas do `.env.example`, Docker secrets e config, webhook do stack, sincronização por intervalo desligada, primeiro boot, rotação de secret e de senha do Postgres) e o roteiro de promoção para `atlas-prod`; verificar relendo contra os nomes reais do stack e do exemplo
 - [ ] 6.2 Atualizar as tarefas 3.1 e 3.2 da `add-hml-cicd-images` para apontar para esta mudança; verificar com `openspec validate` das duas mudanças
 - [ ] 6.3 Com o usuário, criar o stack `atlas-hml` no Portainer a partir da branch `hml`, acionar o webhook do stack e verificar site, API, Airflow e MLflow na VPS; anotar os ajustes no design

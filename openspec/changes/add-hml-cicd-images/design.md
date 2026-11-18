@@ -42,7 +42,7 @@ Observado no repositório:
 
 7. **Conta de leitura própria para o backend.** O backend lê BigQuery (datasets `gold` e `forecast`) e o prefixo `forecast/` do bucket com uma service account só de leitura (BigQuery Data Viewer nos datasets, Job User no projeto, Storage Object Viewer limitado ao prefixo por condição IAM). Nunca a conta de treino. `FORECAST_BUCKET` e `FORECAST_PREFIX` entram no stack.
 
-8. **Barreira no `check-secrets.sh` para `deploy/`.** Em `deploy/*.yml`, chaves cujo nome contém `PASSWORD`, `TOKEN`, `SECRET`, `KEY` ou `WEBHOOK` só podem receber `${...}`, `/run/secrets/...` ou ficar vazias. Cobre o caso de alguém digitar um valor "só para testar".
+8. **Barreira no `check-secrets.sh` para o stack e `deploy/`.** No `docker-compose.yml` da raiz (o stack fica fora de `deploy/`, ver `add-hml-stack`) e em `deploy/*.yml`, chaves cujo nome contém `PASSWORD`, `TOKEN`, `SECRET`, `KEY` ou `WEBHOOK` só podem receber `${...}`, `/run/secrets/...` ou ficar vazias. Cobre o caso de alguém digitar um valor "só para testar".
 
 9. **Roteiro de promoção.** `dev` → `hml` (merge) publica `hml` e chama o webhook do Environment `hml`; `main` + tag `vX.Y` publica `X.Y` e, após aprovação, chama `prod`. A proteção de branch (`ci-ok` obrigatório em `hml` e `main`) é configurada pelo usuário no GitHub e documentada.
 
