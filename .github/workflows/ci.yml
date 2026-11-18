@@ -272,21 +272,59 @@ jobs:
       - name: validação estrita de todas as mudanças
         run: npx --yes "@fission-ai/openspec@${OPENSPEC_VERSION}" validate --all --strict
 
+  stack:
+    # Stack de hml e prod (docker-compose.yml da raiz) e os arquivos de que ele depende: presença,
+    # `docker stack config` para hml e prod e propriedades de segurança (platform/ci/check-stack.sh).
+    # Roda em todo push e PR, inclusive nos que levam o stack para hml e main.
+    name: stack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PyYAML para o script
+        run: python3 -c "import yaml" 2>/dev/null || sudo apt-get install -y python3-yaml
+      - name: validar o stack de hml e prod
+        run: bash platform/ci/check-stack.sh
+
+  promocao:
+    # Fluxo dev → hml → main: hml só recebe PR de dev e main só recebe PR de hml. Só roda em PR;
+    # fora dele (push, tag, chamada das imagens) é pulado, e o ci-ok aceita o pulo só nesses casos.
+    name: promocao
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: origem do PR
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          case "${BASE}" in
+            hml) esperado=dev ;;
+            main) esperado=hml ;;
+            *) echo "::error::PR para ${BASE} fora do fluxo: só hml e main recebem promoção."; exit 1 ;;
+          esac
+          if [ "${HEAD}" != "${esperado}" ]; then
+            echo "::error::A branch ${BASE} só recebe PR de ${esperado} (fluxo dev → hml → main); este PR vem de ${HEAD}."
+            exit 1
+          fi
+          echo "PR ${HEAD} → ${BASE}: origem correta."
+
   ci-ok:
     # Check único exigido na proteção de hml e main. Passa só se TODOS os jobs passaram:
     # failure, cancelled ou skipped em qualquer job → falha (um job pulado não pode
     # liberar o merge, p.ex. dags/platform-e2e pulados porque images falhou).
     name: ci-ok
     if: always()
-    needs: [lint, ml-tests, ml-models-tests, images, dags, platform-e2e, frontend, backend, secrets, openspec]
+    needs: [lint, ml-tests, ml-models-tests, images, dags, platform-e2e, frontend, backend, secrets, openspec, stack, promocao]
     runs-on: ubuntu-latest
     steps:
       - name: resultado agregado
         env:
           NEEDS: ${{ toJSON(needs) }}
+          EVENTO: ${{ github.event_name }}
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          bad="$(echo "$NEEDS" | jq -r '[to_entries[] | select(.value.result != "success") | .key] | join(", ")')"
+          # promocao só roda em PR: pulado fora de PR é o esperado; pulado dentro de PR falha
+          bad="$(echo "$NEEDS" | jq -r --arg ev "$EVENTO" '[to_entries[] | select(.value.result != "success") | select((.key == "promocao" and .value.result == "skipped" and $ev != "pull_request") | not) | .key] | join(", ")')"
           if [ -n "$bad" ]; then
             echo "::error::Jobs sem sucesso: ${bad}"
             exit 1
