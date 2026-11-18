@@ -8,7 +8,7 @@
 
 ## 2. Stack único
 
-- [ ] 2.1 Criar `deploy/atlas.stack.yml` com `postgres`, `mlflow`, `airflow-init`, `airflow-api-server`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-triggerer`, `backend`, `frontend` e `redis`: imagens por `IMAGE_TAG` obrigatória, redes `atlas_internal` e `network_public`, volumes nomeados, health checks, `restart_policy` e `update_config`, sem `build`, volume de código nem porta no host; verificar com `docker stack config -c deploy/atlas.stack.yml` com e sem as variáveis obrigatórias
+- [x] 2.1 Criar `deploy/atlas.stack.yml` com `postgres`, `mlflow`, `airflow-init`, `airflow-api-server`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-triggerer`, `backend`, `frontend` e `redis`: imagens por `IMAGE_TAG` obrigatória, redes `atlas_internal` e `network_public`, volumes nomeados, health checks, `restart_policy` e `update_config`, sem `build`, volume de código nem porta no host; verificar com `docker stack config -c deploy/atlas.stack.yml` com e sem as variáveis obrigatórias
 - [ ] 2.2 Implementar a ordem de subida: `airflow-init` de execução única e espera por `airflow db check-migrations` nos demais componentes; verificar derrubando o scheduler com o banco já migrado (sobe sem rodar o init) e subindo com o volume vazio (tudo saudável sem intervenção)
 - [ ] 2.3 Incluir o `init-databases.sh` por Docker config e as senhas distintas de `mlflow` e `airflow`; verificar no Postgres local os papéis, bancos e `REVOKE CONNECT`
 - [ ] 2.4 Montar as chaves por Docker secrets (`training_sa`, `mlflow_sa`, `backend_sa`) e apontar `GOOGLE_APPLICATION_CREDENTIALS`, `DBT_BQ_KEYFILE` e a Connection para `/run/secrets/`; verificar que nenhum valor de credencial aparece no arquivo (`check-secrets --all`) e que o backend lê o BigQuery com a chave montada
@@ -21,10 +21,10 @@
 
 ## 4. Um único .env.example
 
-- [ ] 4.1 Criar o `.env.example` da raiz com todas as variáveis de `platform/compose.dev.yml`, `deploy/atlas.stack.yml`, backend e site, em grupos comentados (só dev local, stack hml e prod, segredos), só com valores de exemplo; verificar que cada `${NOME}` dos arquivos de compose e de stack aparece nele
-- [ ] 4.2 Fazer `platform/dev.ps1`, `platform/ci/e2e.sh` (quando usar o `.env`) e os scripts do site lerem o `.env` da raiz e remover `platform/.env.example` e `frontend/.env.example`; verificar copiando `.env.example` para `.env`, rodando `docker compose config` e `npm run dev` até a página responder
-- [ ] 4.3 Adicionar ao `check-secrets.sh` a conferência de que toda variável de `atlas.stack.yml` e `compose.dev.yml` existe no `.env.example` e de que o exemplo só tem valores reconhecíveis; verificar com um caso que passa e dois que falham (variável sem exemplo, senha real no exemplo)
-- [ ] 4.4 Garantir que `.env` está no `.gitignore` e no `.dockerignore`, que não resta outro `*.env.example` e que a documentação aponta para o arquivo único; verificar com `git ls-files` e `grep`
+- [x] 4.1 Criar o `.env.example` da raiz com todas as variáveis de `platform/compose.dev.yml`, `deploy/atlas.stack.yml`, backend e site, em grupos comentados (só dev local, stack hml e prod, segredos), só com valores de exemplo; verificar que cada `${NOME}` dos arquivos de compose e de stack aparece nele
+- [x] 4.2 Fazer `platform/dev.ps1`, `platform/ci/e2e.sh` (quando usar o `.env`) e os scripts do site lerem o `.env` da raiz e remover `platform/.env.example` e `frontend/.env.example`; verificar copiando `.env.example` para `.env`, rodando `docker compose config` e `npm run dev` até a página responder
+- [x] 4.3 Adicionar ao `check-secrets.sh` a conferência de que toda variável de `atlas.stack.yml` e `compose.dev.yml` existe no `.env.example` e de que o exemplo só tem valores reconhecíveis; verificar com um caso que passa e dois que falham (variável sem exemplo, senha real no exemplo)
+- [x] 4.4 Garantir que `.env` está no `.gitignore` e no `.dockerignore`, que não resta outro `*.env.example` e que a documentação aponta para o arquivo único; verificar com `git ls-files` e `grep`
 
 ## 5. Validação local
 

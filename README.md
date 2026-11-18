@@ -51,7 +51,7 @@ Pré-requisitos: Docker Desktop, Git, PowerShell e [uv](https://docs.astral.sh/u
 ```powershell
 git clone https://github.com/cnx-anselmooliveira/atlas_epidemiologico.git
 cd atlas_epidemiologico
-./platform/dev.ps1 up        # na 1ª vez cria platform/.env; preencha as senhas e rode de novo
+./platform/dev.ps1 up        # na 1ª vez cria .env (a partir do .env.example); preencha as senhas e rode de novo
 ./platform/dev.ps1 status    # aguarde todos "healthy"
 ```
 

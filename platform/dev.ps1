@@ -21,12 +21,19 @@ param(
 $ErrorActionPreference = 'Stop'
 $Platform = $PSScriptRoot
 $Root = Split-Path $Platform -Parent
-$EnvFile = Join-Path $Platform '.env'
+# Um único .env, na raiz (modelo: .env.example); ignorado pelo Git
+$EnvFile = Join-Path $Root '.env'
+$OldEnvFile = Join-Path $Platform '.env'
 
 if (-not (Test-Path $EnvFile)) {
-    Copy-Item (Join-Path $Platform '.env.example') $EnvFile
-    Write-Host "Criei platform/.env a partir do .env.example. Troque as senhas e rode de novo." -ForegroundColor Yellow
-    exit 1
+    if (Test-Path $OldEnvFile) {
+        Copy-Item $OldEnvFile $EnvFile
+        Write-Host "Copiei platform/.env para .env (agora o arquivo é um só, na raiz). Compare com o .env.example e acrescente as variáveis novas." -ForegroundColor Yellow
+    } else {
+        Copy-Item (Join-Path $Root '.env.example') $EnvFile
+        Write-Host "Criei .env a partir do .env.example. Troque as senhas e rode de novo." -ForegroundColor Yellow
+        exit 1
+    }
 }
 
 # Commit do código em uso: vai para as imagens e para a tag atlas.git_sha das runs
@@ -71,7 +78,7 @@ switch ($Command) {
         Invoke-Compose up -d --build
         Invoke-Compose ps --format 'table {{.Service}}\t{{.Status}}'
         Write-Host "`nMLflow:  http://127.0.0.1:5000" -ForegroundColor Green
-        Write-Host "Airflow: http://127.0.0.1:8080  (usuário admin; senha = AIRFLOW_ADMIN_PASSWORD do platform/.env)" -ForegroundColor Green
+        Write-Host "Airflow: http://127.0.0.1:8080  (usuário admin; senha = AIRFLOW_ADMIN_PASSWORD do .env)" -ForegroundColor Green
     }
     'status' { Invoke-Compose ps -a --format 'table {{.Service}}\t{{.State}}\t{{.Status}}' }
     'logs' {

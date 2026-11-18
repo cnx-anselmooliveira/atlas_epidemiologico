@@ -1,0 +1,300 @@
+# Stack do Atlas completo (Swarm/Portainer), o mesmo arquivo para hml e prod:
+#   Postgres + MLflow + Airflow (init, api-server, scheduler, dag-processor, triggerer)
+#   + API gold (backend) + site (frontend) + Redis.
+#
+# Criar no Portainer em Stacks › Add stack › Repository (branch hml → stack atlas-hml; main →
+# atlas-prod), caminho deploy/atlas.stack.yml. Os valores são as variáveis do stack, listadas e
+# comentadas no .env.example da raiz; este arquivo só tem REFERÊNCIAS, nenhum valor de credencial.
+# Passo a passo, secrets e rotação: deploy/README.md.
+#
+#   docker stack config -c deploy/atlas.stack.yml    # valida (precisa das variáveis obrigatórias)
+#
+# Ordem de subida (o Swarm ignora depends_on): o Postgres cria os bancos no primeiro boot, o
+# airflow-init (job de execução única) migra o banco e cria o admin, e os demais componentes do
+# Airflow esperam a migração (airflow db check-migrations) antes de iniciar.
+# Um nó: os volumes são locais e os serviços do Airflow ficam presos ao nó indicado.
+
+x-airflow-env: &airflow-env
+  ATLAS_ENV: ${ATLAS_ENV:?hml ou prod}
+  # FAB (login e senha); configuração não exposta na API (airflow/config/vps.env)
+  AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+  AIRFLOW__API__EXPOSE_CONFIG: "False"
+  AIRFLOW__WEBSERVER__WARN_DEPLOYMENT_EXPOSURE: "False"
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:?}@postgres:5432/airflow
+  AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?}
+  AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?}
+  AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-api-server:8080/execution/
+  AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:?}
+  AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL:-admin@example.com}
+  # Tarefas de ML: o MLflow tem autenticação (basic-auth)
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  MLFLOW_TRACKING_USERNAME: ${MLFLOW_ADMIN_USERNAME:?}
+  MLFLOW_TRACKING_PASSWORD: ${MLFLOW_ADMIN_PASSWORD:?}
+  GCP_PROJECT: ${GCP_PROJECT:-ppgcc-dengue-project}
+  # Chave da service account de treino: Docker secret montado como arquivo, nunca o conteúdo
+  GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/training_sa
+  DBT_BQ_KEYFILE: /run/secrets/training_sa
+  DBT_PARTIAL_PARSE: "false"
+  AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: '{"conn_type": "google_cloud_platform", "extra": {"key_path": "/run/secrets/training_sa", "project": "${GCP_PROJECT:-ppgcc-dengue-project}"}}'
+  # Cache do Cosmos e documentação do dbt separados por ambiente (hml e prod nunca dividem prefixo)
+  AIRFLOW__COSMOS__REMOTE_CACHE_DIR: gs://${ATLAS_BUCKET:-ppgcc-bucket}/cosmos_cache/${ATLAS_ENV}
+  AIRFLOW__COSMOS__REMOTE_CACHE_DIR_CONN_ID: google_cloud_default
+  AIRFLOW__COSMOS__DBT_DOCS_PROJECTS: '{"atlas": {"dir": "gs://${ATLAS_BUCKET:-ppgcc-bucket}/dbt_docs/${ATLAS_ENV}", "conn_id": "google_cloud_default", "index": "index.html", "name": "dbt Docs (Atlas)"}}'
+
+x-airflow: &airflow
+  image: ${IMAGE_REPO_PREFIX:-anselmomendes/atlas-epidemiologia}-airflow:${IMAGE_TAG:?tag das imagens (hml ou X.Y), nunca latest}
+  user: "50000:0"
+  environment: *airflow-env
+  secrets: [training_sa]
+  volumes:
+    - airflow_logs:/opt/airflow/logs
+    - airflow_shared:/opt/airflow/shared
+    - hf_cache:/opt/airflow/hf-cache
+  networks: [atlas_internal]
+
+x-airflow-deploy: &airflow-deploy
+  replicas: 1
+  placement:
+    constraints: ["node.role == ${PLACEMENT_ROLE:-manager}"]
+  restart_policy:
+    condition: on-failure
+    delay: 10s
+  # um scheduler por vez: nunca dois ao mesmo tempo durante a atualização
+  update_config:
+    order: stop-first
+    failure_action: rollback
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      MLFLOW_DB_PASSWORD: ${MLFLOW_DB_PASSWORD:?}
+      AIRFLOW_DB_PASSWORD: ${AIRFLOW_DB_PASSWORD:?}
+      AIRFLOW_DATABASES: airflow
+    configs:
+      - source: pg_init
+        target: /docker-entrypoint-initdb.d/10-init-databases.sh
+        mode: 0555
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks: [atlas_internal]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: ["node.role == ${PLACEMENT_ROLE:-manager}"]
+      restart_policy:
+        condition: on-failure
+      update_config:
+        order: stop-first
+
+  mlflow:
+    image: ${IMAGE_REPO_PREFIX:-anselmomendes/atlas-epidemiologia}-mlflow:${IMAGE_TAG:?}
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql://mlflow:${MLFLOW_DB_PASSWORD:?}@postgres:5432/mlflow
+      MLFLOW_ARTIFACTS_BUCKET: ${ATLAS_BUCKET:-ppgcc-bucket}
+      # gs://<bucket>/mlflow/<hml|prod>
+      MLFLOW_INSTALLATION: ${ATLAS_ENV:?}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/mlflow_sa
+      MLFLOW_AUTH: "true"
+      MLFLOW_AUTH_DATABASE_URI: postgresql://mlflow:${MLFLOW_DB_PASSWORD:?}@postgres:5432/mlflow_auth
+      MLFLOW_ADMIN_USERNAME: ${MLFLOW_ADMIN_USERNAME:?}
+      MLFLOW_ADMIN_PASSWORD: ${MLFLOW_ADMIN_PASSWORD:?}
+      MLFLOW_FLASK_SERVER_SECRET_KEY: ${MLFLOW_FLASK_SECRET_KEY:?}
+      MLFLOW_ALLOWED_HOSTS: ${MLFLOW_HOST:-mlflow.invalid},mlflow,mlflow:5000
+      MLFLOW_WORKERS: "2"
+    secrets: [mlflow_sa]
+    networks: [atlas_internal, network_public]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+      update_config:
+        order: start-first
+        failure_action: rollback
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=network_public
+        - traefik.http.routers.atlas-${ATLAS_ENV}-mlflow.rule=Host(`${MLFLOW_HOST:-mlflow.invalid}`)
+        - traefik.http.routers.atlas-${ATLAS_ENV}-mlflow.entrypoints=websecure
+        - traefik.http.routers.atlas-${ATLAS_ENV}-mlflow.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.atlas-${ATLAS_ENV}-mlflow.middlewares=atlas-${ATLAS_ENV}-admin
+        - traefik.http.middlewares.atlas-${ATLAS_ENV}-admin.ipallowlist.sourcerange=${ADMIN_ALLOWED_CIDRS:-127.0.0.1/32}
+        - traefik.http.services.atlas-${ATLAS_ENV}-mlflow.loadbalancer.server.port=5000
+
+  # Job de execução única: migra o banco e garante o admin (idempotente, roda a cada deploy)
+  airflow-init:
+    <<: *airflow
+    entrypoint: /bin/bash
+    command: /opt/atlas/init.sh
+    networks: [atlas_internal]
+    deploy:
+      mode: replicated-job
+      replicas: 1
+      placement:
+        constraints: ["node.role == ${PLACEMENT_ROLE:-manager}"]
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 20
+
+  airflow-api-server:
+    <<: *airflow
+    command: ["bash", "-c", "airflow db check-migrations --migration-wait-timeout 900 && exec airflow api-server"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    networks: [atlas_internal, network_public]
+    deploy:
+      <<: *airflow-deploy
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=network_public
+        - traefik.http.routers.atlas-${ATLAS_ENV}-airflow.rule=Host(`${AIRFLOW_HOST:-airflow.invalid}`)
+        - traefik.http.routers.atlas-${ATLAS_ENV}-airflow.entrypoints=websecure
+        - traefik.http.routers.atlas-${ATLAS_ENV}-airflow.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.atlas-${ATLAS_ENV}-airflow.middlewares=atlas-${ATLAS_ENV}-admin
+        - traefik.http.middlewares.atlas-${ATLAS_ENV}-admin.ipallowlist.sourcerange=${ADMIN_ALLOWED_CIDRS:-127.0.0.1/32}
+        - traefik.http.services.atlas-${ATLAS_ENV}-airflow.loadbalancer.server.port=8080
+
+  airflow-scheduler:
+    <<: *airflow
+    command: ["bash", "-c", "airflow db check-migrations --migration-wait-timeout 900 && exec airflow scheduler"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8974/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    deploy: *airflow-deploy
+
+  airflow-dag-processor:
+    <<: *airflow
+    command: ["bash", "-c", "airflow db check-migrations --migration-wait-timeout 900 && exec airflow dag-processor"]
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 20s
+      retries: 10
+      start_period: 90s
+    deploy: *airflow-deploy
+
+  airflow-triggerer:
+    <<: *airflow
+    command: ["bash", "-c", "airflow db check-migrations --migration-wait-timeout 900 && exec airflow triggerer"]
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 20s
+      retries: 10
+      start_period: 90s
+    deploy: *airflow-deploy
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [atlas_internal]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  backend:
+    image: ${IMAGE_REPO_PREFIX:-anselmomendes/atlas-epidemiologia}-backend:${IMAGE_TAG:?}
+    environment:
+      GCP_PROJECT: ${GCP_PROJECT:-ppgcc-dengue-project}
+      # conta de LEITURA própria (BigQuery gold e forecast + prefixo forecast/ do bucket)
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/backend_sa
+      REDIS_URL: redis://redis:6379/0
+      MAX_BYTES_BILLED: ${MAX_BYTES_BILLED:-1073741824}
+      FORECAST_BUCKET: ${ATLAS_BUCKET:-ppgcc-bucket}
+      FORECAST_PREFIX: ${FORECAST_PREFIX:-forecast/}
+    secrets: [backend_sa]
+    networks: [atlas_internal, network_public]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      update_config:
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        order: start-first
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=network_public
+        - traefik.http.routers.atlas-${ATLAS_ENV}-api.rule=Host(`${API_HOST:?}`)
+        - traefik.http.routers.atlas-${ATLAS_ENV}-api.entrypoints=websecure
+        - traefik.http.routers.atlas-${ATLAS_ENV}-api.tls.certresolver=letsencryptresolver
+        - traefik.http.services.atlas-${ATLAS_ENV}-api.loadbalancer.server.port=8000
+
+  frontend:
+    image: ${IMAGE_REPO_PREFIX:-anselmomendes/atlas-epidemiologia}-frontend:${IMAGE_TAG:?}
+    environment:
+      API_INTERNAL_URL: http://backend:8000
+      PUBLIC_SITE_URL: ${FRONTEND_PUBLIC_URL:?}
+      PAGE_CACHE_SECONDS: ${PAGE_CACHE_SECONDS:-300}
+      BACKEND_TIMEOUT_MS: ${BACKEND_TIMEOUT_MS:-8000}
+    networks: [atlas_internal, network_public]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      update_config:
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        order: start-first
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=network_public
+        - traefik.http.routers.atlas-${ATLAS_ENV}-frontend.rule=Host(`${FRONTEND_HOST:?}`)
+        - traefik.http.routers.atlas-${ATLAS_ENV}-frontend.entrypoints=websecure
+        - traefik.http.routers.atlas-${ATLAS_ENV}-frontend.tls.certresolver=letsencryptresolver
+        - traefik.http.services.atlas-${ATLAS_ENV}-frontend.loadbalancer.server.port=4321
+
+# Chaves das service accounts: Docker secrets criados antes, no Portainer (Secrets › Add secret),
+# um por ambiente. O nome inclui o ambiente porque os secrets são do cluster inteiro.
+secrets:
+  training_sa:
+    name: atlas_${ATLAS_ENV}_training_sa
+    external: true
+  mlflow_sa:
+    name: atlas_${ATLAS_ENV}_mlflow_sa
+    external: true
+  backend_sa:
+    name: atlas_${ATLAS_ENV}_backend_sa
+    external: true
+
+# Script de bancos do Postgres (primeiro boot, volume vazio). O nome carrega a versão: ao mudar o
+# script, aumente o sufixo, porque um Docker config não pode ser alterado.
+configs:
+  pg_init:
+    name: atlas_${ATLAS_ENV}_pg_init_v1
+    file: ../platform/postgres/init-databases.sh
+
+volumes:
+  pgdata:
+  airflow_logs:
+  airflow_shared:
+  hf_cache:
+
+networks:
+  atlas_internal:
+    driver: overlay
+  network_public:
+    external: true

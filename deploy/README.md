@@ -92,7 +92,7 @@ A tabela do início lista o resto (chaves de treino e do dbt como Docker secret,
 
 ## Desenvolvimento local
 
-- Chaves em `platform/secrets/` e senhas em `platform/.env`: ambos são ignorados pelo Git e entram nos containers só em runtime, como volume somente leitura. Nunca são copiados para uma imagem.
+- Chaves em `platform/secrets/` e senhas no `.env` da raiz: ambos são ignorados pelo Git e entram nos containers só em runtime, como volume somente leitura. Nunca são copiados para uma imagem.
 - Não deixe a chave solta na raiz do repositório (`ppgcc-dengue-project.json`): use `platform/secrets/`.
 - O `AIRFLOW__API_AUTH__JWT_SECRET` e a senha de dev do `compose.dev.yml` valem **só** para a máquina local.
 

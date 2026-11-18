@@ -18,9 +18,9 @@ Todas as portas escutam só em `127.0.0.1`.
 
 1. **Configuração**
    ```powershell
-   ./platform/dev.ps1 up        # na 1ª vez, cria platform/.env e para; edite as senhas
+   ./platform/dev.ps1 up        # na 1ª vez, cria o .env da raiz (a partir do .env.example) e para; edite as senhas
    ```
-   Preencha `POSTGRES_PASSWORD` e `AIRFLOW_ADMIN_PASSWORD` no `platform/.env`. O arquivo é ignorado pelo git.
+   Preencha `POSTGRES_PASSWORD` e `AIRFLOW_ADMIN_PASSWORD` no `.env` da raiz. O arquivo é ignorado pelo git.
 2. **Subir**
    ```powershell
    ./platform/dev.ps1 up        # build das imagens + sobe tudo
@@ -94,7 +94,9 @@ O teste de ponta a ponta também roda localmente com `bash platform/ci/e2e.sh`, 
 
 Para conferir ou reaplicar a regra: `gh api repos/cnx-anselmooliveira/atlas_epidemiologico/branches/<hml|main>/protection`.
 
-## Variáveis (`platform/.env`)
+## Variáveis (`.env` da raiz)
+
+O `.env.example` da raiz lista todas as variáveis do projeto (dev local e stack de hml/prod), com comentários. As de dev local:
 
 | Variável | Para que serve |
 |---|---|

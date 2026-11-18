@@ -1,7 +1,7 @@
 # Plataforma local (Postgres + MLflow + Airflow + API gold/Redis + site [+ Jupyter]).
 # Use pelo script:   ./platform/dev.ps1 up        (define ATLAS_GIT_SHA e o .env)
 # Ou direto:         $env:ATLAS_GIT_SHA = git rev-parse HEAD
-#                    docker compose -f platform/compose.dev.yml --env-file platform/.env up -d
+#                    docker compose -f platform/compose.dev.yml --env-file .env up -d
 # Portas só em 127.0.0.1: MLflow :5000 · Airflow :8080 · API gold :8000 · site :4321 · Jupyter :8888 (profile notebook)
 # (MLFLOW_PORT, AIRFLOW_PORT, BACKEND_PORT, FRONTEND_PORT e JUPYTER_PORT mudam as portas do host; o teste de ponta a ponta usa outras)
 
@@ -61,7 +61,7 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no platform/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env da raiz}
       # Em dev, os usuários de serviço usam a mesma senha do superusuário (só acessível pela rede interna)
       MLFLOW_DB_PASSWORD: ${POSTGRES_PASSWORD}
       AIRFLOW_DB_PASSWORD: ${POSTGRES_PASSWORD}
