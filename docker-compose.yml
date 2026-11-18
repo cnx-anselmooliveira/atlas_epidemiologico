@@ -108,6 +108,14 @@ services:
       MLFLOW_FLASK_SERVER_SECRET_KEY: ${MLFLOW_FLASK_SECRET_KEY:?}
       MLFLOW_ALLOWED_HOSTS: ${MLFLOW_HOST:-mlflow.invalid},mlflow,mlflow:5000
       MLFLOW_WORKERS: "2"
+    # Primeira subida: migra os bancos mlflow e mlflow_auth, o que passa da janela da imagem
+    # (40 s + 3 × 30 s) e fazia o Swarm matar o container no meio. Mesma sonda, janela maior.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 240s
     secrets: [mlflow_sa]
     networks: [atlas_internal, network_public]
     deploy:
