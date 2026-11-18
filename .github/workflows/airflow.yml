@@ -26,5 +26,4 @@ jobs:
       image: airflow
       context: .
       file: airflow/Dockerfile
-      webhook_secret: PORTAINER_WEBHOOK_AIRFLOW
     secrets: inherit

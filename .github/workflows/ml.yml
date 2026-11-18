@@ -25,5 +25,4 @@ jobs:
       image: ml
       context: ml
       target: runtime
-      webhook_secret: PORTAINER_WEBHOOK_ML
     secrets: inherit

@@ -6,8 +6,9 @@
 # (versão imutável).
 #
 # Deploy: job separado, com o GitHub Environment da origem (hml → "hml", tag → "prod"; dev não
-# implanta). O webhook é o secret informado em `webhook_secret` (PORTAINER_WEBHOOK_<IMAGEM>) do Environment, então um push em hml
-# nunca chega ao stack de produção, e o Environment "prod" pode exigir aprovação.
+# implanta). O webhook é o secret PORTAINER_WEBHOOK_STACK do Environment (webhook do STACK no Portainer,
+# que refaz o deploy baixando as imagens de novo), então um push em hml nunca chega ao stack de
+# produção, e o Environment "prod" pode exigir aprovação.
 # Os chamadores usam `secrets: inherit`: DOCKERHUB_* são secrets do repositório.
 name: _image
 
@@ -31,10 +32,6 @@ on:
         required: false
         type: string
         default: ""
-      webhook_secret:
-        description: "Nome do secret do Environment com o webhook do Portainer, como PORTAINER_WEBHOOK_BACKEND"
-        required: true
-        type: string
       build_args:
         description: Build args extras, um KEY=VALUE por linha
         required: false
@@ -156,16 +153,15 @@ jobs:
     steps:
       - name: Atualiza o serviço no Portainer
         env:
-          PORTAINER_WEBHOOK: ${{ secrets[inputs.webhook_secret] }}
+          PORTAINER_WEBHOOK: ${{ secrets.PORTAINER_WEBHOOK_STACK }}
           TAG: ${{ needs.publish.outputs.tag }}
           AMBIENTE: ${{ startsWith(github.ref, 'refs/tags/') && 'prod' || 'hml' }}
           IMAGEM: ${{ inputs.image }}
-          SECRET_NAME: ${{ inputs.webhook_secret }}
         run: |
           if [ -z "${PORTAINER_WEBHOOK}" ]; then
-            echo "::warning::Deploy não acionado: o Environment ${AMBIENTE} não tem o secret ${SECRET_NAME}. A imagem foi publicada (tag ${TAG}); atualize o serviço no Portainer à mão."
+            echo "::warning::Deploy não acionado: o Environment ${AMBIENTE} não tem o secret PORTAINER_WEBHOOK_STACK. A imagem foi publicada (tag ${TAG}); atualize o serviço no Portainer à mão."
             exit 0
           fi
           # -f: resposta de erro derruba o job (falha visível)
-          curl -fsS -X POST "${PORTAINER_WEBHOOK}?tag=${TAG}"
+          curl -fsS -X POST "${PORTAINER_WEBHOOK}"
           echo "Portainer (${AMBIENTE}) acionado para ${IMAGEM}:${TAG}"

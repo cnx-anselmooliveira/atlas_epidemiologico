@@ -13,11 +13,11 @@
 - [ ] 2.3 Incluir o `init-databases.sh` por Docker config e as senhas distintas de `mlflow` e `airflow`; verificar no Postgres local os papéis, bancos e `REVOKE CONNECT`
 - [ ] 2.4 Montar as chaves por Docker secrets (`training_sa`, `mlflow_sa`, `backend_sa`) e apontar `GOOGLE_APPLICATION_CREDENTIALS`, `DBT_BQ_KEYFILE` e a Connection para `/run/secrets/`; verificar que nenhum valor de credencial aparece no arquivo (`check-secrets --all`) e que o backend lê o BigQuery com a chave montada
 - [ ] 2.5 Rótulos do Traefik para site, API, Airflow e MLflow com hosts por variável e o middleware de origens permitidas nas duas interfaces administrativas; verificar por `docker stack config` e relendo os rótulos contra o `app.stack.yml`
-- [ ] 2.6 Remover o `deploy/app.stack.yml` e atualizar as referências (`deploy/README.md`, `_image.yml`, comentários); verificar com `grep` que nada aponta mais para ele
+- [x] 2.6 Remover o `deploy/app.stack.yml` e atualizar as referências (`deploy/README.md`, `_image.yml`, comentários); verificar com `grep` que nada aponta mais para ele
 
 ## 3. Webhook do stack
 
-- [ ] 3.1 Trocar no `_image.yml` e nos chamadores o webhook por serviço pelo webhook do stack (`PORTAINER_WEBHOOK_STACK`, um por Environment); verificar com `actionlint` e rodando o passo de deploy com e sem o secret (aviso sem falhar)
+- [x] 3.1 Trocar no `_image.yml` e nos chamadores o webhook por serviço pelo webhook do stack (`PORTAINER_WEBHOOK_STACK`, um por Environment); verificar com `actionlint` e rodando o passo de deploy com e sem o secret (aviso sem falhar)
 
 ## 4. Um único .env.example
 

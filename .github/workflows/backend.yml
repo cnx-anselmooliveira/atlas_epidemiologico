@@ -24,5 +24,4 @@ jobs:
     with:
       image: backend
       context: backend
-      webhook_secret: PORTAINER_WEBHOOK_BACKEND
     secrets: inherit

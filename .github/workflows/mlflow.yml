@@ -24,5 +24,4 @@ jobs:
     with:
       image: mlflow
       context: infra/mlflow
-      webhook_secret: PORTAINER_WEBHOOK_MLFLOW
     secrets: inherit
