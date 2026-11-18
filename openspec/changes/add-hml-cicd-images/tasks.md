@@ -23,9 +23,9 @@
 
 ## 4. Documentação
 
-- [ ] 4.1 Reescrever a tabela de `deploy/README.md` como inventário (nome, onde cria, quem usa, ambiente, rotação), incluindo DockerHub, Environments, webhooks, Docker secrets e Connection do Airflow
-- [ ] 4.2 Escrever o passo a passo da primeira configuração de hml e o roteiro dev → hml → main, com proteção de branch e tags; verificar os nomes de workflows e variáveis contra o código com `grep`
-- [ ] 4.3 Atualizar os comentários do `_image.yml` e o `CHANGELOG.md`
+- [x] 4.1 Reescrever a tabela de `deploy/README.md` como inventário (nome, onde cria, quem usa, ambiente, rotação), incluindo DockerHub, Environments, webhooks, Docker secrets e Connection do Airflow
+- [x] 4.2 Escrever o passo a passo da primeira configuração de hml e o roteiro dev → hml → main, com proteção de branch e tags; verificar os nomes de workflows e variáveis contra o código com `grep`
+- [x] 4.3 Atualizar os comentários do `_image.yml` e o `CHANGELOG.md`
 
 ## 5. Verificação e publicação
 
