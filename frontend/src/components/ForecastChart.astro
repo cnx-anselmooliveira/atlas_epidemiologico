@@ -110,8 +110,8 @@ const descricao = `${titulo}: ${serie.observado.length} semanas observadas, ${se
 			xAxis: { type: 'time' },
 			yAxis: { type: 'value', name: 'casos por 100 mil', nameGap: 14, nameTextStyle: { align: 'left' }, axisLabel: { formatter: (n: number) => fmt.compact(n) } },
 			dataZoom: [
-				{ type: 'inside', startValue: inicio, endValue: fim, filterMode: 'none' },
-				{ type: 'slider', startValue: inicio, endValue: fim, height: 26, bottom: 10, filterMode: 'none', borderColor: v.grid, textStyle: { color: v.muted } },
+				{ type: 'inside', startValue: inicio, endValue: fim, filterMode: 'filter' },
+				{ type: 'slider', startValue: inicio, endValue: fim, height: 26, bottom: 10, filterMode: 'filter', borderColor: v.grid, textStyle: { color: v.muted } },
 			],
 			series: [
 				{
