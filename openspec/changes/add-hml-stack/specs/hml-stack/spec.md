@@ -49,12 +49,27 @@ O site e a API SHALL ser publicados pelo Traefik na rede pública com TLS, em ho
 - **WHEN** alguém tenta acessar a porta do Postgres de fora da VPS
 - **THEN** não há porta publicada e a conexão não é possível
 
-### Requirement: Webhook com várias URLs
-O secret de webhook de uma imagem SHALL aceitar uma URL por linha, e o job de deploy SHALL chamar todas, falhando se qualquer uma falhar. Isso SHALL cobrir os quatro serviços que usam a imagem do Airflow.
+### Requirement: Stack criado a partir do repositório
+O stack SHALL ser criado no Portainer a partir do repositório (branch `hml` para `atlas-hml`, `main` para `atlas-prod`), lendo `deploy/atlas.stack.yml`. Os valores SHALL ser digitados nas variáveis do stack no Portainer, nunca no repositório.
 
-#### Scenario: Imagem do Airflow
-- **WHEN** a imagem `airflow:hml` é publicada
-- **THEN** os webhooks de `airflow-api-server`, `scheduler`, `dag-processor` e `triggerer` são chamados
+#### Scenario: Valores fora do repositório
+- **WHEN** o stack é criado no Portainer pela branch `hml`
+- **THEN** senhas, hosts e tag vêm só das variáveis do stack e o arquivo do repositório não contém nenhum valor
+
+### Requirement: Deploy depois da imagem
+Depois de publicar uma imagem, o CI SHALL chamar o webhook do stack do Environment correspondente, e o redeploy SHALL baixar de novo as imagens de tag móvel. A sincronização por intervalo SHALL ficar desligada, para o Portainer não implantar antes de a imagem existir.
+
+#### Scenario: Push em hml
+- **WHEN** a imagem `airflow:hml` termina de ser publicada
+- **THEN** o CI chama o webhook do stack `atlas-hml` e o Portainer refaz o deploy com as imagens `hml` atuais
+
+#### Scenario: Sem webhook configurado
+- **WHEN** o Environment não tem o secret do webhook do stack
+- **THEN** o job avisa que o deploy não foi acionado, sem falhar, e a imagem fica publicada
+
+#### Scenario: Mudança só no arquivo do stack
+- **WHEN** um commit em `hml` altera apenas `deploy/atlas.stack.yml`
+- **THEN** o redeploy é acionado à mão no Portainer e aplica a nova definição
 
 ### Requirement: Validação antes da VPS
 Antes de levar o stack à VPS, ele SHALL ser validado por `docker stack config` e por uma subida real em um Swarm local de um nó, com as páginas `/` e `/previsao`, a API e o MLflow respondendo.

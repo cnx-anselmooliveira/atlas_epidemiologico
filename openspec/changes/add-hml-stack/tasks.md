@@ -15,16 +15,16 @@
 - [ ] 2.5 Rótulos do Traefik para site, API, Airflow e MLflow com hosts por variável e o middleware de origens permitidas nas duas interfaces administrativas; verificar por `docker stack config` e relendo os rótulos contra o `app.stack.yml`
 - [ ] 2.6 Remover o `deploy/app.stack.yml` e atualizar as referências (`deploy/README.md`, `_image.yml`, comentários); verificar com `grep` que nada aponta mais para ele
 
-## 3. Webhooks
+## 3. Webhook do stack
 
-- [ ] 3.1 Fazer o job `deploy` do `_image.yml` aceitar várias URLs (uma por linha) no secret e falhar se qualquer chamada falhar; verificar com `actionlint` e um teste do loop de shell com duas URLs, uma delas inválida
+- [ ] 3.1 Trocar no `_image.yml` e nos chamadores o webhook por serviço pelo webhook do stack (`PORTAINER_WEBHOOK_STACK`, um por Environment); verificar com `actionlint` e rodando o passo de deploy com e sem o secret (aviso sem falhar)
 
-## 4. Exemplos de variáveis
+## 4. Um único .env.example
 
-- [ ] 4.1 Completar `platform/.env.example` (portas do MLflow, Airflow, backend e site, `GCP_PROJECT`, bucket, Jupyter, CA, chaves em `platform/secrets/`), cada variável comentada; verificar copiando para `platform/.env` e rodando `docker compose config`
-- [ ] 4.2 Criar `deploy/hml.env.example` com todas as variáveis do stack agrupadas (obrigatórias, com padrão, segredos) e indicação de Docker secret ou variável de stack; verificar que cada `${NOME}` do stack aparece no exemplo
-- [ ] 4.3 Adicionar ao `check-secrets.sh` a conferência de que toda variável de `atlas.stack.yml` e `compose.dev.yml` existe no exemplo correspondente e de que os exemplos só têm valores reconhecíveis; verificar com um caso que passa e dois que falham (variável sem exemplo, senha real no exemplo)
-- [ ] 4.4 Criar `backend/.env.example` (e conferir o `frontend/.env.example`) com as variáveis do `config.py` e do `astro.config.mjs`; verificar contra o código
+- [ ] 4.1 Criar o `.env.example` da raiz com todas as variáveis de `platform/compose.dev.yml`, `deploy/atlas.stack.yml`, backend e site, em grupos comentados (só dev local, stack hml e prod, segredos), só com valores de exemplo; verificar que cada `${NOME}` dos arquivos de compose e de stack aparece nele
+- [ ] 4.2 Fazer `platform/dev.ps1`, `platform/ci/e2e.sh` (quando usar o `.env`) e os scripts do site lerem o `.env` da raiz e remover `platform/.env.example` e `frontend/.env.example`; verificar copiando `.env.example` para `.env`, rodando `docker compose config` e `npm run dev` até a página responder
+- [ ] 4.3 Adicionar ao `check-secrets.sh` a conferência de que toda variável de `atlas.stack.yml` e `compose.dev.yml` existe no `.env.example` e de que o exemplo só tem valores reconhecíveis; verificar com um caso que passa e dois que falham (variável sem exemplo, senha real no exemplo)
+- [ ] 4.4 Garantir que `.env` está no `.gitignore` e no `.dockerignore`, que não resta outro `*.env.example` e que a documentação aponta para o arquivo único; verificar com `git ls-files` e `grep`
 
 ## 5. Validação local
 
@@ -33,6 +33,6 @@
 
 ## 6. Documentação e hml
 
-- [ ] 6.1 Escrever em `deploy/README.md` o passo a passo de criação do stack `atlas-hml` (Docker secrets, config, variáveis, deploy a partir do Git, webhooks, primeiro boot, rotação de secret e de senha do Postgres) e o roteiro de promoção para `atlas-prod`; verificar relendo contra os nomes reais do stack e do exemplo
+- [ ] 6.1 Escrever em `deploy/README.md` o passo a passo de criação do stack `atlas-hml` pelo Portainer a partir do repositório (branch `hml`, variáveis carregadas do `.env.example`, Docker secrets e config, webhook do stack, sincronização por intervalo desligada, primeiro boot, rotação de secret e de senha do Postgres) e o roteiro de promoção para `atlas-prod`; verificar relendo contra os nomes reais do stack e do exemplo
 - [ ] 6.2 Atualizar as tarefas 3.1 e 3.2 da `add-hml-cicd-images` para apontar para esta mudança; verificar com `openspec validate` das duas mudanças
-- [ ] 6.3 Com o usuário, criar o stack `atlas-hml` no Portainer, acionar os webhooks e verificar site, API, Airflow e MLflow na VPS; anotar os ajustes no design
+- [ ] 6.3 Com o usuário, criar o stack `atlas-hml` no Portainer a partir da branch `hml`, acionar o webhook do stack e verificar site, API, Airflow e MLflow na VPS; anotar os ajustes no design
