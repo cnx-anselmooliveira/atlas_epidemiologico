@@ -39,6 +39,24 @@ Não são publicadas: `ml-notebook` (só desenvolvimento), `postgres` e `redis` 
 
 A imagem do Airflow tem mais de 10 GB em camadas (venvs do ML e do dbt); o primeiro push e o primeiro pull na VPS demoram.
 
+## Pré-requisitos da VPS
+
+Confira cada item **antes** do primeiro deploy. Os comandos rodam na VPS (no gerenciador do Swarm), salvo onde indicado.
+
+| Item | Como conferir | Esperado |
+|---|---|---|
+| Docker Engine | `docker version --format '{{.Server.Version}}'` | 20.10 ou superior (o `airflow-init` usa `mode: replicated-job`); testado com 29.3.1 |
+| Swarm ativo, nó gerenciador | `docker info --format '{{.Swarm.LocalNodeState}} {{.Swarm.ControlAvailable}}'` | `active true` |
+| Portainer | versão no rodapé; o ambiente deve ser o Swarm | testado com a 2.45.3 (CE) |
+| Rede pública | `docker network inspect network_public --format '{{.Driver}} {{.Scope}}'` | `overlay swarm`, a mesma rede do Traefik |
+| Traefik | `docker service inspect traefik --format '{{json .Spec.TaskTemplate.ContainerSpec.Args}}'` | com `entrypoints.websecure` e `certificatesresolvers.letsencryptresolver`; versão que tenha o middleware `ipallowlist` (2.10 ou 3) |
+| Docker secrets | `docker secret ls --filter name=atlas_hml_` | `atlas_hml_backend_sa`, `atlas_hml_training_sa`, `atlas_hml_mlflow_sa` |
+| Nó e disco | `docker node ls` e `df -h /var/lib/docker` | um nó com o papel de `PLACEMENT_ROLE` e pelo menos 30 GB livres (a imagem do Airflow passa de 10 GB) |
+| DNS | `dig +short <host>` para `FRONTEND_HOST`, `API_HOST`, `AIRFLOW_HOST` e `MLFLOW_HOST` | o IP da VPS |
+| Imagens `hml` | `docker manifest inspect anselmomendes/atlas-epidemiologia-<imagem>:hml` para `frontend`, `backend`, `airflow` e `mlflow` | sai com código 0 |
+| Stack na branch `hml` | `curl -fsS https://raw.githubusercontent.com/cnx-anselmooliveira/atlas_epidemiologico/hml/docker-compose.yml \| head -1` | a primeira linha do arquivo (se der 404, o PR `dev` → `hml` ainda não foi mergeado) |
+| Webhook | secret `PORTAINER_WEBHOOK_STACK` no Environment `hml` | existe (sem ele, o deploy só avisa "não acionado") |
+
 ## Passo a passo: criar o stack de hml
 
 ### 1. DockerHub e GitHub
@@ -82,7 +100,7 @@ O nome leva o ambiente porque os secrets são do cluster inteiro; em produção,
 ### 4. O stack no Portainer, pelo GitHub
 
 1. Stacks › Add stack › **Repository**. Nome `atlas-hml`.
-2. Repository URL `https://github.com/cnx-anselmooliveira/atlas_epidemiologico`, **Repository reference** `refs/heads/hml`, **Compose path** `docker-compose.yml`. O repositório é público: não há credencial de acesso. Se um dia ele ficar privado, guarde um token de leitura em **Authentication** no próprio Portainer, nunca no Git.
+2. Repository URL `https://github.com/cnx-anselmooliveira/atlas_epidemiologico`, **Repository reference** `refs/heads/hml`, **Compose path** `docker-compose.yml` (o mesmo nome do CI e das verificações). O repositório é público: não há credencial de acesso. Se um dia ele ficar privado, guarde um token de leitura em **Authentication** no próprio Portainer, nunca no Git.
 3. **Environment variables › Load variables from .env file** com o `.env.example`; depois preencha: `ATLAS_ENV=hml`, `IMAGE_TAG=hml`, os hosts (`FRONTEND_HOST`, `FRONTEND_PUBLIC_URL`, `API_HOST`, `AIRFLOW_HOST`, `MLFLOW_HOST`), `ADMIN_ALLOWED_CIDRS` e todas as senhas (troque cada `troque-esta-senha`; a Fernet key vem de `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`; senhas distintas para Postgres, MLflow e Airflow).
 4. **GitOps updates:** desligue a sincronização por intervalo (ela poderia implantar antes de a imagem existir) e ative o **webhook do stack**, com a opção de baixar as imagens de novo (*re-pull image*). Copie a URL do webhook.
 5. No GitHub, em Settings › Environments › `hml`, crie o secret `PORTAINER_WEBHOOK_STACK` com essa URL. O de `prod` é outro, do stack `atlas-prod`.
@@ -99,6 +117,58 @@ Depois de cada imagem publicada em `hml`, o CI chama o webhook e o Portainer ref
 ### 6. Produção
 
 O stack `atlas-prod` é o mesmo arquivo lido da branch `main`, com `ATLAS_ENV=prod`, `IMAGE_TAG=X.Y` (a versão publicada, **nunca** a tag móvel `hml`), os hosts e secrets `atlas_prod_...` próprios. O deploy de produção só é acionado por tag `vX.Y` em `main`, depois da aprovação do Environment `prod`. Conferência: `docker service ls --format '{{.Name}} {{.Image}}'` deve mostrar só tags de versão nos serviços do `atlas-prod`.
+
+## Atualizar, conferir, diagnosticar e voltar atrás
+
+Tudo abaixo foi exercitado em um Portainer 2.45.3 real, criando o stack pelo repositório.
+
+### Atualizar o stack
+
+- **Pelo webhook:** o CI chama o webhook do stack depois de cada imagem publicada. À mão: `curl -fsS -X POST "<URL do webhook>"` responde 204 e o Portainer refaz o deploy com a definição que está na branch.
+- **Pelo Portainer:** Stacks › `atlas-hml` › **Pull and redeploy** (com *re-pull image* para baixar de novo as imagens de tag móvel). Para mudar só uma variável: Editor › Environment variables › **Update the stack**.
+- A sincronização por intervalo continua desligada; só o webhook ou o botão atualizam.
+
+### Conferir o commit lido
+
+O Portainer mostra o commit do stack na página dele. Compare com o da branch:
+
+```bash
+git ls-remote https://github.com/cnx-anselmooliveira/atlas_epidemiologico refs/heads/hml | cut -c1-7
+```
+
+Os sete primeiros caracteres precisam ser os mesmos. O Portainer atualiza o campo alguns segundos **depois** do deploy; se ainda estiver diferente, espere e recarregue.
+
+### Quando o deploy falha
+
+O Portainer não devolve erro na criação: o stack fica registrado com status **Failed** e a mensagem aparece na página dele (por exemplo `required variable IMAGE_TAG is missing a value`). Nada é implantado. Corrija a variável em Editor › Environment variables e reimplante; se preferir, apague o stack e crie de novo.
+
+Depois do deploy, o diagnóstico é por serviço:
+
+```bash
+docker stack ps atlas-hml --no-trunc                 # estado e erro de cada tarefa
+docker service logs atlas-hml_<serviço> --tail 50    # logs (serviços: postgres, mlflow, airflow-init, airflow-api-server, ...)
+```
+
+| Sintoma | Causa provável | O que fazer |
+|---|---|---|
+| `required variable ... is missing` | variável obrigatória sem valor | preencher no ambiente do stack |
+| `secret not found` | Docker secret não criado | criar `atlas_hml_*` (passo 3) |
+| `network ... not found` | rede `network_public` inexistente | criar a rede overlay do Traefik |
+| `no suitable node` | `PLACEMENT_ROLE` sem nó compatível | ajustar a variável ou o nó |
+| `No such image` / `pull access denied` | tag `hml` não publicada, ou sem login no DockerHub | publicar a imagem (workflow) e conferir `IMAGE_TAG` |
+| `unhealthy container` (exit 137) | serviço não ficou saudável a tempo | ver o log do serviço; o MLflow leva até uns 4 minutos na primeira subida (migra os bancos), e o stack já espera isso |
+| backend em 0/1 com `invalid_grant` ou `DefaultCredentialsError` | chave de `atlas_hml_backend_sa` inválida ou sem permissão | recriar o secret com a chave de leitura certa |
+
+### Voltar atrás
+
+1. **Automático:** nas atualizações, os serviços com `failure_action: rollback` voltam sozinhos para a versão anterior quando a nova não fica saudável.
+2. **Pelo Git (o caminho preferido):** reverta o commit do arquivo (`git revert`), promova pelo fluxo normal de PR e reimplante.
+3. **Emergência, sem esperar o PR:** o Portainer não aceita hash de commit como referência; use uma tag. Crie uma tag temporária no commit bom e aponte o stack para ela:
+   ```bash
+   git tag rollback-hml <commit-anterior> && git push origin rollback-hml   # o nome não pode começar com "v"
+   ```
+   No Portainer, em Stacks › `atlas-hml` › Editor, troque **Repository reference** para `refs/tags/rollback-hml` e faça o redeploy. Volumes (banco, logs) e secrets não mudam. Depois do conserto, volte a referência para `refs/heads/hml` e apague a tag (`git push origin :refs/tags/rollback-hml`).
+4. **Um único serviço:** `docker service rollback atlas-hml_<serviço>` desfaz só a última atualização dele.
 
 ## Fluxo de promoção dev → hml → main
 

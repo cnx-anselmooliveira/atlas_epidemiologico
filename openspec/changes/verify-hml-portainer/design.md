@@ -36,7 +36,7 @@ Observado:
 
 6. **Como conferir o commit.** O Portainer mostra o commit do stack na página do stack (campo de Git); o comando de comparação é `git ls-remote https://github.com/cnx-anselmooliveira/atlas_epidemiologico refs/heads/hml`. O roteiro manda comparar os sete primeiros caracteres.
 
-7. **Rollback em duas camadas.** Automático: `failure_action: rollback` desfaz uma atualização que não fica saudável. Manual: no Portainer, trocar a "Repository reference" para o hash do commit anterior (ou uma tag) e redeployar; volumes e secrets não mudam. `docker service rollback <serviço>` fica como recurso de emergência para um único serviço. Depois de voltar, a referência é restaurada para a branch.
+7. **Rollback em duas camadas.** Automático: `failure_action: rollback` desfaz uma atualização que não fica saudável. Manual: no Portainer, trocar a "Repository reference" para uma **tag** (ou branch) que aponte para o commit anterior e redeployar; volumes e secrets não mudam. O Portainer 2.45.3 **não aceita um hash de commit solto** como referência (`reference not found`), então o procedimento cria uma tag temporária (`git tag rollback-hml <commit> && git push origin rollback-hml`, nome que não começa com `v` para não acionar o `release.yml`), usa `refs/tags/rollback-hml` e, passado o problema, volta a referência para a branch e apaga a tag. O caminho preferido, sem tag, é reverter o commit por PR (`git revert`) e promover. `docker service rollback <serviço>` fica como recurso de emergência para um único serviço.
 
 8. **Diagnóstico por serviço.** Ordem do roteiro: `docker stack ps atlas-hml --no-trunc` (estado e erro de cada tarefa), `docker service logs <serviço> --tail 50`, conferir variável obrigatória faltando (mensagem do Portainer), secret inexistente (`docker secret ls`), rede inexistente, `PLACEMENT_ROLE` sem nó compatível, imagem sem tag publicada.
 
@@ -46,3 +46,15 @@ Observado:
 - **Teste com `:local` não prova o pull do DockerHub:** pull de uma imagem de 10 GB só se mostra na VPS (tempo e disco). O README avisa.
 - **Portainer temporário com acesso ao socket do Docker:** é um container privilegiado local. Mitigação: porta só em `127.0.0.1`, senha de teste descartável, removido (container, volume e dados) ao final do teste.
 - **Se o teste revelar incompatibilidade,** a correção entra no `docker-compose.yml` (ou no `check-stack.sh`) dentro desta mudança, com o motivo registrado aqui, e passa pelo mesmo fluxo de PR.
+
+## Resultados do teste com o Portainer CE 2.45.3 (Docker 29.3.1, Swarm de um nó)
+
+O stack foi criado pelo repositório (branch `dev`, `docker-compose.yml`, imagens `:local`) pela API do Portainer, com as variáveis do `.env.example`.
+
+- **Compatibilidade confirmada:** o `configs.file` relativo foi lido do clone do Git (script do Postgres executado: bancos e usuários criados); o `airflow-init` rodou como job de execução única e concluiu; secrets externos, rede externa e a restrição `node.role == manager` foram aceitos; o Airflow roda como `uid=50000`. Todos os serviços chegaram a `1/1`, exceto o backend, que depende da chave real (`invalid_grant` com a chave descartável).
+- **O Portainer implanta com a própria biblioteca de Swarm**, não com o `docker stack deploy`: ele tenta resolver a imagem no registry e, sem achar `...:local`, só avisa e segue. Com as imagens do DockerHub a resolução funciona.
+- **Falha de variável não vira erro HTTP:** criar o stack sem `IMAGE_TAG` responde 200, registra o stack com status *Failed* e nada é implantado; a mensagem (`required variable IMAGE_TAG is missing a value: tag das imagens (hml ou X.Y), nunca latest`) fica em `DeploymentStatus` e na página do stack. Um stack falho precisa ser apagado e recriado, ou ter as variáveis corrigidas e ser reimplantado.
+- **Webhook do stack:** `POST /api/stacks/webhooks/<id>` responde 204, refaz o deploy com a definição nova e, em alguns segundos, o Portainer passa a exibir o commit da cabeça da branch (conferido contra `git ls-remote`).
+- **Achado corrigido (1.6):** na primeira subida o MLflow migra os bancos `mlflow` e `mlflow_auth` e passava da janela de health check da imagem (40 s + 3 × 30 s); o Swarm o matava (exit 137, *unhealthy*) e só a segunda tentativa subia. O `docker-compose.yml` ganhou um `healthcheck` com a mesma sonda e `start_period: 240s`, `retries: 5`. Depois do redeploy o serviço ficou saudável.
+- **Rollback por tag verificado:** a referência `refs/tags/<tag>` no commit anterior fez o Portainer exibir esse commit, a definição do `mlflow` voltou ao estado anterior, e volumes e bancos foram preservados; restaurar a branch trouxe a definição nova de volta.
+- **Versões:** Docker 29.3.1 e Portainer 2.45.3. `mode: replicated-job` exige Docker Engine 20.10 ou superior (documentação do Docker); a VPS precisa de versão igual ou maior que essas, ou ao menos a mínima.
