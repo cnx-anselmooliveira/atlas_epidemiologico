@@ -11,9 +11,11 @@ import os
 import mlflow
 
 from atlas_ml.config import Settings, load_settings
+from atlas_ml.forecast.threads import limitar
 
 
 def _settings() -> Settings:
+    limitar()  # antes de importar PyTorch, CatBoost e afins: um terço dos núcleos por tarefa
     settings = load_settings()
     _ = settings.git_sha  # falha cedo se o commit em uso não estiver definido
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)

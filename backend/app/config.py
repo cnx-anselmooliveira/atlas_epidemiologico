@@ -10,6 +10,10 @@ class Settings(BaseSettings):
 
     gcp_project: str = "ppgcc-dengue-project"
     bq_dataset_gold: str = "gold"
+    bq_dataset_forecast: str = "forecast"
+    # Figuras dos modelos: só este bucket e o prefixo forecast/ são lidos (conta de leitura própria)
+    forecast_bucket: str = "ppgcc-bucket"
+    forecast_prefix: str = "forecast/"
     bq_location: str | None = None
     # Credencial: GOOGLE_APPLICATION_CREDENTIALS (caminho, padrão do Google) ou o JSON da
     # service account inteiro nesta variável (variável de stack no Portainer)

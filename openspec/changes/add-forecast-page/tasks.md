@@ -25,8 +25,8 @@
 
 ## 4. Backend: rotas `/forecast/*`
 
-- [ ] 4.1 Registrar as visões `forecast_current_*` em `app/tables.py` (colunas, filtros `model, horizon, uf, split`, ordem) e criar o roteador `/forecast/models`, `/forecast/metrics-uf` e `/forecast/predictions` com paginação, parâmetros de consulta e o cache por geração; verificar com testes de contrato no padrão de `tests/test_api.py` (filtros, ordem, 422 acima do máximo, lista vazia sem exportação, 503 com BigQuery fora)
-- [ ] 4.2 Criar `GET /forecast/figures/{model}/{arquivo}` lendo do bucket só arquivos registrados em `forecast_current_figures`, com `Cache-Control`, `ETag` e sem expor o caminho; verificar com testes (PNG válido, caminho com `..` e arquivo não registrado → 404, cabeçalhos de cache)
+- [x] 4.1 Registrar as visões `forecast_current_*` em `app/tables.py` (colunas, filtros `model, horizon, uf, split`, ordem) e criar o roteador `/forecast/models`, `/forecast/metrics-uf` e `/forecast/predictions` com paginação, parâmetros de consulta e o cache por geração; verificar com testes de contrato no padrão de `tests/test_api.py` (filtros, ordem, 422 acima do máximo, lista vazia sem exportação, 503 com BigQuery fora)
+- [x] 4.2 Criar `GET /forecast/figures/{model}/{arquivo}` lendo do bucket só arquivos registrados em `forecast_current_figures`, com `Cache-Control`, `ETag` e sem expor o caminho; verificar com testes (PNG válido, caminho com `..` e arquivo não registrado → 404, cabeçalhos de cache)
 - [ ] 4.3 Dar à conta de serviço do backend a leitura do prefixo `forecast/` do bucket (variável de stack, nada no Git) e documentar em `deploy/README.md`; verificar com `curl` local uma figura real e `check-secrets.sh --all` limpo
 - [ ] 4.4 Atualizar `backend/README.md` (rotas, filtros, cache, figuras) e rodar contra o BigQuery real; verificar `curl` de `/forecast/models` e de `/forecast/predictions?model=catboost&horizon=2&uf=SP&split=future` com dados da exportação
 

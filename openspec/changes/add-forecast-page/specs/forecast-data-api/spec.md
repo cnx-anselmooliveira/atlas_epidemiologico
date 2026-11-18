@@ -7,13 +7,14 @@ Servir ao site, com cache, o que a exportação materializou no BigQuery, no mes
 ## ADDED Requirements
 
 ### Requirement: Rotas de previsão
-A API SHALL expor, somente com GET:
-- `GET /forecast/models`: modelos e horizontes vigentes, com família, versão, `data_version`, `trained_at` e as métricas de teste;
-- `GET /forecast/metrics-uf`: métricas por UF, filtráveis por `model`, `horizon` e `split`;
-- `GET /forecast/predictions`: previsões, filtráveis por `model`, `horizon`, `uf` e `split`, ordenadas por `target_date`;
-- `GET /forecast/figures/{model}/{arquivo}`: a figura do modelo.
+A API SHALL expor, somente com GET, as rotas `/forecast/models`, `/forecast/metrics-uf`, `/forecast/predictions`, `/forecast/figures/{model}` e `/forecast/figures/{model}/{arquivo}`. Só as linhas vigentes SHALL ser servidas.
 
-Só as linhas vigentes SHALL ser servidas.
+#### Scenario: Conteúdo das rotas
+- **WHEN** o cliente consulta cada rota
+- **THEN** `/forecast/models` traz família, versão, `data_version`, `trained_at` e as métricas de teste de cada modelo e horizonte
+- **AND** `/forecast/metrics-uf` traz as métricas por UF, filtráveis por `model`, `horizon` e `split`
+- **AND** `/forecast/figures/{model}` lista nome, legenda e horizonte das figuras, sem o caminho do bucket
+- **AND** `/forecast/figures/{model}/{arquivo}?horizon=` devolve o PNG do horizonte (padrão 1)
 
 #### Scenario: Previsão de um modelo
 - **WHEN** o cliente chama `/forecast/predictions?model=catboost&horizon=2&uf=SP&split=future`

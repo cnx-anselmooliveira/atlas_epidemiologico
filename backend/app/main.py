@@ -18,14 +18,18 @@ from google.api_core import exceptions as google_exceptions
 
 from app.cache import Cache
 from app.config import Settings, get_settings
+from app.figures import FigureStore
 from app.repository import GoldRepository, criar_cliente
-from app.routers import casos_provaveis
+from app.routers import casos_provaveis, forecast
 
 log = logging.getLogger(__name__)
 
 
 def create_app(
-    repo: GoldRepository | None = None, cache: Cache | None = None, settings: Settings | None = None
+    repo: GoldRepository | None = None,
+    cache: Cache | None = None,
+    settings: Settings | None = None,
+    figures: FigureStore | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title="Atlas da Dengue — API gold", version="0.1.0")
@@ -35,14 +39,26 @@ def create_app(
             settings.gcp_project, settings.bq_location, settings.google_application_credentials_json
         )
         repo = GoldRepository(
-            client, settings.gcp_project, settings.bq_dataset_gold, settings.max_bytes_billed
+            client,
+            settings.gcp_project,
+            settings.bq_dataset_gold,
+            settings.max_bytes_billed,
+            settings.bq_dataset_forecast,
         )
     app.state.repo = repo
     app.state.cache = (
         cache if cache is not None else Cache.from_url(settings.redis_url, settings.redis_timeout_seconds)
     )
 
+    app.state.figures = figures or FigureStore(
+        settings.forecast_bucket,
+        settings.forecast_prefix,
+        settings.gcp_project,
+        settings.google_application_credentials_json,
+    )
+
     app.include_router(casos_provaveis.router)
+    app.include_router(forecast.router)
 
     @app.exception_handler(google_exceptions.GoogleAPIError)
     async def bigquery_indisponivel(request: Request, exc: google_exceptions.GoogleAPIError):

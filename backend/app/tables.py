@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 class GoldTable:
     table: str
     columns: tuple[str, ...]
+    # dataset de origem: "gold" (padrão) ou "forecast" (previsões exportadas do MLflow)
+    origem: str = "gold"
     # coluna filtrável → tipo do parâmetro no BigQuery
     filters: dict[str, str] = field(default_factory=dict)
     order_by: tuple[str, ...] = ()
@@ -45,4 +47,73 @@ CASOS_PROVAVEIS_UF_SEMANAL = GoldTable(
     order_by=("week_start", "uf"),
 )
 
-TABELAS = (CASOS_PROVAVEIS_BRASIL_SEMANAL, CASOS_PROVAVEIS_UF_SEMANAL)
+# --- previsões (dataset forecast, mantido pela DAG process_forecast_export_atlas) ---
+# Só as visões forecast_current_*: a run vigente de cada modelo e horizonte.
+FORECAST_MODELS = GoldTable(
+    table="forecast_current_models",
+    origem="forecast",
+    columns=(
+        "model",
+        "horizon",
+        "family",
+        "model_version",
+        "data_version",
+        "trained_at",
+        "env",
+        "nrmse",
+        "mae",
+        "rmse",
+        "r2",
+        "interval_coverage",
+        "fit_seconds",
+        "nrmse_br",
+    ),
+    filters={"model": "STRING", "horizon": "INT64"},
+    order_by=("model", "horizon"),
+)
+
+FORECAST_METRICS_UF = GoldTable(
+    table="forecast_current_metrics_uf",
+    origem="forecast",
+    columns=("model", "horizon", "split", "uf", "n", "nrmse", "mae", "rmse", "r2"),
+    filters={"model": "STRING", "horizon": "INT64", "split": "STRING", "uf": "STRING"},
+    order_by=("model", "horizon", "split", "uf"),
+)
+
+FORECAST_PREDICTIONS = GoldTable(
+    table="forecast_current_predictions",
+    origem="forecast",
+    columns=(
+        "model",
+        "horizon",
+        "split",
+        "uf",
+        "origin_date",
+        "target_date",
+        "y_true",
+        "y_pred",
+        "lower",
+        "upper",
+        "population",
+    ),
+    filters={"model": "STRING", "horizon": "INT64", "split": "STRING", "uf": "STRING"},
+    order_by=("target_date", "split", "uf"),
+)
+
+# Figuras: a coluna gcs_path só é lida pelo servidor (nunca devolvida em JSON)
+FORECAST_FIGURES = GoldTable(
+    table="forecast_current_figures",
+    origem="forecast",
+    columns=("model", "horizon", "name", "caption", "gcs_path"),
+    filters={"model": "STRING", "horizon": "INT64", "name": "STRING"},
+    order_by=("horizon", "name"),
+)
+
+TABELAS = (
+    CASOS_PROVAVEIS_BRASIL_SEMANAL,
+    CASOS_PROVAVEIS_UF_SEMANAL,
+    FORECAST_MODELS,
+    FORECAST_METRICS_UF,
+    FORECAST_PREDICTIONS,
+    FORECAST_FIGURES,
+)
