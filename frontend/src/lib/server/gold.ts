@@ -5,6 +5,12 @@
 // - timeout por chamada: BACKEND_TIMEOUT_MS
 // - rede, timeout ou 5xx → BackendUnavailableError (a página responde 503)
 
+import { type OpcoesCliente, criarPaginador, opcoesDoAmbiente } from './http';
+
+// os tipos e erros abaixo continuam disponíveis aqui para quem já importa de gold
+export { BackendUnavailableError, PAGINA } from './http';
+export type { OpcoesCliente } from './http';
+
 export interface SemanaBrasil {
 	week_start: string; // AAAA-MM-DD, domingo que inicia a semana epidemiológica
 	epi_year: number;
@@ -24,55 +30,8 @@ export interface SemanaUf extends SemanaBrasil {
 	uf: string;
 }
 
-export class BackendUnavailableError extends Error {
-	constructor(mensagem: string, options?: { cause?: unknown }) {
-		super(mensagem, options);
-		this.name = 'BackendUnavailableError';
-	}
-}
-
-export const PAGINA = 1000;
-const MAX_PAGINAS = 200; // trava contra laço infinito (200 mil linhas)
-
-export interface OpcoesCliente {
-	baseUrl: string;
-	timeoutMs: number;
-	fetchImpl?: typeof fetch;
-}
-
-type Filtros = Record<string, string | number | undefined>;
-
-export function criarClienteGold({ baseUrl, timeoutMs, fetchImpl = fetch }: OpcoesCliente) {
-	async function pagina<T>(rota: string, filtros: Filtros, offset: number): Promise<T[]> {
-		const url = new URL(rota, baseUrl);
-		for (const [k, v] of Object.entries(filtros)) if (v !== undefined) url.searchParams.set(k, String(v));
-		url.searchParams.set('limit', String(PAGINA));
-		url.searchParams.set('offset', String(offset));
-
-		let resposta: Response;
-		try {
-			resposta = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
-		} catch (erro) {
-			throw new BackendUnavailableError(`backend sem resposta em ${rota}`, { cause: erro });
-		}
-		if (resposta.status >= 500) {
-			throw new BackendUnavailableError(`backend respondeu ${resposta.status} em ${rota}`);
-		}
-		if (!resposta.ok) {
-			throw new Error(`backend respondeu ${resposta.status} em ${url.pathname}${url.search}`);
-		}
-		return (await resposta.json()) as T[];
-	}
-
-	async function tudo<T>(rota: string, filtros: Filtros = {}): Promise<T[]> {
-		const linhas: T[] = [];
-		for (let n = 0; n < MAX_PAGINAS; n++) {
-			const lote = await pagina<T>(rota, filtros, n * PAGINA);
-			linhas.push(...lote);
-			if (lote.length < PAGINA) return linhas;
-		}
-		throw new Error(`paginação de ${rota} passou de ${MAX_PAGINAS} páginas`);
-	}
+export function criarClienteGold(opcoes: OpcoesCliente) {
+	const { tudo } = criarPaginador(opcoes);
 
 	return {
 		/** Série semanal do Brasil (soma das UFs), da primeira à última semana. */
@@ -91,8 +50,7 @@ let cliente: ClienteGold | undefined;
 /** Cliente configurado pelo ambiente (astro:env), criado na primeira chamada. */
 export async function gold(): Promise<ClienteGold> {
 	if (!cliente) {
-		const { API_INTERNAL_URL, BACKEND_TIMEOUT_MS } = await import('astro:env/server');
-		cliente = criarClienteGold({ baseUrl: API_INTERNAL_URL, timeoutMs: BACKEND_TIMEOUT_MS });
+		cliente = criarClienteGold(await opcoesDoAmbiente());
 	}
 	return cliente;
 }

@@ -4,10 +4,12 @@
 // Simulações:
 //   ?__atraso=<ms>   atrasa a resposta          ?__falha=1   responde 503
 //   POST /__mock/estado {"falhar": true, "atraso": 0}   liga/desliga para todas as rotas
+//   POST /__mock/estado {"vazio": true}   rotas /forecast/* sem linhas (antes da primeira exportação)
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
 import { gerarFixtures } from './fixtures.mjs';
+import { gerarForecast } from './fixtures-forecast.mjs';
 
 const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 1000;
@@ -19,7 +21,27 @@ const ROTAS = {
 		filtros: { uf: 'str', epi_year: 'int' },
 		ordem: ['week_start', 'uf'],
 	},
+	// previsões (dataset forecast): as mesmas regras de filtro, ordem e paginação do backend real
+	'/forecast/models': { tabela: 'models', filtros: { model: 'str', horizon: 'int' }, ordem: ['model', 'horizon'], forecast: true },
+	'/forecast/metrics-uf': {
+		tabela: 'metricsUf',
+		filtros: { model: 'str', horizon: 'int', split: 'str', uf: 'str' },
+		ordem: ['model', 'horizon', 'split', 'uf'],
+		forecast: true,
+	},
+	'/forecast/predictions': {
+		tabela: 'predictions',
+		filtros: { model: 'str', horizon: 'int', uf: 'str', split: 'str' },
+		ordem: ['target_date', 'split', 'uf'],
+		forecast: true,
+	},
 };
+
+// PNG 1×1 azul (as figuras reais vêm do MLflow; aqui só precisa ser uma imagem válida)
+const PNG = Buffer.from(
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYPj/HwADAgH/ZVoV1gAAAABJRU5ErkJggg==',
+	'base64',
+);
 
 function json(res, status, corpo) {
 	res.writeHead(status, { 'content-type': 'application/json' });
@@ -36,7 +58,8 @@ function inteiro(valor, { min, max, padrao }) {
 
 export function criarServidor() {
 	const dados = gerarFixtures();
-	const estado = { falhar: false, atraso: 0 };
+	dados.forecast = gerarForecast(dados);
+	const estado = { falhar: false, atraso: 0, vazio: false };
 
 	return createServer(async (req, res) => {
 		const url = new URL(req.url ?? '/', 'http://mock');
@@ -56,6 +79,21 @@ export function criarServidor() {
 		}
 
 		if (url.pathname === '/health') return json(res, 200, { bigquery: 'ok', cache: 'desligado' });
+
+		// figuras: lista do modelo e o PNG de um arquivo (horizonte opcional, padrão 1)
+		const figuras = url.pathname.match(/^\/forecast\/figures\/([^/]+)(?:\/([^/]+))?$/);
+		if (figuras) {
+			const [, modelo, arquivo] = figuras.map((x) => x && decodeURIComponent(x));
+			const todas = estado.vazio ? [] : dados.forecast.figures.filter((f) => f.model === modelo);
+			if (!arquivo) {
+				const h = url.searchParams.get('horizon');
+				return json(res, 200, todas.filter((f) => h === null || f.horizon === Number(h)));
+			}
+			const h = Number(url.searchParams.get('horizon') ?? 1);
+			if (!todas.some((f) => f.name === arquivo && f.horizon === h)) return json(res, 404, { detail: 'figura não encontrada' });
+			res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' });
+			return res.end(PNG);
+		}
 
 		const rota = ROTAS[url.pathname];
 		if (!rota) return json(res, 404, { detail: 'Not Found' });
@@ -77,7 +115,8 @@ export function criarServidor() {
 			}
 		}
 
-		const linhas = dados[rota.tabela]
+		const origem = rota.forecast ? (estado.vazio ? [] : dados.forecast[rota.tabela]) : dados[rota.tabela];
+		const linhas = origem
 			.filter((l) => Object.entries(filtros).every(([k, v]) => l[k] === v))
 			.sort((a, b) => {
 				for (const c of rota.ordem) {
