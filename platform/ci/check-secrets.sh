@@ -55,9 +55,9 @@ done
 # 3) stacks em deploy/: campo de credencial só recebe referência (${VAR}, /run/secrets/...) ou fica vazio
 cred='^[[:space:]]*-?[[:space:]]*[A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|KEY|WEBHOOK)[A-Za-z0-9_]*:[[:space:]]*[^[:space:]#]'
 ok='(:[[:space:]]*"?(\$\{|/run/secrets/)|:[[:space:]]*""[[:space:]]*$)'
-if achados="$(git grep "${cached[@]}" -nE -e "$cred" -- 'deploy/*.yml' 'deploy/*.yaml' 2>/dev/null | grep -vE "$ok" | cut -d: -f1,2)"; [ -n "$achados" ]; then
+if achados="$(git grep "${cached[@]}" -nE -e "$cred" -- 'docker-compose.yml' 'deploy/*.yml' 'deploy/*.yaml' 2>/dev/null | grep -vE "$ok" | cut -d: -f1,2)"; [ -n "$achados" ]; then
   while IFS= read -r loc; do
-    echo "::error file=${loc%%:*},line=${loc##*:}::valor literal em campo de credencial de deploy/ (use \${VARIAVEL} ou /run/secrets/...)"
+    echo "::error file=${loc%%:*},line=${loc##*:}::valor literal em campo de credencial do stack ou de deploy/ (use \${VARIAVEL} ou /run/secrets/...)"
   done <<< "$achados"
   falhou=1
 fi
@@ -73,7 +73,7 @@ if [ "$modo" = "--all" ]; then
     falhou=1
   else
     # toda ${VARIAVEL} de compose e stack precisa estar no exemplo (ATLAS_GIT_SHA vem do script; HOSTNAME é do container)
-    for arq in platform/compose.dev.yml platform/compose.ca.yml deploy/atlas.stack.yml; do
+    for arq in platform/compose.dev.yml platform/compose.ca.yml docker-compose.yml; do
       [ -f "$arq" ] || continue
       while IFS= read -r nome; do
         case "$nome" in ATLAS_GIT_SHA|HOSTNAME) continue ;; esac

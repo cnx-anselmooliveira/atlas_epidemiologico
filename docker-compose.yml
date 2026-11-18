@@ -3,11 +3,11 @@
 #   + API gold (backend) + site (frontend) + Redis.
 #
 # Criar no Portainer em Stacks › Add stack › Repository (branch hml → stack atlas-hml; main →
-# atlas-prod), caminho deploy/atlas.stack.yml. Os valores são as variáveis do stack, listadas e
+# atlas-prod), caminho docker-compose.yml. Os valores são as variáveis do stack, listadas e
 # comentadas no .env.example da raiz; este arquivo só tem REFERÊNCIAS, nenhum valor de credencial.
 # Passo a passo, secrets e rotação: deploy/README.md.
 #
-#   docker stack config -c deploy/atlas.stack.yml    # valida (precisa das variáveis obrigatórias)
+#   docker stack config -c docker-compose.yml    # valida (precisa das variáveis obrigatórias)
 #
 # Ordem de subida (o Swarm ignora depends_on): o Postgres cria os bancos no primeiro boot, o
 # airflow-init (job de execução única) migra o banco e cria o admin, e os demais componentes do
@@ -285,7 +285,7 @@ secrets:
 configs:
   pg_init:
     name: atlas_${ATLAS_ENV}_pg_init_v1
-    file: ../platform/postgres/init-databases.sh
+    file: ./platform/postgres/init-databases.sh
 
 volumes:
   pgdata:

@@ -6,7 +6,7 @@
 |---|---|---|
 | Chave JSON da service account do BigQuery (leitura) | variável de stack `GOOGLE_APPLICATION_CREDENTIALS_JSON` no **Portainer** (stack `atlas-app`) | `backend` |
 | `ADMIN_TOKEN` (invalidação de cache) | variável de stack no Portainer | `backend` |
-| Hosts e tags (`FRONTEND_HOST`, `API_HOST`, `BACKEND_TAG`…) | variáveis de stack (não são segredo) | `atlas.stack.yml` |
+| Hosts e tags (`FRONTEND_HOST`, `API_HOST`, `BACKEND_TAG`…) | variáveis de stack (não são segredo) | `docker-compose.yml` |
 | Chave da service account do dbt/treino em hml | **Docker secret** do Portainer montado como arquivo, apontado por `DBT_BQ_KEYFILE=/run/secrets/<nome>` | Airflow (dbt via Cosmos) |
 | Acesso do Airflow ao GCP (GCS dos docs, cache do Cosmos, BigQuery das tarefas) | **Connection** `google_cloud_default` criada na UI do Airflow (ou `AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT` como variável de stack) | tarefas do Airflow |
 | Fernet key, JWT secret, senhas do Postgres e do admin do Airflow | variáveis da stack de dados no Portainer | Airflow |

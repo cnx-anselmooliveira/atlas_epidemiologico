@@ -11,6 +11,7 @@ frontend
 backend
 platform
 deploy
+docker-compose.yml
 docs
 openspec
 infra
