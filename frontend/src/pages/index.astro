@@ -36,11 +36,11 @@ const melhor = await carregar(
 const infoMelhor = melhor ? modeloPorId(melhor.model) : undefined;
 
 const destaques: Record<string, Destaque | undefined> = {
-	previsao: melhor && infoMelhor && {
+	previsao: (melhor && infoMelhor && {
 		rotulo: 'Modelo de menor erro (1 semana)',
 		valor: infoMelhor.nome,
 		detalhe: `NRMSE ${formatarDecimal(melhor.nrmse_br, 3)} no Brasil`,
-	},
+	}) || undefined,
 	// total do ano (a última semana sozinha é instável: ainda recebe notificações)
 	'serie-historica': dados?.ultima &&
 		dados.ano && {
