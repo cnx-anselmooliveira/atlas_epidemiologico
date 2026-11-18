@@ -39,7 +39,7 @@ padroes=(
   'github_pat_[A-Za-z0-9_]{50,}'
   'dckr_pat_[A-Za-z0-9_-]{20,}'
   'xox[baprs]-[A-Za-z0-9-]{10,}'
-  '/api/webhooks/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+  '/api/(stacks/)?webhooks/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
   'AIza[0-9A-Za-z_-]{35}'
 )
 for p in "${padroes[@]}"; do
