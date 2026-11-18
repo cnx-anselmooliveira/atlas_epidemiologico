@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: gold_dengue_casos_provaveis_uf_semanal_amostra
+    description: >
+      Amostra avulsa da gold_dengue_casos_provaveis_uf_semanal (só algumas UFs e os anos mais
+      recentes), para testar o pipeline de previsão de ponta a ponta em minutos. Fora da ETL:
+      só existe com --vars '{adhoc_amostra: true}' e fica no schema adhoc. Não serve para análise.
+    config:
+      enabled: "{{ var('adhoc_amostra', false) }}"
+    data_tests:
+      - unique:
+          column_name: "concat(uf, '|', cast(week_start as string))"
+    columns:
+      - name: uf
+        description: Sigla da UF (só as da amostra).
+        data_tests: [not_null]
+      - name: week_start
+        description: Domingo que inicia a semana epidemiológica.
+        data_tests: [not_null]
+      - name: probable_cases
+        description: Casos prováveis, como na gold.
+        data_tests: [not_null]

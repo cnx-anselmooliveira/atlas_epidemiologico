@@ -20,13 +20,14 @@ def _settings() -> Settings:
     return settings
 
 
-def prepare_snapshot() -> str:
-    """Lê a gold do BigQuery e grava o painel numa run `dataset`. Devolve o run_id."""
+def prepare_snapshot(source_table: str = "") -> str:
+    """Lê a gold do BigQuery (ou `source_table`, p.ex. uma amostra) e grava o painel numa run
+    `dataset`. Devolve o run_id."""
     from atlas_ml.data.bigquery import bigquery_client
-    from atlas_ml.forecast.dataset import prepare
+    from atlas_ml.forecast.dataset import CASES_TABLE, prepare
 
     settings = _settings()
-    return prepare(settings, bigquery_client(settings))
+    return prepare(settings, bigquery_client(settings), source_table or CASES_TABLE)
 
 
 def train(

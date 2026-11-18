@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -33,14 +34,26 @@ PANEL_COLUMNS = [
     *STATIC_COVARIATES,
 ]
 
+
 # Casos prováveis (notificações não descartadas) por UF de residência e semana do início
 # dos sintomas, com população do ano epidemiológico e relevo da UF. A gold já garante a
 # série regular (27 UFs × todas as semanas); build_panel só valida e completa por segurança.
-QUERY = f"""
+def query_for(table: str) -> str:
+    return f"""
 SELECT uf, week_start, epi_year AS year, epi_week, probable_cases AS cases, population,
        {", ".join(STATIC_COVARIATES)}
-FROM `{CASES_TABLE}`
+FROM `{table}`
 """
+
+
+QUERY = query_for(CASES_TABLE)
+
+
+def check_source(table: str) -> str:
+    """Tabela de origem no formato projeto.dataset.tabela (o nome vai dentro de crases na consulta)."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]+\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+", table):
+        raise ValueError(f"Tabela de origem inválida: {table!r} (use projeto.dataset.tabela)")
+    return table
 
 
 def build_panel(raw: pd.DataFrame) -> pd.DataFrame:
@@ -99,9 +112,11 @@ def pipeline_tags() -> dict[str, str]:
     return {"atlas.pipeline_run": os.environ.get("ATLAS_PIPELINE_RUN", "manual")}
 
 
-def prepare(settings: Settings, client: Any) -> str:
-    """Lê a gold, monta o painel e registra o snapshot numa run `dataset`. Devolve o run_id."""
-    raw, summary = read_features(client, query=QUERY, source_tables=[CASES_TABLE])
+def prepare(settings: Settings, client: Any, source_table: str = CASES_TABLE) -> str:
+    """Lê a gold (ou outra tabela de mesmo formato), monta o painel e registra o snapshot numa run
+    `dataset`. Devolve o run_id."""
+    source_table = check_source(source_table)
+    raw, summary = read_features(client, query=query_for(source_table), source_tables=[source_table])
     panel = build_panel(raw)
     with (
         atlas_run(

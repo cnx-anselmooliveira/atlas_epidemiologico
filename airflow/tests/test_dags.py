@@ -54,6 +54,8 @@ def _project_nodes() -> dict[str, str]:
     nodes = {p.stem: "seed" for p in (root / "seeds").glob("*.csv")}
     for p in (root / "models").rglob("*.sql"):
         rel = p.relative_to(root / "models").parts
+        if rel[0] == "adhoc":  # modelos avulsos (desligados por padrão, fora da ETL)
+            continue
         nodes[p.stem] = rel[0] if len(rel) > 1 else "gold"  # raiz de models/ (time spine) → gold
     return nodes
 
@@ -216,6 +218,36 @@ def test_forecast_parametros_e_ambiente():
         assert type(t).__name__ != "BashOperator", t.task_id
     for t in ["prepare", "horizonte.train_catboost", "horizonte.train_ensemble", "horizonte.comparar"]:
         assert dag.get_task(t).python == "/opt/atlas-ml/bin/python", t
+
+
+def test_exportacao_das_previsoes():
+    from airflow.sdk.definitions.mappedoperator import MappedOperator
+
+    dag = _dagbag().dags["process_forecast_export_atlas"]
+    assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
+    assert dag.max_active_runs == 1
+    assert set(dag.task_ids) == {
+        "configuracao",
+        "listar_versoes",
+        "entradas",
+        "montar",
+        "consolidar",
+        "publicar_figuras",
+        "carregar_bigquery",
+        "atualizar_visoes",
+    }
+    for t in dag.tasks:
+        assert type(t).__name__ != "BashOperator", t.task_id  # DAG em Python, sem scripts de shell
+    assert isinstance(dag.get_task("montar"), MappedOperator)  # um por modelo e horizonte
+    assert (
+        dag.get_task("listar_versoes").python == "/opt/atlas-ml/bin/python"
+    )  # MLflow só no venv do atlas_ml
+    # a visão vigente só muda na última tarefa, depois da carga e das figuras
+    assert dag.get_task("carregar_bigquery").upstream_task_ids >= {"consolidar", "publicar_figuras"}
+    assert "carregar_bigquery" in dag.get_task("atualizar_visoes").upstream_task_ids
+    assert dag.get_task("atualizar_visoes").downstream_task_ids == set()
+    treino = dag.dag_id == "process_forecast_export_atlas" and _forecast().get_task("exportar")
+    assert treino.trigger_dag_id == dag.dag_id  # a DAG de treino dispara esta
 
 
 def test_projeto_dbt_ignorado():

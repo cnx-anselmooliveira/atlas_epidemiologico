@@ -94,18 +94,22 @@ def _forecast_config(window: int, horizon: int, seed: int, features: str):
 
 
 @forecast_app.command("prepare")
-def forecast_prepare() -> None:
+def forecast_prepare(
+    source_table: str = typer.Option(
+        "", "--source-table", help="Outra tabela projeto.dataset.tabela com as mesmas colunas (ex.: amostra)."
+    ),
+) -> None:
     """Lê a gold do BigQuery e grava o painel numa run `dataset` (imprime dataset_run_id=)."""
     import mlflow
 
     from atlas_ml.data.bigquery import bigquery_client
-    from atlas_ml.forecast.dataset import prepare
+    from atlas_ml.forecast.dataset import CASES_TABLE, prepare
 
     try:
         settings = load_settings()
         _ = settings.git_sha
         mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
-        run_id = prepare(settings, bigquery_client(settings))
+        run_id = prepare(settings, bigquery_client(settings), source_table or CASES_TABLE)
     except (ConfigError, ValueError) as exc:
         _fail(str(exc))
     typer.echo(f"dataset_run_id={run_id}")

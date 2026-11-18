@@ -42,7 +42,7 @@ HORIZONTES = [1, 2, 3, 4]
 def configuracao() -> dict:
     """Janela e semente desta execução (parâmetros do disparo), como números e não como texto."""
     params = get_current_context()["params"]
-    return {"window": int(params["window"]), "seed": int(params["seed"])}
+    return {"window": int(params["window"]), "seed": int(params["seed"]), "fonte": str(params["fonte"] or "")}
 
 
 @task
@@ -56,10 +56,10 @@ def lista_de_horizontes() -> list[int]:
 
 
 @task.external_python(python="/opt/atlas-ml/bin/python", expect_airflow=False)
-def prepare() -> str:
+def prepare(fonte="") -> str:
     from atlas_ml.forecast.pipeline import prepare_snapshot
 
-    return prepare_snapshot()
+    return prepare_snapshot(fonte)
 
 
 @task.external_python(python="/opt/atlas-ml/bin/python", expect_airflow=False)
@@ -120,12 +120,17 @@ with DAG(
             description="Opcional. Horizontes em semanas (1 a 4).",
         ),
         "seed": Param(42, type="integer", description="Opcional. Semente."),
+        "fonte": Param(
+            "",
+            type="string",
+            description="Opcional. Tabela projeto.dataset.tabela no lugar da gold (ex.: amostra avulsa).",
+        ),
     },
     default_args={"owner": "atlas", "retries": 1, "retry_delay": timedelta(minutes=2)},
 ) as dag:
     pipeline_run = "{{ run_id }}"
-    snapshot = prepare()
     config = configuracao()
+    snapshot = prepare(config["fonte"])
     horizontes = lista_de_horizontes()
     grupos = por_horizonte.partial(
         dataset_run=snapshot,

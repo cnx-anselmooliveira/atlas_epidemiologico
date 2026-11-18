@@ -169,6 +169,55 @@ def pytest_approx(x, tol=1e-9):
     return _A()
 
 
+def _roda_completa():
+    pred, fut = _pred(), _future()
+    out = fe.predictions_frame(ENTRY, pred, fut)
+    br = fe.brazil_metrics(out)
+    by_uf = pd.DataFrame(
+        {
+            "split": ["test", "test"],
+            "uf": ["SP", "MG"],
+            "n": [2, 2],
+            "nrmse": [0.1, 0.2],
+            "mae": [1.0, 2.0],
+            "rmse": [1.0, 2.0],
+            "r2": [0.5, 0.6],
+        }
+    )
+    return out, fe.metrics_frame(ENTRY, br), fe.metrics_uf_frame(ENTRY, by_uf, br)
+
+
+def test_colunas_das_funcoes_batem_com_o_esquema_das_tabelas():
+    from atlas_ingest import forecast_ddl as ddl
+
+    out, metrics, metrics_uf = _roda_completa()
+    assert list(out.columns) == ddl.colunas("forecast_predictions")
+    assert set(metrics.columns) == set(ddl.colunas("forecast_metrics"))
+    assert set(metrics_uf.columns) == set(ddl.colunas("forecast_metrics_uf"))
+    assert set(fe.model_runs_row(ENTRY)) == set(ddl.colunas("forecast_model_runs"))
+
+
+def test_esquema_particao_e_visoes():
+    from atlas_ingest import forecast_ddl as ddl
+
+    assert set(ddl.TABELAS) == {
+        "forecast_model_runs",
+        "forecast_metrics",
+        "forecast_metrics_uf",
+        "forecast_predictions",
+        "forecast_figures",
+    }
+    for nome, schema in ddl.TABELAS.items():
+        campos = {f.name: f for f in schema}
+        assert {"model", "horizon", "mlflow_run_id", "exported_at"} <= set(campos), nome
+        assert campos["exported_at"].mode == "REQUIRED"
+        assert all(f.description for f in schema), f"{nome}: coluna sem descrição"
+    sql = ddl.sql_visao("p", "forecast", "forecast_predictions")
+    assert "forecast_current_predictions" in sql and "USING (model, horizon, mlflow_run_id)" in sql
+    assert "forecast_current_pointer" in sql
+    assert "split = 'test'" in ddl.sql_visao_modelos("p", "forecast")
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in list(globals().items()):
