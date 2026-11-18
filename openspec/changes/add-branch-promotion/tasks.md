@@ -3,7 +3,7 @@
 ## 1. Validação do stack no CI
 
 - [x] 1.1 Criar `platform/ci/check-stack.sh`: existência de `docker-compose.yml`, `.env.example` e dos arquivos de `configs.file`; `docker stack config` com as variáveis do `.env.example` para hml (`ATLAS_ENV=hml`, `IMAGE_TAG=hml`) e prod (`ATLAS_ENV=prod`, `IMAGE_TAG=1.0`); na saída resolvida, sem `:latest`, sem `published:`, secrets externos, imagens só do prefixo do projeto, `postgres` e `redis`, e nenhum serviço com tag `hml` quando `IMAGE_TAG=1.0`; verificar rodando o script no stack atual (passa) e com quatro casos que falham (script do Postgres ausente, porta publicada, `latest`, variável obrigatória sem exemplo)
-- [ ] 1.2 Acrescentar ao `ci.yml` o job `stack` (checkout e `check-stack.sh`) e incluí-lo no `needs` do `ci-ok`; verificar com `actionlint` e, no PR, o job rodando e o `ci-ok` falhando quando ele é pulado
+- [x] 1.2 Acrescentar ao `ci.yml` o job `stack` (checkout e `check-stack.sh`) e incluí-lo no `needs` do `ci-ok`; verificar com `actionlint` e, no PR, o job rodando e o `ci-ok` falhando quando ele é pulado
 
 ## 2. Regra de origem da promoção
 
@@ -12,14 +12,14 @@
 
 ## 3. Proteção e CODEOWNERS
 
-- [ ] 3.1 Atualizar o `.github/CODEOWNERS` com `docker-compose.yml`, `.env.example`, `platform/postgres/` e `deploy/`; verificar pelo endpoint de erros de CODEOWNERS do GitHub, sem avisos
-- [ ] 3.2 Consultar com `gh api` a proteção de `hml` e `main` e as opções de merge do repositório e montar a tabela "esperado × atual" (PR obrigatório, `ci-ok`, sem push direto, force-push e exclusão, administradores incluídos, sem exigir aprovação, só commit de merge); verificar mostrando o diff ao usuário
+- [x] 3.1 Atualizar o `.github/CODEOWNERS` com `docker-compose.yml`, `.env.example`, `platform/postgres/` e `deploy/`; verificar pelo endpoint de erros de CODEOWNERS do GitHub, sem avisos
+- [x] 3.2 Consultar com `gh api` a proteção de `hml` e `main` e as opções de merge do repositório e montar a tabela "esperado × atual" (PR obrigatório, `ci-ok`, sem push direto, force-push e exclusão, administradores incluídos, sem exigir aprovação, só commit de merge); verificar mostrando o diff ao usuário
 - [ ] 3.3 Com o usuário, aplicar os ajustes que faltarem (permissão de administrador); verificar de novo com `gh api` que a tabela fecha
 
 ## 4. Documentação
 
-- [ ] 4.1 Escrever em `deploy/README.md` o fluxo de promoção e a configuração do Portainer por ambiente (`atlas-hml` em `refs/heads/hml`, `atlas-prod` em `refs/heads/main`, caminho `docker-compose.yml`, sincronização por intervalo desligada, webhook do stack no Environment, sem credencial para repositório público e como guardá-la no Portainer se ele virar privado); verificar relendo contra os nomes reais do stack, dos Environments e dos workflows
-- [ ] 4.2 Acrescentar a conferência de produção (`docker service ls` só com tags `X.Y`) e o procedimento de exceção para emergência; verificar que os comandos citados existem
+- [x] 4.1 Escrever em `deploy/README.md` o fluxo de promoção e a configuração do Portainer por ambiente (`atlas-hml` em `refs/heads/hml`, `atlas-prod` em `refs/heads/main`, caminho `docker-compose.yml`, sincronização por intervalo desligada, webhook do stack no Environment, sem credencial para repositório público e como guardá-la no Portainer se ele virar privado); verificar relendo contra os nomes reais do stack, dos Environments e dos workflows
+- [x] 4.2 Acrescentar a conferência de produção (`docker service ls` só com tags `X.Y`) e o procedimento de exceção para emergência; verificar que os comandos citados existem
 
 ## 5. Primeira promoção
 

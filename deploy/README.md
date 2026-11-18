@@ -102,10 +102,41 @@ O stack `atlas-prod` é o mesmo arquivo lido da branch `main`, com `ATLAS_ENV=pr
 
 ## Fluxo de promoção dev → hml → main
 
-1. Trabalho em `dev`; cada push roda o `ci.yml` e publica as imagens com tag `dev` (sem deploy).
-2. **Promover para hml:** PR `dev` → `hml`, com o `ci-ok` obrigatório; no merge, os workflows das imagens alteradas publicam `hml` e chamam o webhook do Environment `hml`.
+A produção é a **`main`** (não existe branch `prod`): `atlas-hml` lê a branch `hml` e `atlas-prod` lê a `main`, as duas com o caminho `docker-compose.yml`.
+
+1. Trabalho em `dev`; cada push publica as imagens com tag `dev` (sem deploy). O `ci.yml` roda nos PRs e nos pushes para `hml` e `main`, e antes de qualquer publicação de imagem.
+2. **Promover para hml:** PR `dev` → `hml`. No merge, os workflows das imagens alteradas publicam `hml` e chamam o webhook do Environment `hml`.
 3. **Versão:** PR `hml` → `main`, depois a tag `vX.Y` em `main`. O workflow publica `X.Y` (imutável), espera a aprovação do Environment `prod` e chama o webhook de prod. Uma tag fora de `main` é recusada.
-4. Proteção de branch (feita no GitHub, em Settings › Branches): `hml` e `main` exigem o check `ci-ok` e PR.
+4. **Merge com commit de merge**, nunca squash nem rebase: o squash cria commits novos que não são ancestrais de `dev`, e o PR seguinte volta a listar tudo como diferença.
+
+### O que o CI barra em um PR para hml ou main
+
+| Job | Regra |
+|---|---|
+| `promocao` | `hml` só recebe PR de `dev`; `main` só recebe PR de `hml`. Qualquer outra origem falha explicando o fluxo. |
+| `stack` | `docker-compose.yml`, `.env.example` e `platform/postgres/init-databases.sh` existem; `docker stack config` valida para hml (tag `hml`) e prod (tag de versão); sem `latest`, sem porta publicada, sem `build`, secrets externos, só imagens do projeto, `postgres` e `redis`. Roda também com `bash platform/ci/check-stack.sh`. |
+| `secrets` | nenhum valor literal de credencial no `docker-compose.yml` e em `deploy/`, nenhuma variável do stack fora do `.env.example`. |
+| `ci-ok` | passa só se todos os jobs passaram (`promocao` pulado só é aceito fora de PR). É o único check exigido na proteção. |
+
+### Proteção das branches `hml` e `main` (Settings › Branches)
+
+| Configuração | Esperado |
+|---|---|
+| Exigir PR antes do merge | ligado, **sem** exigir aprovação (um só mantenedor) |
+| Check obrigatório | `ci-ok`, com a branch em dia |
+| Valer para administradores | ligado |
+| Push direto, force-push e exclusão | bloqueados |
+| Merge do repositório (Settings › General) | só **Create a merge commit**; squash e rebase desligados; "delete branch on merge" desligado (apagaria `dev` e `hml`) |
+
+Para conferir: `gh api repos/cnx-anselmooliveira/atlas_epidemiologico/branches/<hml|main>/protection` e `gh api repos/cnx-anselmooliveira/atlas_epidemiologico --jq '{merge_commit: .allow_merge_commit, squash: .allow_squash_merge, rebase: .allow_rebase_merge}'`. O `.github/CODEOWNERS` pede o mantenedor para o stack, o `.env.example`, `platform/postgres/`, `deploy/` e os workflows.
+
+### Conferência de produção
+
+Depois de implantar o `atlas-prod`, todos os serviços do stack devem usar tag de versão: `docker service ls --format '{{.Name}} {{.Image}}'` não pode mostrar `:hml` nem `:dev`. O CI já impede um valor fixo no arquivo e só aciona o deploy de produção por tag em `main`; o valor de `IMAGE_TAG` no Portainer só você vê.
+
+### Emergência
+
+Um conserto urgente também passa por `dev` e `hml`. Se for impossível esperar, o administrador pode desligar a proteção da branch por um momento (Settings › Branches), aplicar a mudança e **religar na hora**; registre o motivo no PR seguinte.
 
 ## Desenvolvimento local
 
