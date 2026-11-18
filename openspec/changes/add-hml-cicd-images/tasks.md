@@ -5,15 +5,15 @@
 - [x] 1.1 Estender o `_image.yml` com a entrada `target` (alvo do Dockerfile) e acrescentar `workflow_dispatch` nos chamadores; verificar com `actionlint` sem erros
 - [x] 1.2 Criar `.github/workflows/airflow.yml` (contexto `.`, `file: airflow/Dockerfile`, caminhos `airflow/**` e `ml/**`), `mlflow.yml` (`infra/mlflow/**`) e `ml.yml` (`context: ml`, alvo `runtime`); verificar que cada um passa o secret `PORTAINER_WEBHOOK_<IMAGEM>`
 - [x] 1.3 Adicionar `workflow_dispatch` e os caminhos de dependência a `frontend.yml` e `backend.yml`; verificar que uma alteração só em `ml/src/` dispara `ml` e `airflow` e não `frontend`
-- [ ] 1.4 Conferir os `.dockerignore` das cinco imagens (`.env`, chaves JSON, `platform/secrets/`, certificados); verificar construindo cada imagem e listando o contexto enviado
-- [ ] 1.5 Verificar o build local das três imagens novas (`airflow`, `mlflow`, `ml` alvo `runtime`) com os mesmos build args do workflow
+- [x] 1.4 Conferir os `.dockerignore` das cinco imagens (`.env`, chaves JSON, `platform/secrets/`, certificados); verificar construindo cada imagem e listando o contexto enviado
+- [x] 1.5 Verificar o build local das três imagens novas (`airflow`, `mlflow`, `ml` alvo `runtime`) com os mesmos build args do workflow
 
 ## 2. Secrets e Environments
 
-- [ ] 2.1 Criar o job `secrets-check` no início do `_image.yml`, com os demais dependendo dele; verificar a execução sem o secret: falha em segundos, lista o nome que falta e não imprime valor
-- [ ] 2.2 Escolher o `environment` pela origem no job de publicação (`hml` para a branch, `prod` para tag, nenhum para `dev`) e ler `PORTAINER_WEBHOOK` do Environment; verificar que um push em `hml` não usa o webhook de `prod`
-- [ ] 2.3 Registrar no job, sem falhar, quando não há webhook ("deploy não acionado"); verificar numa execução sem o secret
-- [ ] 2.4 Criar a regra de `deploy/` no `platform/ci/check-secrets.sh` (campos de credencial só com `${...}`, `/run/secrets/...` ou vazios); verificar com um caso que falha, um que passa e `check-secrets --all` limpo
+- [x] 2.1 Criar o job `secrets-check` no início do `_image.yml`, com os demais dependendo dele; verificar a execução sem o secret: falha em segundos, lista o nome que falta e não imprime valor
+- [x] 2.2 Escolher o `environment` pela origem no job de publicação (`hml` para a branch, `prod` para tag, nenhum para `dev`) e ler `PORTAINER_WEBHOOK` do Environment; verificar que um push em `hml` não usa o webhook de `prod`
+- [x] 2.3 Registrar no job, sem falhar, quando não há webhook ("deploy não acionado"); verificar numa execução sem o secret
+- [x] 2.4 Criar a regra de `deploy/` no `platform/ci/check-secrets.sh` (campos de credencial só com `${...}`, `/run/secrets/...` ou vazios); verificar com um caso que falha, um que passa e `check-secrets --all` limpo
 
 ## 3. Stacks
 

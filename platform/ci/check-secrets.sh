@@ -52,6 +52,16 @@ for p in "${padroes[@]}"; do
   fi
 done
 
+# 3) stacks em deploy/: campo de credencial só recebe referência (${VAR}, /run/secrets/...) ou fica vazio
+cred='^[[:space:]]*-?[[:space:]]*[A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|KEY|WEBHOOK)[A-Za-z0-9_]*:[[:space:]]*[^[:space:]#]'
+ok='(:[[:space:]]*"?(\$\{|/run/secrets/)|:[[:space:]]*""[[:space:]]*$)'
+if achados="$(git grep "${cached[@]}" -nE -e "$cred" -- 'deploy/*.yml' 'deploy/*.yaml' 2>/dev/null | grep -vE "$ok" | cut -d: -f1,2)"; [ -n "$achados" ]; then
+  while IFS= read -r loc; do
+    echo "::error file=${loc%%:*},line=${loc##*:}::valor literal em campo de credencial de deploy/ (use \${VARIAVEL} ou /run/secrets/...)"
+  done <<< "$achados"
+  falhou=1
+fi
+
 if [ "$falhou" -ne 0 ]; then
   echo "Credenciais não vão para o Git. Use variáveis da stack no Portainer, Connections/Variables do Airflow ou secrets do GitHub (deploy/README.md)." >&2
   exit 1
