@@ -22,6 +22,7 @@ beforeAll(async () => {
 	for (const nome of ['index', 'serie-historica', 'mapa', 'sobre', 'previsao', '404']) {
 		paginas[nome] = (await import(`../src/pages/${nome}.astro`)).default;
 	}
+	paginas['modelo'] = (await import('../src/pages/previsao/modelos/[modelo].astro')).default;
 });
 afterAll(() => new Promise<void>((ok) => mock.close(() => ok())));
 afterEach(() => estadoMock({ falhar: false, vazio: false }));
@@ -258,5 +259,46 @@ describe('repasse das figuras', () => {
 		const r = await GET({ params: { modelo: 'lstm', arquivo: 'learning_curve.png' }, url: new URL('http://atlas.test/x') } as never);
 		expect(r.status).toBe(503);
 		expect(r.headers.get('cache-control')).toBe('no-store');
+	});
+});
+
+describe('documentação dos modelos', () => {
+	async function abrirModelo(modelo: string, consulta = '') {
+		const r = await container.renderToResponse(paginas.modelo, {
+			params: { modelo },
+			request: new Request(`http://atlas.test/previsao/modelos/${modelo}${consulta}`),
+		});
+		return { status: r.status, html: await r.text() };
+	}
+
+	it.each(['ensemble', 'catboost', 'lstm', 'svr', 'baseline_bayes', 'chronos'])('%s: texto, métricas e figuras', async (modelo) => {
+		const { status, html } = await abrirModelo(modelo, '?h=2');
+		expect(status).toBe(200);
+		expect(html).toContain('Como funciona');
+		expect(html).toContain('Erro por horizonte');
+		expect(html).toContain('Erro por UF');
+		expect(html).toContain(`/previsao/imagens/${modelo}/`);
+		expect(html).toMatch(/<img[^>]+alt="[^"]+"/);
+		expect(html).toContain(`href="/previsao?modelo=${modelo}&amp;h=2"`);
+	});
+
+	it('modelo ausente: 404', async () => {
+		expect((await abrirModelo('xyz')).status).toBe(404);
+	});
+
+	it('backend fora: texto continua, com aviso', async () => {
+		await estadoMock({ falhar: true });
+		const { status, html } = await abrirModelo('lstm');
+		expect(status).toBe(200);
+		expect(html).toContain('Como funciona');
+		expect(html).toContain('Dados temporariamente indisponíveis');
+	});
+
+	it('sem exportação: estados vazios, sem quebrar', async () => {
+		await estadoMock({ vazio: true });
+		const { status, html } = await abrirModelo('lstm');
+		expect(status).toBe(200);
+		expect(html).toContain('ainda não foi exportado');
+		expect(html).toContain('ainda não tem figuras');
 	});
 });
