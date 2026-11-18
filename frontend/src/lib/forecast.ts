@@ -1,5 +1,5 @@
 // Modelos de previsão e agregações da página /previsao (funções puras, sem rede).
-import type { ModeloVigente, Previsao } from './server/forecast';
+import type { MetricaUf, ModeloVigente, Previsao } from './server/forecast';
 
 export const HORIZONTES = [1, 2, 3, 4] as const;
 
@@ -207,4 +207,19 @@ export function montarSerie(
 		futuro,
 		retroativa: !!ultimaComDados && futuro.length > 0 && futuro.every((f) => f.data <= ultimaComDados),
 	};
+}
+
+/** Comparação a partir das métricas por UF (uma linha por modelo, no horizonte e local escolhidos). */
+export function compararMetricas(metricas: readonly MetricaUf[]): LinhaComparacao[] {
+	return metricas
+		.map((m) => ({ modelo: m.model, nrmse: m.nrmse, mae: m.mae, rmse: m.rmse, r2: m.r2, versao: null }))
+		.sort((a, b) => (a.nrmse ?? Infinity) - (b.nrmse ?? Infinity));
+}
+
+/** Erro de um modelo em cada horizonte (1 a 4) a partir das métricas por UF de teste. */
+export function erroPorHorizonteDe(metricas: readonly MetricaUf[]): ErroPorHorizonte[] {
+	return HORIZONTES.map((h) => ({
+		horizonte: h,
+		nrmse: metricas.find((m) => m.horizon === h && m.split === 'test')?.nrmse ?? null,
+	}));
 }

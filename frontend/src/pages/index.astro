@@ -8,8 +8,10 @@ import SourceNote from '../components/SourceNote.astro';
 import { SECOES } from '../data/secoes';
 import { nomeDaUf } from '../data/ufs';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { formatarInteiro, formatarSemana, formatarTaxa } from '../lib/format';
+import { formatarDecimal, formatarInteiro, formatarSemana, formatarTaxa } from '../lib/format';
+import { melhorModelo, modeloPorId } from '../lib/forecast';
 import { incidenciaPorUf, totaisPorAno, ultimaSemana } from '../lib/series';
+import { forecast } from '../lib/server/forecast';
 import { gold } from '../lib/server/gold';
 import { carregar } from '../lib/server/pagina';
 
@@ -25,7 +27,20 @@ const dados = await carregar(
 	{ status503: false }, // a página inicial segue útil sem os números
 );
 
+// o melhor modelo (menor erro no horizonte 1); sem exportação ou com o backend fora, o cartão fica sem número
+const melhor = await carregar(
+	Astro,
+	async () => melhorModelo(await (await forecast()).modelos(), 1),
+	{ status503: false },
+);
+const infoMelhor = melhor ? modeloPorId(melhor.model) : undefined;
+
 const destaques: Record<string, Destaque | undefined> = {
+	previsao: melhor && infoMelhor && {
+		rotulo: 'Modelo de menor erro (1 semana)',
+		valor: infoMelhor.nome,
+		detalhe: `NRMSE ${formatarDecimal(melhor.nrmse_br, 3)} no Brasil`,
+	},
 	// total do ano (a última semana sozinha é instável: ainda recebe notificações)
 	'serie-historica': dados?.ultima &&
 		dados.ano && {

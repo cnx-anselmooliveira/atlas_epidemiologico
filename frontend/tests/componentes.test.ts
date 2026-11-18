@@ -28,7 +28,7 @@ describe('SectionCard', () => {
 	});
 
 	it('seção em breve: sem link, com selo', async () => {
-		const html = await container.renderToString(SectionCard, { props: { secao: secao('previsao') } });
+		const html = await container.renderToString(SectionCard, { props: { secao: secao('qualidade-dos-dados') } });
 		expect(html).not.toContain('<a ');
 		expect(html).toContain('Em breve');
 		expect(html).toContain('data-status="em-breve"');

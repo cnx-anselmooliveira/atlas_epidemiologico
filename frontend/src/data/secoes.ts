@@ -38,7 +38,7 @@ export const SECOES: readonly Secao[] = [
 		titulo: 'Previsão',
 		descricao: 'Casos esperados nas próximas semanas segundo os modelos de previsão do Atlas.',
 		href: '/previsao',
-		status: 'em-breve',
+		status: 'disponivel',
 		icone: 'pulse',
 	},
 	{

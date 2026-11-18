@@ -18,8 +18,9 @@ describe('SiteHeader', () => {
 		expect(html).toMatch(/<a[^>]*href="\/mapa"[^>]*aria-current="page"/);
 		expect(html).not.toMatch(/<a[^>]*href="\/serie-historica"[^>]*aria-current/);
 		for (const s of SECOES) expect(html).toContain(s.titulo);
-		expect(html).not.toContain('href="/previsao"');
-		expect(html).toMatch(/aria-disabled="true"[^>]*>\s*Previsão/);
+		expect(html).not.toContain('href="/qualidade-dos-dados"');
+		expect(html).toMatch(/aria-disabled="true"[^>]*>\s*Qualidade dos dados/);
+		expect(html).toContain('href="/previsao"');  // agora disponível
 	});
 
 	it('na página inicial nenhuma seção fica marcada', async () => {
@@ -46,6 +47,7 @@ describe('SiteFooter', () => {
 	it('lista só as seções disponíveis', async () => {
 		const html = await container.renderToString(SiteFooter);
 		expect(html).toContain('href="/serie-historica"');
-		expect(html).not.toContain('href="/previsao"');
+		expect(html).not.toContain('href="/qualidade-dos-dados"');
+		expect(html).toContain('href="/previsao"');
 	});
 });
