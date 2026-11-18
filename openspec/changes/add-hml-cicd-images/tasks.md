@@ -17,8 +17,8 @@
 
 ## 3. Stacks
 
-- [ ] 3.1 Corrigir o `deploy/app.stack.yml`: tags obrigatórias e `FORECAST_BUCKET` e `FORECAST_PREFIX` no backend; verificar com `docker stack config -c deploy/app.stack.yml`, com e sem as variáveis
-- [ ] 3.2 Criar `deploy/platform.stack.yml` (Postgres, MLflow, Airflow api-server, scheduler, dag-processor e triggerer) espelhando o `compose.dev.yml`, com variáveis, volumes nomeados, rede interna e Docker secret para a chave; verificar com `docker stack config` e comparando os serviços com o compose
+- [x] 3.1 Tags obrigatórias e variáveis do bucket de figuras no stack: absorvido pela mudança `add-hml-stack` (tarefa 2.1), que substitui o `deploy/app.stack.yml`
+- [x] 3.2 Stack da plataforma de dados (Postgres, MLflow, Airflow): absorvido pela mudança `add-hml-stack` (tarefas 2.1 a 2.5), em um único `deploy/atlas.stack.yml`
 - [ ] 3.3 Documentar a criação da service account de leitura do backend e o acesso ao prefixo `forecast/` por condição IAM, com comandos sem valores; verificar, com o usuário, o PNG de uma figura servido por essa conta e anotar o resultado no README
 
 ## 4. Documentação
