@@ -97,7 +97,8 @@ log "plataforma saudável"
 # O treino roda no ambiente isolado do Airflow (/opt/atlas-ml), com o mesmo ambiente do worker
 # (MLFLOW_TRACKING_URI, ATLAS_ENV, ATLAS_IMAGE_TAG): sem DAG de exemplo, o comando é o mesmo.
 log "treinando o experimento de exemplo no container do Airflow"
-out="$(compose exec -T airflow-scheduler /opt/atlas-ml/bin/atlas-ml train example --register)"   || fail "atlas-ml train example falhou"
+out="$(compose exec -T airflow-scheduler sh -c 'exec /opt/atlas-ml/bin/atlas-ml train example --register')" \
+  || fail "atlas-ml train example falhou"
 echo "$out"
 echo "$out" | grep -q '^run_id=' || fail "run não registrada no MLflow"
 log "treino terminou com sucesso"
