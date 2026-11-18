@@ -33,16 +33,6 @@ def test_sem_erros_de_import():
     assert bag.dags, "nenhuma DAG carregada"
 
 
-def test_dag_de_exemplo():
-    dag = _dagbag().dags["atlas_ml_example_training"]
-    assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
-    assert dag.max_active_runs == 1
-    task = dag.get_task("train_example")
-    assert task.retries == 2
-    assert "atlas-ml train example --register" in task.bash_command
-    assert "run_id=" in task.bash_command
-
-
 ETL_LAYERS = ["seed", "bronze", "silver", "gold"]
 
 

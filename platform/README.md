@@ -27,7 +27,7 @@ Todas as portas escutam só em `127.0.0.1`.
    ./platform/dev.ps1 status    # aguarde todos "healthy" (cerca de 1 min)
    ```
 3. **Usar**
-   - Abra o Airflow (usuário `admin`, senha do `.env`), despause e dispare `atlas_ml_example_training`.
+   - Abra o Airflow (usuário `admin`, senha do `.env`), despause e dispare `atlas_dengue_forecast_br`.
    - A run aparece no MLflow em `atlas/example`, com as tags `atlas.*`, métricas, modelo e `data_summary.json`. O modelo `atlas-example` ganha o alias `@dev`.
    - Para notebooks: `./platform/dev.ps1 notebook` e abra o link impresso. Os arquivos ficam em `ml/notebooks/`.
 4. **Editar código**

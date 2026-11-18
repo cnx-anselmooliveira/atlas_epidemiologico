@@ -61,7 +61,7 @@ cd atlas_epidemiologico
 | Airflow | <http://127.0.0.1:8080> (usuário `admin`) |
 | JupyterLab (opcional, `./platform/dev.ps1 notebook`) | <http://127.0.0.1:8888> |
 
-No Airflow, dispare a DAG `atlas_ml_example_training` e veja a run no MLflow. O passo a passo completo, inclusive o uso do bucket GCS e da rede corporativa, está em [`platform/README.md`](platform/README.md).
+No Airflow, dispare a DAG `atlas_dengue_forecast_br` e veja as runs no MLflow. O passo a passo completo, inclusive o uso do bucket GCS e da rede corporativa, está em [`platform/README.md`](platform/README.md).
 
 ## Estrutura do repositório
 

@@ -40,7 +40,6 @@ As tarefas herdam o ambiente do container (`MLFLOW_TRACKING_URI`, `ATLAS_ENV`, `
 
 | DAG | Agendamento | O que faz |
 |---|---|---|
-| `atlas_ml_example_training` | manual | `atlas-ml train example --register`. Falha se a run não for registrada no MLflow; 2 retentativas |
 | `process_etl_atlas` | **diária** | Sync do SINAN (OpenDataSUS → landing → tabela bronze) e, se houver dados novos (ou com `forcar_dbt`), a modelagem dbt pelo **Cosmos**: grupos `seed → bronze → silver → gold`, uma tarefa por model com os testes logo depois |
 | `process_dbt_docs_atlas` | manual | Gera o dbt docs (`index.html`, `manifest.json`, `catalog.json`) e publica em `gs://ppgcc-bucket/dbt_docs/<ATLAS_ENV>/`; o Airflow mostra no menu de dbt docs |
 | `atlas_dengue_forecast_br` | manual | Previsão de dengue por UF: `prepare → 5 modelos-base (baseline bayesiano, Chronos, CatBoost, SVR, LSTM) → ensemble → compare`, com no máximo 3 tarefas em paralelo e 1 retentativa. Parâmetros opcionais `window`, `horizon` e `seed`. Todas as runs no MLflow (`atlas/dengue-forecast-br`) com a tag `atlas.pipeline_run` = run_id da DAG; modelos registrados como `atlas-br-<modelo>` |
