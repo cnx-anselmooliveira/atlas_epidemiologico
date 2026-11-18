@@ -19,4 +19,4 @@
 ## 3. Fechamento com as mudanças vizinhas
 
 - [ ] 3.1 Depois do merge do PR #4 (`add-branch-promotion` 5.1, com a aprovação do usuário), conferir que a branch `hml` tem `docker-compose.yml`, `.env.example` e `platform/postgres/init-databases.sh` (`git ls-tree origin/hml`) e repetir 1.2 e 1.3 com `refs/heads/hml`; verificar o stack subindo a partir de `hml`
-- [ ] 3.2 Entregar ao usuário a lista final para a VPS (pré-requisitos, valores a preencher, webhook) e apontar para `add-hml-stack` 6.3 e `add-branch-promotion` 5.3, que executam a criação do stack real; verificar que as tarefas citadas continuam abertas e coerentes com este roteiro
+- [x] 3.2 Entregar ao usuário a lista final para a VPS (pré-requisitos, valores a preencher, webhook) e apontar para `add-hml-stack` 6.3 e `add-branch-promotion` 5.3, que executam a criação do stack real; verificar que as tarefas citadas continuam abertas e coerentes com este roteiro
