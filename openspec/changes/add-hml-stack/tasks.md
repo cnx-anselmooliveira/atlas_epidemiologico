@@ -32,7 +32,7 @@
 ## 5. Validação local
 
 - [ ] 5.1 Subir o stack num Swarm local de um nó (`docker swarm init`, secrets e config de teste, imagens `:local` com `IMAGE_TAG` de teste); verificar todos os serviços saudáveis, `/`, `/previsao`, a API e o MLflow respondendo, e desfazer com `docker stack rm` e `docker swarm leave --force`
-- [ ] 5.2 Rodar `actionlint`, `check-secrets --all` e o `ci.yml`; verificar tudo verde
+- [x] 5.2 Rodar `actionlint`, `check-secrets --all` e o `ci.yml`; verificar tudo verde
 
 ## 6. Documentação e hml
 
