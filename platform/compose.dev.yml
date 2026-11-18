@@ -36,12 +36,12 @@ x-airflow-common: &airflow-common
     # Cache do `dbt ls` do Cosmos no bucket: dag-processor e tarefas leem o mesmo lugar. O
     # cache padrão (Variables) não é lido dentro das tarefas no Airflow 3, e cada tarefa
     # repetia os 4 `dbt ls` (~60 s) antes de rodar o model.
-    AIRFLOW__COSMOS__REMOTE_CACHE_DIR: gs://ppgcc-bucket/cosmos_cache/dev
+    AIRFLOW__COSMOS__REMOTE_CACHE_DIR: gs://${ATLAS_BUCKET:-ppgcc-bucket}/cosmos_cache/${ATLAS_ENV:-dev}
     # explícito: no Cosmos 1.16 o padrão por esquema (gs → google_cloud_default) passa uma
     # função no lugar do nome da Connection ("conn_id `<function _default_gcs_conn>`")
     AIRFLOW__COSMOS__REMOTE_CACHE_DIR_CONN_ID: google_cloud_default
     # Plugin de dbt docs do Cosmos: lê a documentação publicada pela process_dbt_docs_atlas
-    AIRFLOW__COSMOS__DBT_DOCS_PROJECTS: '{"atlas": {"dir": "gs://ppgcc-bucket/dbt_docs/dev", "conn_id": "google_cloud_default", "index": "index.html", "name": "dbt Docs (Atlas)"}}'
+    AIRFLOW__COSMOS__DBT_DOCS_PROJECTS: '{"atlas": {"dir": "gs://${ATLAS_BUCKET:-ppgcc-bucket}/dbt_docs/${ATLAS_ENV:-dev}", "conn_id": "google_cloud_default", "index": "index.html", "name": "dbt Docs (Atlas)"}}'
   volumes:
     - ../airflow/dags:/opt/airflow/dags            # DAGs ao vivo, sem rebuild
     - hf-cache:/opt/airflow/hf-cache               # checkpoint do Chronos (HF_HOME da imagem)

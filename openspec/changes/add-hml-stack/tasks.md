@@ -2,9 +2,9 @@
 
 ## 1. Ajustes de código para hml e prod
 
-- [ ] 1.1 Fazer o `infra/mlflow/entrypoint.sh` aceitar `MLFLOW_INSTALLATION` `dev|hml|prod` (e `vps` como alias de `prod`); verificar executando o entrypoint com cada valor e com um inválido (mensagem de erro) e o destino `gs://<bucket>/mlflow/<ambiente>` resultante
-- [ ] 1.2 Parametrizar por `ATLAS_ENV` o cache do Cosmos e os docs do dbt no `compose.dev.yml` e no stack (`AIRFLOW__COSMOS__REMOTE_CACHE_DIR`, `AIRFLOW__COSMOS__DBT_DOCS_PROJECTS`), sem mudar o caminho de dev; verificar com `docker compose config` que dev segue com `.../dev`
-- [ ] 1.3 Revisar `airflow/config/vps.env` para hml e prod (FAB, config não exposta) e conferir que o `init.sh` cria o admin no FAB; verificar subindo o `airflow-init` com `AIRFLOW__CORE__AUTH_MANAGER` do FAB num Postgres local e listando o usuário
+- [x] 1.1 Fazer o `infra/mlflow/entrypoint.sh` aceitar `MLFLOW_INSTALLATION` `dev|hml|prod` (e `vps` como alias de `prod`); verificar executando o entrypoint com cada valor e com um inválido (mensagem de erro) e o destino `gs://<bucket>/mlflow/<ambiente>` resultante
+- [x] 1.2 Parametrizar por `ATLAS_ENV` o cache do Cosmos e os docs do dbt no `compose.dev.yml` e no stack (`AIRFLOW__COSMOS__REMOTE_CACHE_DIR`, `AIRFLOW__COSMOS__DBT_DOCS_PROJECTS`), sem mudar o caminho de dev; verificar com `docker compose config` que dev segue com `.../dev`
+- [x] 1.3 Revisar `airflow/config/vps.env` para hml e prod (FAB, config não exposta) e conferir que o `init.sh` cria o admin no FAB; verificar subindo o `airflow-init` com `AIRFLOW__CORE__AUTH_MANAGER` do FAB num Postgres local e listando o usuário
 
 ## 2. Stack único
 
