@@ -24,7 +24,7 @@ const L = 26; // largura da semana
 const FOLGA = 4;
 const X0 = 24;
 const total = janela + descartadas;
-const larguraSvg = X0 * 2 + total * (L + FOLGA);
+const larguraSvg = X0 + total * (L + FOLGA) + 70; // folga à direita para o rótulo do dado mais recente
 const YC = 120; // topo das células
 const xCentro = (i: number) => X0 + i * (L + FOLGA) + L / 2;
 
@@ -37,12 +37,15 @@ const alvos = Array.from({ length: horizontes }, (_, k) => ({ h: k + 1, i: janel
 const maisRecente = somar(origem, descartadas);
 
 // arco da origem até cada alvo, por cima das células (mais alto quanto mais longe)
+const topoArco = (h: number) => YC - 22 - h * 14;
 const arco = (de: number, ate: number, h: number) => {
 	const x1 = xCentro(de);
 	const x2 = xCentro(ate);
-	const topo = YC - 22 - h * 14;
+	const topo = topoArco(h);
 	return `M ${x1} ${YC - 4} C ${x1} ${topo}, ${x2} ${topo}, ${x2} ${YC - 4}`;
 };
+// ápice da curva de Bézier (t = 0,5): 1/8 do início + 3/8 de cada controle + 1/8 do fim
+const apice = (h: number) => (YC - 4) * 0.25 + topoArco(h) * 0.75;
 const xJanela = [X0, X0 + janela * (L + FOLGA) - FOLGA];
 const xDescartadas = [X0 + janela * (L + FOLGA), X0 + total * (L + FOLGA) - FOLGA];
 const rotuloAlt = `Esquema: a janela de ${janela} semanas termina em ${formatarData(origem)}; ${horizontes} modelos, um por horizonte, preveem as semanas de ${formatarData(alvos[0].dataIso)} a ${formatarData(alvos.at(-1)!.dataIso)} a partir da mesma janela.`;
@@ -51,9 +54,9 @@ const rotuloAlt = `Esquema: a janela de ${janela} semanas termina em ${formatarD
 <figure class="como-prevemos">
 	<div class="como-prevemos__rolagem">
 		<svg
-			viewBox={`0 0 ${larguraSvg} 250`}
+			viewBox={`0 0 ${larguraSvg} 262`}
 			width={larguraSvg}
-			height="250"
+			height="262"
 			role="img"
 			aria-label={rotuloAlt}
 			xmlns="http://www.w3.org/2000/svg"
@@ -74,7 +77,7 @@ const rotuloAlt = `Esquema: a janela de ${janela} semanas termina em ${formatarD
 			}
 			{
 				alvos.map((a) => (
-					<text x={xCentro(a.i)} y={YC - 28 - a.h * 14} class="rotulo-h" text-anchor="middle">
+					<text x={(xCentro(iOrigem) + xCentro(a.i)) / 2} y={apice(a.h) - 6} class="rotulo-h" text-anchor="middle">
 						{`H${a.h}`}
 					</text>
 				))
@@ -107,7 +110,7 @@ const rotuloAlt = `Esquema: a janela de ${janela} semanas termina em ${formatarD
 			}
 			<text x={xCentro(total - 1)} y={YC + L + 18} class="data" text-anchor="middle">{curta(maisRecente)}</text>
 			<text x={xCentro(iOrigem)} y={YC + L + 34} class="legenda" text-anchor="middle">origem</text>
-			<text x={xCentro(total - 1)} y={YC + L + 34} class="legenda" text-anchor="middle">dado mais recente</text>
+			<text x={xCentro(total - 1) + 14} y={YC + L + 34} class="legenda" text-anchor="end">dado mais recente</text>
 
 			<!-- colchetes: janela e semanas incompletas -->
 			<path d={`M ${xJanela[0]} ${YC + L + 52} v6 H ${xJanela[1]} v-6`} class="colchete colchete--janela" fill="none"></path>
