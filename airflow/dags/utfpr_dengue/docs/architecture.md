@@ -45,5 +45,5 @@ Tabelas Gold adicionais no estilo dos gráficos do info.dengue.mat.br (todas a p
 
 ## Brasil: SINAN pelo OpenDataSUS
 
-Desde a mudança `add-sinan-opendatasus-ingestion`, o Brasil vem dos arquivos anuais do OpenDataSUS (`DENGBR<aa>.csv.zip`). A DAG `process_etl_atlas` sincroniza esses arquivos com o landing do bucket, que é um espelho exato da origem, e os carrega na tabela `bronze.sinan_dengue_opendatasus`, uma partição por ano, sem transformação. O model `bronze_dengue_brasil` lê essa tabela, com `var('sinan_source')`, e harmoniza os dois layouts do SINAN. A antiga cópia da Base dos Dados (`raw_uftpr_microdados_brasil`) fica como fallback.
+Desde a mudança `add-sinan-opendatasus-ingestion`, o Brasil vem dos arquivos anuais do OpenDataSUS (`DENGBR<aa>.csv.zip`). A DAG `ingestao_sinan_brasil` (disparada pela `etl_brasil`) sincroniza esses arquivos com o landing do bucket, que é um espelho exato da origem, e os carrega na tabela `bronze.sinan_dengue_opendatasus`, uma partição por ano, sem transformação. O model `bronze_dengue_brasil` lê essa tabela, com `var('sinan_source')`, e harmoniza os dois layouts do SINAN. A antiga cópia da Base dos Dados (`raw_uftpr_microdados_brasil`) fica como fallback.
 

@@ -311,7 +311,7 @@ OPTIONS(description="{_DESCRICAO_TABELA}")
 
 _DESCRICAO_TABELA = (
     "Microdados de dengue do SINAN (OpenDataSUS), sem transformação: colunas de origem como texto, "
-    "uma partição por ano de arquivo. Carregada pela process_etl_atlas a partir de "
+    "uma partição por ano de arquivo. Carregada pela ingestao_sinan_brasil a partir de "
     "gs://<bucket>/landing/sinan/dengue/."
 )
 

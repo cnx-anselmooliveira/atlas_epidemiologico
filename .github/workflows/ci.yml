@@ -153,6 +153,8 @@ jobs:
         run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_sinan_ingest.py
       - name: exportação das previsões (funções puras, sem rede)
         run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_forecast_export.py
+      - name: decisões do fluxo etl_brasil (funções puras, sem rede)
+        run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_etl_brasil.py
 
   platform-e2e:
     name: platform-e2e

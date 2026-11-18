@@ -1,4 +1,4 @@
-# Roda o dbt do projeto utfpr_dengue localmente, com o mesmo profile da DAG process_etl_atlas.
+# Roda o dbt do projeto utfpr_dengue localmente, com o mesmo profile da DAG dbt_brasil.
 #   ./airflow/dags/utfpr_dengue/dbt.ps1 debug
 #   ./airflow/dags/utfpr_dengue/dbt.ps1 build --select +gold_dengue_casos_provaveis_uf_semanal
 # Padrões (sobrescreva definindo antes):

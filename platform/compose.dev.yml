@@ -28,7 +28,7 @@ x-airflow-common: &airflow-common
     ATLAS_IMAGE_TAG: local
     GCP_PROJECT: ${GCP_PROJECT:-}
     GOOGLE_APPLICATION_CREDENTIALS: /secrets/training-sa.json
-    # dbt (DAGs process_etl_atlas e process_dbt_docs_atlas, via Cosmos): mesma service account do treino
+    # dbt (DAGs dbt_brasil e process_dbt_docs_atlas, via Cosmos): mesma service account do treino
     DBT_BQ_KEYFILE: /secrets/training-sa.json
     DBT_PARTIAL_PARSE: "false"
     # Connection do GCS (dbt docs): só o caminho da chave montada, nunca o conteúdo

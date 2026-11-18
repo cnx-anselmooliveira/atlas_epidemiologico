@@ -59,7 +59,7 @@ def _dbt_task_ids(dag):
 
 
 def test_etl_cosmos_grupos_em_cadeia():
-    dag = _dagbag().dags["process_etl_atlas"]
+    dag = _dagbag().dags["dbt_brasil"]
     assert dag.max_active_runs == 1
     dbt = _dbt_task_ids(dag)
     assert {_layer_of(t) for t in dbt} == set(ETL_LAYERS)
@@ -80,7 +80,7 @@ def test_etl_cosmos_grupos_em_cadeia():
 
 
 def test_etl_cosmos_cobre_cada_model_uma_vez():
-    dag = _dagbag().dags["process_etl_atlas"]
+    dag = _dagbag().dags["dbt_brasil"]
     dbt = _dbt_task_ids(dag)
     for node, expected in _project_nodes().items():
         layers = {
@@ -91,50 +91,124 @@ def test_etl_cosmos_cobre_cada_model_uma_vez():
 
 
 SINAN = [
-    "sinan.detectar_diferencas",
-    "sinan.lista_baixar",
-    "sinan.baixar",
-    "sinan.apagar",
-    "sinan.carga_ano.carregar_bronze",
-    "sinan.carga_ano.validar",
-    "sinan.carga_ano.marcar_carregado",
-    "sinan.remover_da_bronze",
+    "detectar_diferencas",
+    "lista_baixar",
+    "baixar",
+    "apagar",
+    "carga_ano.carregar_bronze",
+    "carga_ano.validar",
+    "carga_ano.marcar_carregado",
+    "remover_da_bronze",
+    "resumo",
 ]
 
 
-def test_etl_diaria_com_sync_do_sinan_antes_do_dbt():
-    dag = _dagbag().dags["process_etl_atlas"]
-    assert "@daily" in str(dag.schedule) or "daily" in str(dag.timetable.summary).lower(), (
-        dag.timetable.summary
-    )
-    assert dag.catchup is False
-    assert dag.params["forcar_dbt"] is False
-    assert set(SINAN) <= set(dag.task_ids)
-    sensor = dag.get_task("sinan.detectar_diferencas")
-    assert sensor.mode == "reschedule" and sensor.soft_fail is True
-    # tarefas por arquivo/ano são mapeadas; a cadeia de carga é um grupo mapeado por ano
+def _sem_agenda(dag) -> bool:
+    return dag.schedule is None or str(dag.timetable.summary) in ("None", "Never")
+
+
+def test_ingestao_sinan_brasil():
     from airflow.sdk.definitions.mappedoperator import MappedOperator
 
-    for t in ("sinan.baixar", "sinan.apagar", "sinan.remover_da_bronze"):
+    dag = _dagbag().dags["ingestao_sinan_brasil"]
+    assert _sem_agenda(dag), "a ingestão só roda disparada (etl_brasil ou à mão)"
+    assert dag.catchup is False and dag.max_active_runs == 1
+    assert dag.params["janela_horas"] == 0  # à mão: verifica uma vez
+    assert set(SINAN) <= set(dag.task_ids)
+    sensor = dag.get_task("detectar_diferencas")
+    assert sensor.mode == "reschedule"
+    for t in ("baixar", "apagar", "remover_da_bronze"):
         assert isinstance(dag.get_task(t), MappedOperator), t
-    for t in (
-        "sinan.carga_ano.carregar_bronze",
-        "sinan.carga_ano.validar",
-        "sinan.carga_ano.marcar_carregado",
-    ):
+    for t in ("carga_ano.carregar_bronze", "carga_ano.validar", "carga_ano.marcar_carregado"):
         assert dag.get_task(t).get_closest_mapped_task_group() is not None, t
-    # landing antes da bronze; bronze antes da decisão; decisão antes do dbt
-    carregar = dag.get_task("sinan.carga_ano.carregar_bronze")
-    assert {"sinan.baixar", "sinan.apagar"} <= carregar.upstream_task_ids
-    assert dag.get_task("sinan.carga_ano.validar").upstream_task_ids == {carregar.task_id}
-    assert "sinan.apagar" in dag.get_task("sinan.remover_da_bronze").upstream_task_ids
+    # landing antes da bronze; tudo antes do resumo
+    carregar = dag.get_task("carga_ano.carregar_bronze")
+    assert {"baixar", "apagar"} <= carregar.upstream_task_ids
+    assert dag.get_task("carga_ano.validar").upstream_task_ids == {carregar.task_id}
+    assert "apagar" in dag.get_task("remover_da_bronze").upstream_task_ids
+    resumo = dag.get_task("resumo")
+    assert {"carga_ano.marcar_carregado", "remover_da_bronze"} <= resumo.upstream_task_ids
+    assert resumo.trigger_rule == "none_failed"
+    for t in ("carga_ano.carregar_bronze", "remover_da_bronze"):
+        assert dag.get_task(t).trigger_rule == "none_failed", t
+    assert not _dbt_task_ids(dag), "o dbt fica na dbt_brasil"
+
+
+def test_dbt_brasil_decide_antes_do_dbt():
+    dag = _dagbag().dags["dbt_brasil"]
+    assert _sem_agenda(dag), "o dbt só roda disparado (etl_brasil ou à mão)"
+    assert dag.params["forcar_dbt"] is False
     decidir = dag.get_task("decidir_dbt")
-    assert {"sinan.carga_ano.marcar_carregado", "sinan.remover_da_bronze"} <= decidir.upstream_task_ids
-    assert decidir.trigger_rule == "none_failed" and decidir.ignore_downstream_trigger_rules is True
+    assert decidir.ignore_downstream_trigger_rules is True
+    assert decidir.upstream_task_ids == set()
     roots_seed = [t for t in decidir.downstream_task_ids if _layer_of(t) == "seed"]
     assert roots_seed, "decidir_dbt precisa vir antes do grupo seed"
-    for t in ("sinan.carga_ano.carregar_bronze", "sinan.remover_da_bronze"):
-        assert dag.get_task(t).trigger_rule == "none_failed", t
+
+
+def test_etl_brasil_encadeia_as_etapas():
+    dag = _dagbag().dags["etl_brasil"]
+    assert dag.catchup is False and dag.max_active_runs == 1
+    assert dag.params["forcar_dbt"] is False and dag.params["forcar_treino"] is False
+    ordem = ["ingestao_sinan", "modelagem_dbt", "decidir_treino", "treino_previsao"]
+    assert set(dag.task_ids) == set(ordem)
+    for antes, depois in zip(ordem, ordem[1:], strict=False):
+        assert dag.get_task(depois).upstream_task_ids == {antes}, (antes, depois)
+    alvos = {
+        "ingestao_sinan": "ingestao_sinan_brasil",
+        "modelagem_dbt": "dbt_brasil",
+        "treino_previsao": "atlas_dengue_forecast_br",
+    }
+    for task_id, dag_id in alvos.items():
+        t = dag.get_task(task_id)
+        assert type(t).__name__ == "TriggerDagRunOperator", task_id
+        assert t.trigger_dag_id == dag_id and dag_id in _dagbag().dags, task_id
+        assert t.wait_for_completion is True and t.deferrable is True, task_id
+        assert list(t.failed_states) == ["failed"] and list(t.allowed_states) == ["success"], task_id
+    assert dag.get_task("ingestao_sinan").conf["janela_horas"] == 3
+    assert dag.get_task("treino_previsao").conf == {"fonte": ""}  # base inteira, nunca a amostra
+    assert "forcar_dbt" in str(dag.get_task("modelagem_dbt").conf["forcar_dbt"])
+    assert dag.get_task("decidir_treino").ignore_downstream_trigger_rules is True
+
+
+def _ler_dag(arquivo: str, ambiente: str):
+    """Lê uma DAG isolada com ATLAS_ENV definido (o agendamento depende do ambiente)."""
+    import importlib.util
+
+    anterior = os.environ.get("ATLAS_ENV")
+    os.environ["ATLAS_ENV"] = ambiente
+    try:
+        spec = importlib.util.spec_from_file_location(f"_dag_{ambiente}", os.path.join(DAGS_FOLDER, arquivo))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.dag
+    finally:
+        if anterior is None:
+            os.environ.pop("ATLAS_ENV", None)
+        else:
+            os.environ["ATLAS_ENV"] = anterior
+
+
+def test_etl_brasil_agenda_por_ambiente():
+    for ambiente in ("hml", "prod"):
+        dag = _ler_dag("etl_brasil.py", ambiente)
+        tt = dag.timetable
+        assert type(tt).__name__ == "CronTriggerTimetable", (ambiente, tt)
+        assert tt._expression == "0 3 * * *", tt._expression
+        assert str(tt._timezone.name) == "America/Sao_Paulo", tt._timezone
+    assert _sem_agenda(_ler_dag("etl_brasil.py", "dev")), "em dev a etl_brasil roda só à mão"
+
+
+def test_so_a_etl_brasil_tem_agenda():
+    bag = _dagbag()
+    assert "process_etl_atlas" not in bag.dags, "substituída por ingestao_sinan_brasil + dbt_brasil"
+    for dag_id in (
+        "ingestao_sinan_brasil",
+        "dbt_brasil",
+        "atlas_dengue_forecast_br",
+        "process_forecast_export_atlas",
+        "process_dbt_docs_atlas",
+    ):
+        assert _sem_agenda(bag.dags[dag_id]), f"{dag_id} não pode ter agendamento próprio"
 
 
 def test_docs_dag():
@@ -160,7 +234,14 @@ def _forecast():
 def test_forecast_estrutura_e_regras():
     dag = _forecast()
     assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
-    assert dag.max_active_runs == 1 and dag.max_active_tasks == 3
+    assert dag.max_active_runs == 1 and dag.max_active_tasks == 2
+    assert dag.dagrun_timeout is not None and dag.dagrun_timeout.total_seconds() == 12 * 3600
+    # pool dos treinos: pesados ocupam as 2 vagas (um por vez), leves 1; todos com tempo máximo
+    for nome in FORECAST_BASES + ["ensemble"]:
+        t = dag.get_task(f"horizonte.train_{nome}")
+        assert t.pool == "atlas_treino", nome
+        assert t.pool_slots == (2 if nome in ("lstm", "baseline_bayes", "chronos") else 1), nome
+        assert t.execution_timeout.total_seconds() == 3 * 3600, nome
     por_horizonte = {f"horizonte.train_{b}" for b in FORECAST_BASES}
     esperado = {
         "prepare",

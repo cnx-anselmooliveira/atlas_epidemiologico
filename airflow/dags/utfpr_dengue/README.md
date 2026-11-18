@@ -1,10 +1,10 @@
 # utfpr_dengue (dbt)
 
-Modelagem da dengue no BigQuery (`ppgcc-dengue-project`, location US), em camadas `bronze` (views sobre `microdados`), `silver` e `gold`. O projeto fica junto das DAGs porque o Airflow o executa pela DAG `process_etl_atlas`.
+Modelagem da dengue no BigQuery (`ppgcc-dengue-project`, location US), em camadas `bronze` (views sobre `microdados`), `silver` e `gold`. O projeto fica junto das DAGs porque o Airflow o executa pela DAG `dbt_brasil` (disparada pela `etl_brasil`).
 
 ## Como rodar
 
-**Pelo Airflow** (dev, hml, prod): a DAG `process_etl_atlas` roda todo dia.
+**Pelo Airflow** (dev, hml, prod): a DAG `etl_brasil` roda todo dia às 03h00 de Brasília em hml e prod (em dev, à mão) e dispara a ingestão do SINAN (`ingestao_sinan_brasil`) e a modelagem (`dbt_brasil`, só com dados novos).
 - Primeiro sincroniza o SINAN do OpenDataSUS (landing e tabela bronze).
 - Se houver dados novos, roda o dbt pelo **Cosmos**: grupos `seed → bronze → silver → gold`, uma tarefa por model com os testes logo depois.
 - Num disparo manual, `{"forcar_dbt": true}` roda o dbt mesmo sem dados novos.
@@ -74,7 +74,7 @@ O teste `warn_sinan_opendatasus_equivale_basedosdados` compara as duas fontes:
 
 ## Custo e tempo do build completo
 
-Execução da `process_etl_atlas` sem parâmetros, em dev, em 16/11/2026:
+Execução da antiga `process_etl_atlas` (hoje `ingestao_sinan_brasil` + `dbt_brasil`) sem parâmetros, em dev, em 16/11/2026:
 
 | Etapa | Nós | Resultado |
 |---|---|---|
