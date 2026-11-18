@@ -32,10 +32,10 @@ x-airflow-env: &airflow-env
   MLFLOW_TRACKING_PASSWORD: ${MLFLOW_ADMIN_PASSWORD:?}
   GCP_PROJECT: ${GCP_PROJECT:-ppgcc-dengue-project}
   # Chave da service account de treino: Docker secret montado como arquivo, nunca o conteúdo
-  GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/training_sa
-  DBT_BQ_KEYFILE: /run/secrets/training_sa
+  GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/training_sa.json
+  DBT_BQ_KEYFILE: /run/secrets/training_sa.json
   DBT_PARTIAL_PARSE: "false"
-  AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: '{"conn_type": "google_cloud_platform", "extra": {"key_path": "/run/secrets/training_sa", "project": "${GCP_PROJECT:-ppgcc-dengue-project}"}}'
+  AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT: '{"conn_type": "google_cloud_platform", "extra": {"key_path": "/run/secrets/training_sa.json", "project": "${GCP_PROJECT:-ppgcc-dengue-project}"}}'
   # Cache do Cosmos e documentação do dbt separados por ambiente (hml e prod nunca dividem prefixo)
   AIRFLOW__COSMOS__REMOTE_CACHE_DIR: gs://${ATLAS_BUCKET:-ppgcc-bucket}/cosmos_cache/${ATLAS_ENV}
   AIRFLOW__COSMOS__REMOTE_CACHE_DIR_CONN_ID: google_cloud_default
@@ -45,7 +45,11 @@ x-airflow: &airflow
   image: ${IMAGE_REPO_PREFIX:-anselmomendes/atlas-epidemiologia}-airflow:${IMAGE_TAG:?tag das imagens (hml ou X.Y), nunca latest}
   user: "50000:0"
   environment: *airflow-env
-  secrets: [training_sa]
+  # montado com extensão .json: o provider do Google no Airflow recusa key_path sem ela
+  # ("Unrecognised extension for key file", visto no hml)
+  secrets:
+    - source: training_sa
+      target: training_sa.json
   volumes:
     - airflow_logs:/opt/airflow/logs
     - airflow_shared:/opt/airflow/shared
