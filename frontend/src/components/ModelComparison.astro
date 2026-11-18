@@ -1,0 +1,73 @@
+---
+// Comparação entre os modelos no horizonte e no local escolhidos, do menor para o maior NRMSE.
+// O modelo atual fica destacado; cada nome leva à página `?modelo=` com a mesma UF e horizonte.
+import { modeloPorId, type LinhaComparacao } from '../lib/forecast';
+import { formatarDecimal } from '../lib/format';
+import Icon from './Icon.astro';
+
+interface Props {
+	linhas: readonly LinhaComparacao[];
+	atual: string | null;
+	uf: string | null;
+	horizonte: number;
+	legenda: string;
+}
+const { linhas, atual, uf, horizonte, legenda } = Astro.props;
+
+const href = (modelo: string) => {
+	const p = new URLSearchParams({ modelo });
+	if (uf) p.set('uf', uf);
+	p.set('h', String(horizonte));
+	return `/previsao?${p}`;
+};
+---
+
+<div class="ds-table-wrap">
+	<table class="ds-table ds-table--compact">
+		<caption>{legenda}</caption>
+		<thead>
+			<tr>
+				<th scope="col">#</th>
+				<th scope="col">Modelo</th>
+				<th scope="col" class="is-num">NRMSE</th>
+				<th scope="col" class="is-num">MAE</th>
+				<th scope="col" class="is-num">RMSE</th>
+				<th scope="col" class="is-num">R²</th>
+			</tr>
+		</thead>
+		<tbody>
+			{
+				linhas.map((l, i) => {
+					const info = modeloPorId(l.modelo);
+					return (
+						<tr aria-current={l.modelo === atual ? 'true' : undefined} class:list={{ atual: l.modelo === atual }}>
+							<td>{i + 1}º</td>
+							<th scope="row">
+								<a href={href(l.modelo)} class="nome">
+									{info && <Icon nome={info.icone} tamanho="sm" />}
+									{info?.nome ?? l.modelo}
+								</a>
+							</th>
+							<td class="is-num">{formatarDecimal(l.nrmse, 3)}</td>
+							<td class="is-num">{formatarDecimal(l.mae, 2)}</td>
+							<td class="is-num">{formatarDecimal(l.rmse, 2)}</td>
+							<td class="is-num">{formatarDecimal(l.r2, 2)}</td>
+						</tr>
+					);
+				})
+			}
+		</tbody>
+	</table>
+</div>
+
+<style>
+	tr.atual {
+		background: var(--blue-50);
+		font-weight: var(--weight-bold);
+	}
+	.nome {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+</style>

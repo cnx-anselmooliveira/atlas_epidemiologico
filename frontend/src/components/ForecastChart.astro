@@ -1,0 +1,178 @@
+---
+// Gráfico da previsão: incidência observada, previsão no período de teste (horizonte escolhido) e
+// as 4 semanas à frente da origem, com a faixa do intervalo quando o modelo produz. As semanas
+// observadas depois da origem aparecem à parte ("em consolidação"). No servidor: figura, tabela
+// alternativa e os pontos em JSON; no navegador: ECharts (tree-shaken), só nesta página.
+import { formatarDecimal } from '../lib/format';
+import { formatarData } from '../lib/format';
+import type { SeriePrevisao } from '../lib/forecast';
+import DataTable from './DataTable.astro';
+
+interface Props {
+	titulo: string;
+	subtitulo?: string;
+	/** Nome do modelo, para a legenda e o tooltip */
+	modelo: string;
+	serie: SeriePrevisao;
+	horizonte: number;
+	fonte?: string;
+}
+const { titulo, subtitulo, modelo, serie, horizonte, fonte } = Astro.props;
+
+const dados = JSON.stringify({ modelo, horizonte, serie }).replace(/</g, '\\u003c');
+const colunas = [
+	{ chave: 'horizonte', rotulo: 'Horizonte' },
+	{ chave: 'semana', rotulo: 'Semana prevista' },
+	{ chave: 'previsto', rotulo: 'Previsto', numerica: true },
+	{ chave: 'intervalo', rotulo: 'Intervalo', numerica: true },
+	{ chave: 'observado', rotulo: 'Observado depois', numerica: true },
+] as const;
+const observadoPor = new Map(serie.consolidacao.map((p) => [p.data, p.valor]));
+const linhas = serie.futuro.map((f) => ({
+	horizonte: `H${f.horizonte}`,
+	semana: formatarData(f.data),
+	previsto: formatarDecimal(f.valor, 1),
+	intervalo: f.min != null && f.max != null ? `${formatarDecimal(f.min, 1)} a ${formatarDecimal(f.max, 1)}` : '—',
+	observado: observadoPor.has(f.data) ? formatarDecimal(observadoPor.get(f.data), 1) : '—',
+}));
+const descricao = `${titulo}: ${serie.observado.length} semanas observadas, ${serie.teste.length} de teste e ${serie.futuro.length} previstas; valores na tabela.`;
+---
+
+<figure class="ds-card ds-figure" data-grafico="previsao">
+	<div class="ds-figure__header">
+		<div>
+			<h2 class="ds-figure__title">{titulo}</h2>
+			{subtitulo && <p class="ds-figure__subtitle">{subtitulo}</p>}
+		</div>
+		<ul class="ds-legend">
+			<li class="ds-legend__item"><span class="ds-legend__swatch ds-legend__swatch--line" style="--swatch: var(--viz-ink-2)"></span>Observado</li>
+			<li class="ds-legend__item"><span class="ds-legend__swatch ds-legend__swatch--line" style="--swatch: var(--viz-cat-1)"></span>Previsão no teste (H{horizonte})</li>
+			<li class="ds-legend__item"><span class="ds-legend__swatch ds-legend__swatch--dashed"></span>Semanas à frente da origem</li>
+			<li class="ds-legend__item"><span class="ds-legend__swatch" style="--swatch: var(--viz-nodata)"></span>Em consolidação</li>
+		</ul>
+	</div>
+	<div class="ds-figure__plot" role="img" aria-label={descricao}></div>
+	<div class="ds-figure__fallback">
+		<DataTable colunas={colunas} linhas={linhas} legenda="Previsão das semanas à frente da origem" compacta />
+	</div>
+	{fonte && <figcaption class="ds-figure__caption"><span>{fonte}</span></figcaption>}
+	<script is:inline type="application/json" data-previsao set:html={dados} />
+</figure>
+
+<script>
+	import { LineChart } from 'echarts/charts';
+	import { DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent } from 'echarts/components';
+	import * as echarts from 'echarts/core';
+	import { SVGRenderer } from 'echarts/renderers';
+
+	import { fmt } from '../scripts/ds/ds.js';
+	import { mountChart, tooltipHTML } from '../scripts/ds/echarts-theme.js';
+
+	echarts.use([LineChart, GridComponent, TooltipComponent, DataZoomComponent, MarkLineComponent, SVGRenderer]);
+
+	type P = { data: string; valor: number };
+	type F = { data: string; horizonte: number; valor: number; min: number | null; max: number | null };
+	type Dados = {
+		modelo: string;
+		horizonte: number;
+		serie: { origem: string | null; observado: P[]; consolidacao: P[]; teste: P[]; futuro: F[] };
+	};
+
+	for (const figura of document.querySelectorAll<HTMLElement>('figure[data-grafico="previsao"]')) {
+		const json = figura.querySelector('script[data-previsao]')?.textContent;
+		const plot = figura.querySelector<HTMLElement>('.ds-figure__plot');
+		if (!json || !plot) continue;
+		const { modelo, horizonte, serie }: Dados = JSON.parse(json);
+		const par = (p: P) => [p.data, p.valor];
+		const dataBr = (iso: string) => iso.split('-').reverse().join('/');
+		const comFaixa = serie.futuro.filter((f) => f.min != null && f.max != null);
+		const inicio = serie.teste[0]?.data ?? serie.observado.at(-52)?.data ?? serie.observado[0]?.data;
+		const fim = serie.consolidacao.at(-1)?.data ?? serie.futuro.at(-1)?.data ?? serie.observado.at(-1)?.data;
+
+		mountChart(echarts, plot, (v: { categorical: string[]; ink2: string; nodata: string; muted: string; grid: string }) => ({
+			grid: { left: 8, right: 16, top: 16, bottom: 64, containLabel: true },
+			tooltip: {
+				trigger: 'axis',
+				formatter: (ps: { seriesName: string; value: [string, number]; color: string }[]) => {
+					const linhas = ps
+						.filter((p) => !p.seriesName.startsWith('_'))
+						.map((p) => ({ label: p.seriesName, value: fmt.dec(p.value[1], 1), color: p.color, line: true }));
+					const futuro = serie.futuro.find((f) => f.data === ps[0].value[0]);
+					if (futuro?.min != null && futuro.max != null) {
+						linhas.push({ label: 'Intervalo', value: `${fmt.dec(futuro.min, 1)} a ${fmt.dec(futuro.max, 1)}`, color: v.categorical[1], line: false });
+					}
+					return tooltipHTML(
+						futuro ? `${dataBr(ps[0].value[0])} · previsão H${futuro.horizonte}` : `Semana de ${dataBr(ps[0].value[0])}`,
+						linhas,
+					);
+				},
+			},
+			xAxis: { type: 'time' },
+			yAxis: { type: 'value', name: 'casos por 100 mil', axisLabel: { formatter: (n: number) => fmt.compact(n) } },
+			dataZoom: [
+				{ type: 'inside', startValue: inicio, endValue: fim, filterMode: 'none' },
+				{ type: 'slider', startValue: inicio, endValue: fim, height: 26, bottom: 10, filterMode: 'none', borderColor: v.grid, textStyle: { color: v.muted } },
+			],
+			series: [
+				{
+					name: 'Observado',
+					type: 'line',
+					data: serie.observado.map(par),
+					color: v.ink2,
+					lineStyle: { width: 2 },
+					markLine: serie.origem
+						? {
+								symbol: 'none',
+								silent: true,
+								lineStyle: { color: v.muted, type: 'dashed' },
+								label: { formatter: 'origem', color: v.muted },
+								data: [{ xAxis: serie.origem }],
+							}
+						: undefined,
+				},
+				{
+					name: 'Em consolidação',
+					type: 'line',
+					data: serie.consolidacao.map(par),
+					color: v.nodata,
+					lineStyle: { width: 2, type: 'dotted' },
+					symbol: 'circle',
+					symbolSize: 5,
+					showSymbol: true,
+				},
+				{ name: `Previsão no teste (H${horizonte})`, type: 'line', data: serie.teste.map(par), color: v.categorical[0], lineStyle: { width: 2 } },
+				// faixa do intervalo: uma base transparente e a diferença empilhada por cima
+				{
+					name: '_inferior',
+					type: 'line',
+					data: comFaixa.map((f) => [f.data, f.min]),
+					stack: 'faixa',
+					lineStyle: { opacity: 0 },
+					symbol: 'none',
+					areaStyle: { opacity: 0 },
+					silent: true,
+				},
+				{
+					name: '_faixa',
+					type: 'line',
+					data: comFaixa.map((f) => [f.data, (f.max as number) - (f.min as number)]),
+					stack: 'faixa',
+					lineStyle: { opacity: 0 },
+					symbol: 'none',
+					areaStyle: { color: v.categorical[1], opacity: 0.2 },
+					silent: true,
+				},
+				{
+					name: `Previsão de ${modelo}`,
+					type: 'line',
+					data: serie.futuro.map((f) => [f.data, f.valor]),
+					color: v.categorical[1],
+					lineStyle: { width: 2.5, type: 'dashed' },
+					symbol: 'circle',
+					symbolSize: 9,
+					showSymbol: true,
+				},
+			],
+		}));
+	}
+</script>

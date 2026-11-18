@@ -1,0 +1,125 @@
+---
+// Seletor dos seis modelos: links com ícone e nome, na ordem fixa. Funciona sem JavaScript
+// (cada modelo é um link `?modelo=`, mantendo UF e horizonte). O modelo atual fica marcado, o que
+// ainda não foi exportado fica desabilitado, e cada modelo tem o botão de informação que leva à
+// documentação dele.
+import { MODELOS } from '../lib/forecast';
+import Icon from './Icon.astro';
+
+interface Props {
+	atual: string | null;
+	/** ids dos modelos exportados no horizonte */
+	exportados: readonly string[];
+	uf: string | null;
+	horizonte: number;
+}
+const { atual, exportados, uf, horizonte } = Astro.props;
+
+const consulta = (modelo: string) => {
+	const p = new URLSearchParams({ modelo });
+	if (uf) p.set('uf', uf);
+	p.set('h', String(horizonte));
+	return `/previsao?${p}`;
+};
+const docs = (modelo: string) => `/previsao/modelos/${modelo}`;
+---
+
+<nav class="seletor" aria-label="Modelo de previsão">
+	<ul>
+		{
+			MODELOS.map((m) => {
+				const disponivel = exportados.includes(m.id);
+				return (
+					<li class:list={['item', { atual: m.id === atual, indisponivel: !disponivel }]}>
+						{disponivel ? (
+							<a class="modelo" href={consulta(m.id)} aria-current={m.id === atual ? 'true' : undefined}>
+								<Icon nome={m.icone} tamanho="lg" />
+								<span class="nome">{m.nome}</span>
+							</a>
+						) : (
+							<span class="modelo" aria-disabled="true" title="Sem previsão ainda">
+								<Icon nome={m.icone} tamanho="lg" />
+								<span class="nome">{m.nome}</span>
+								<span class="ds-sr-only">: sem previsão ainda</span>
+							</span>
+						)}
+						<a class="info" href={docs(m.id)} aria-label={`Como funciona o modelo ${m.nome}`} title={`Como funciona: ${m.nome}`}>
+							<Icon nome="info" tamanho="sm" />
+						</a>
+					</li>
+				);
+			})
+		}
+	</ul>
+</nav>
+
+<style>
+	.seletor ul {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	.item {
+		position: relative;
+		display: inline-flex;
+		align-items: stretch;
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-md);
+		background: var(--surface-card);
+		box-shadow: var(--shadow-sm);
+	}
+	.item.atual {
+		border-color: var(--blue-600);
+		box-shadow: 0 0 0 2px var(--blue-600);
+		background: var(--blue-50);
+	}
+	.modelo {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-2) var(--space-3);
+		color: var(--text-1);
+		font-weight: var(--weight-semibold);
+		text-decoration: none;
+		border-radius: var(--radius-md) 0 0 var(--radius-md);
+	}
+	a.modelo:hover {
+		background: var(--action-ghost-hover);
+		text-decoration: none;
+	}
+	.item.atual .modelo {
+		color: var(--blue-700);
+	}
+	.indisponivel .modelo {
+		color: var(--text-disabled);
+		cursor: not-allowed;
+	}
+	.indisponivel {
+		background: var(--surface-sunken);
+		box-shadow: none;
+	}
+	.info {
+		display: inline-flex;
+		align-items: center;
+		padding-inline: var(--space-2);
+		color: var(--text-3);
+		border-left: 1px solid var(--border-subtle);
+		border-radius: 0 var(--radius-md) var(--radius-md) 0;
+	}
+	.info:hover {
+		color: var(--text-link);
+		background: var(--action-ghost-hover);
+	}
+	/* celular: um modelo por linha, sem estourar a largura */
+	@media (max-width: 479px) {
+		.item {
+			flex: 1 1 100%;
+		}
+		.modelo {
+			flex: 1;
+		}
+	}
+</style>

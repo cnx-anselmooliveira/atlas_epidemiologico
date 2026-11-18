@@ -48,3 +48,27 @@ export function classeVariacao(pct: number | null | undefined, faixaEstavel = 2)
 	if (pct == null || !Number.isFinite(pct) || Math.abs(pct) < faixaEstavel) return 'ds-delta--flat';
 	return pct > 0 ? 'ds-delta--worse' : 'ds-delta--better';
 }
+
+/** Decimal pt-BR com `casas` fixas: (0.1234, 3) → "0,123" */
+export function formatarDecimal(n: number | null | undefined, casas = 2): string {
+	return n == null || !Number.isFinite(n)
+		? SEM_VALOR
+		: new Intl.NumberFormat('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas }).format(n);
+}
+
+/** Fração em percentual inteiro: 0.8 → "80%" */
+export function formatarPercentual(fracao: number | null | undefined): string {
+	return fracao == null || !Number.isFinite(fracao)
+		? SEM_VALOR
+		: `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(fracao * 100)}%`;
+}
+
+/** Segundos em texto curto: 95 → "1 min 35 s", 40 → "40 s" */
+export function formatarDuracao(segundos: number | null | undefined): string {
+	if (segundos == null || !Number.isFinite(segundos)) return SEM_VALOR;
+	const total = Math.round(segundos);
+	if (total < 60) return `${total} s`;
+	const min = Math.floor(total / 60);
+	const s = total % 60;
+	return s ? `${min} min ${s} s` : `${min} min`;
+}
