@@ -2,9 +2,9 @@
 
 ## 1. Workflows de imagem
 
-- [ ] 1.1 Estender o `_image.yml` com a entrada `target` (alvo do Dockerfile) e acrescentar `workflow_dispatch` nos chamadores; verificar com `actionlint` sem erros
-- [ ] 1.2 Criar `.github/workflows/airflow.yml` (contexto `.`, `file: airflow/Dockerfile`, caminhos `airflow/**` e `ml/**`), `mlflow.yml` (`infra/mlflow/**`) e `ml.yml` (`context: ml`, alvo `runtime`); verificar que cada um passa o secret `PORTAINER_WEBHOOK_<IMAGEM>`
-- [ ] 1.3 Adicionar `workflow_dispatch` e os caminhos de dependência a `frontend.yml` e `backend.yml`; verificar que uma alteração só em `ml/src/` dispara `ml` e `airflow` e não `frontend`
+- [x] 1.1 Estender o `_image.yml` com a entrada `target` (alvo do Dockerfile) e acrescentar `workflow_dispatch` nos chamadores; verificar com `actionlint` sem erros
+- [x] 1.2 Criar `.github/workflows/airflow.yml` (contexto `.`, `file: airflow/Dockerfile`, caminhos `airflow/**` e `ml/**`), `mlflow.yml` (`infra/mlflow/**`) e `ml.yml` (`context: ml`, alvo `runtime`); verificar que cada um passa o secret `PORTAINER_WEBHOOK_<IMAGEM>`
+- [x] 1.3 Adicionar `workflow_dispatch` e os caminhos de dependência a `frontend.yml` e `backend.yml`; verificar que uma alteração só em `ml/src/` dispara `ml` e `airflow` e não `frontend`
 - [ ] 1.4 Conferir os `.dockerignore` das cinco imagens (`.env`, chaves JSON, `platform/secrets/`, certificados); verificar construindo cada imagem e listando o contexto enviado
 - [ ] 1.5 Verificar o build local das três imagens novas (`airflow`, `mlflow`, `ml` alvo `runtime`) com os mesmos build args do workflow
 

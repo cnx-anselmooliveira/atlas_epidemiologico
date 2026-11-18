@@ -1,0 +1,30 @@
+# Publica a imagem do Airflow: embute as DAGs, o projeto dbt e o atlas_ml, então muda com airflow/** ou ml/**. dev e hml por push, X.Y por tag, ou à mão.
+name: airflow
+
+on:
+  push:
+    branches: [dev, hml]
+    paths:
+      - "airflow/**"
+      - "ml/**"
+      - ".github/workflows/airflow.yml"
+      - ".github/workflows/_image.yml"
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: airflow-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    uses: ./.github/workflows/_image.yml
+    with:
+      image: airflow
+      context: .
+      file: airflow/Dockerfile
+      webhook_secret: PORTAINER_WEBHOOK_AIRFLOW
+    secrets: inherit

@@ -1,0 +1,29 @@
+# Publica a imagem de treino atlas-ml (alvo runtime de ml/Dockerfile): dev e hml por push, X.Y por tag, ou à mão.
+name: ml
+
+on:
+  push:
+    branches: [dev, hml]
+    paths:
+      - "ml/**"
+      - ".github/workflows/ml.yml"
+      - ".github/workflows/_image.yml"
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ml-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    uses: ./.github/workflows/_image.yml
+    with:
+      image: ml
+      context: ml
+      target: runtime
+      webhook_secret: PORTAINER_WEBHOOK_ML
+    secrets: inherit
