@@ -138,7 +138,8 @@ with DAG(
         "seed": Param(42, type="integer", description="Opcional. Semente."),
         "fonte": Param(
             "",
-            type="string",
+            # vazio vira None no disparo pela etl_brasil (e no formulário da UI): None = gold inteira
+            type=["null", "string"],
             description="Opcional. Tabela projeto.dataset.tabela no lugar da gold (ex.: amostra avulsa).",
         ),
     },

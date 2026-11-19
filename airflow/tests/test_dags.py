@@ -292,6 +292,9 @@ def test_forecast_parametros_e_ambiente():
     assert dag.params["window"] == 12 and dag.params["seed"] == 42
     assert dag.params["horizons"] == [1, 2, 3, 4]
     assert "horizon" not in dag.params  # substituído por horizons
+    # o disparo da etl_brasil com fonte "" chega como None: precisa ser aceito (gold inteira)
+    fonte = dag.params.get_param("fonte")
+    assert fonte.resolve(None) is None and fonte.resolve("") == ""
     # tudo roda em Python no venv do atlas_ml, sem scripts de shell
     for t in dag.tasks:
         assert type(t).__name__ != "BashOperator", t.task_id
