@@ -158,6 +158,101 @@ def test_data_versions_erro_de_servidor_sobe():
     raise AssertionError("erro do MLflow não pode virar 'sem modelo' (treinaria às cegas)")
 
 
+# --- ambiente (add-env-data-isolation) -----------------------------------------------------
+
+
+def _com_env(valor, fn):
+    anterior = os.environ.get("ATLAS_ENV")
+    if valor is None:
+        os.environ.pop("ATLAS_ENV", None)
+    else:
+        os.environ["ATLAS_ENV"] = valor
+    try:
+        return fn()
+    finally:
+        if anterior is None:
+            os.environ.pop("ATLAS_ENV", None)
+        else:
+            os.environ["ATLAS_ENV"] = anterior
+
+
+def test_ambiente_dev_mantem_nomes_historicos():
+    from atlas_ingest import ambiente as amb
+
+    assert amb.ambiente("dev") == "dev" and amb.sufixo("dev") == ""
+    assert amb.prefixo_landing("dev") == "landing/sinan/dengue/"
+    assert amb.bronze_sinan("dev") == "bronze.sinan_dengue_opendatasus"
+    assert amb.gold_casos("dev") == "gold.gold_dengue_casos_provaveis_uf_semanal"
+    assert amb.dataset("forecast", "dev") == "forecast"
+    assert _com_env(None, amb.ambiente) == "dev"  # sem ATLAS_ENV: dev
+
+
+def test_ambiente_hml_e_prod_separados():
+    from atlas_ingest import ambiente as amb
+
+    for e in ("hml", "prod"):
+        assert amb.prefixo_landing(e) == f"landing/{e}/sinan/dengue/"
+        assert amb.bronze_sinan(e) == f"bronze_{e}.sinan_dengue_opendatasus"
+        assert amb.gold_casos(e) == f"gold_{e}.gold_dengue_casos_provaveis_uf_semanal"
+        assert amb.dataset("silver", e) == f"silver_{e}" and amb.dataset("forecast", e) == f"forecast_{e}"
+    assert _com_env("HML", amb.ambiente) == "hml"  # maiúscula e espaços são tolerados
+    assert _com_env("hml", amb.gold_casos).startswith("gold_hml.")
+
+
+def test_ambiente_invalido_falha():
+    from atlas_ingest import ambiente as amb
+
+    for valor in ("teste", "", "producao"):
+        try:
+            amb.ambiente(valor)
+        except amb.AmbienteInvalido:
+            continue
+        raise AssertionError(f"{valor!r} deveria ser inválido")
+
+
+def test_ddl_cria_dataset_e_tabela_do_ambiente():
+    from atlas_ingest import sinan
+
+    def ddls():
+        return sinan.ddl_dataset_bronze("p"), sinan.ddl_tabela_bronze("p")
+
+    ds, tb = _com_env("hml", ddls)
+    assert ds == 'CREATE SCHEMA IF NOT EXISTS `p.bronze_hml` OPTIONS(location="US")'
+    assert "CREATE TABLE IF NOT EXISTS `p.bronze_hml.sinan_dengue_opendatasus`" in tb
+    ds, tb = _com_env("dev", ddls)
+    assert "`p.bronze`" in ds and "`p.bronze.sinan_dengue_opendatasus`" in tb
+
+
+def test_landing_de_hml_so_lista_e_escreve_no_prefixo_de_hml():
+    from atlas_ingest import sinan
+
+    class _Blob:
+        def __init__(self, nome):
+            self.name, self.metadata = nome, {}
+
+    class _Bucket:
+        def __init__(self):
+            self.prefixos = []
+
+        def list_blobs(self, prefix):
+            self.prefixos.append(prefix)
+            return [_Blob(prefix + "DENGBR24.csv.zip")]
+
+        def blob(self, nome):
+            return _Blob(nome)
+
+    b = _Bucket()
+    _com_env("hml", lambda: sinan.listar_landing(b))
+    assert b.prefixos == ["landing/hml/sinan/dengue/"]
+    assert _com_env("hml", lambda: sinan.blob_zip(b, "DENGBR24.csv.zip")).name == (
+        "landing/hml/sinan/dengue/DENGBR24.csv.zip"
+    )
+    assert (
+        _com_env("dev", lambda: sinan.blob_csv(b, "DENGBR24.csv.zip")).name
+        == "landing/sinan/dengue/DENGBR24.csv"
+    )
+
+
 if __name__ == "__main__":
     falhas = 0
     for nome, fn in list(globals().items()):

@@ -1,5 +1,5 @@
 {#
-  Macros para ler a tabela bronze do OpenDataSUS (bronze.sinan_dengue_opendatasus), que guarda
+  Macros para ler a tabela bronze do OpenDataSUS (<bronze do ambiente>.sinan_dengue_opendatasus), que guarda
   os microdados do SINAN com os nomes originais do DATASUS, tudo como texto, em dois layouts:
     2000-2006 SINAN Windows: CON_CLASSI/CON_EVOLUC..., NU_IDADE "A021", semana "WWAAAA"
     2007+     SINAN Net:     CLASSI_FIN/EVOLUCAO...,   NU_IDADE_N "4021", semana "AAAAWW"

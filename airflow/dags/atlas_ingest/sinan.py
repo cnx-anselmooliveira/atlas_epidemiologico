@@ -1,7 +1,9 @@
 """SINAN (dengue) do OpenDataSUS: sync dos arquivos anuais com o landing e carga na bronze.
 
 Origem (pública):  https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SINAN/Dengue/csv/DENGBR<aa>.csv.zip
-Landing (espelho): gs://<bucket>/landing/sinan/dengue/DENGBR<aa>.csv.zip  (+ .csv descompactado)
+Landing (espelho): gs://<bucket>/<prefixo do ambiente>DENGBR<aa>.csv.zip  (+ .csv descompactado)
+                   (landing/sinan/dengue/ em dev; landing/<ambiente>/sinan/dengue/ em hml e prod;
+                    a bronze também é do ambiente: bronze, bronze_hml ou bronze_prod; ver ambiente.py)
 
 O estado do sync fica na metadata do .csv.zip no landing:
     origem_etag, origem_last_modified, origem_tamanho  ← cabeçalhos da origem no download
@@ -21,11 +23,13 @@ import re
 from dataclasses import asdict, dataclass, field
 from datetime import date
 
+from atlas_ingest import ambiente
+
 BASE_URL = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SINAN/Dengue/csv"
 PRIMEIRO_ANO = 2000
-PREFIXO_LANDING = "landing/sinan/dengue/"
-TABELA_BRONZE = "sinan_dengue_opendatasus"
-DATASET_BRONZE = "bronze"
+TABELA_BRONZE = ambiente.TABELA_BRONZE_SINAN
+# O prefixo do landing e o dataset da bronze dependem do ambiente (ATLAS_ENV) e são lidos
+# a cada chamada: ambiente.prefixo_landing() e ambiente.dataset("bronze").
 COLUNAS_LINHAGEM = ("ano_arquivo", "arquivo_etag", "arquivo_uri", "carregado_em")
 # Colunas que a modelagem (bronze_dengue_brasil) usa; a validação exige todas. Cada item
 # aceita nomes alternativos: o layout do SINAN Windows (2000-2006) usa CON_CLASSI/CON_EVOLUC
@@ -114,7 +118,7 @@ def listar_origem(session, ano_final: int | None = None, timeout: int = 60) -> O
 def listar_landing(bucket) -> dict[str, dict[str, str]]:
     """Objetos .csv.zip do landing → metadata customizada (`bucket` = google.cloud.storage.Bucket)."""
     out = {}
-    for blob in bucket.list_blobs(prefix=PREFIXO_LANDING):
+    for blob in bucket.list_blobs(prefix=ambiente.prefixo_landing()):
         nome = blob.name.rsplit("/", 1)[-1]
         if _NOME.match(nome):
             out[nome] = dict(blob.metadata or {})
@@ -195,11 +199,11 @@ def contar_com_encoding(caminho: str) -> tuple[int, list[str], str]:
 
 
 def blob_zip(bucket, nome: str):
-    return bucket.blob(PREFIXO_LANDING + nome)
+    return bucket.blob(ambiente.prefixo_landing() + nome)
 
 
 def blob_csv(bucket, nome: str):
-    return bucket.blob(PREFIXO_LANDING + nome.removesuffix(".zip"))
+    return bucket.blob(ambiente.prefixo_landing() + nome.removesuffix(".zip"))
 
 
 def baixar_para_landing(session, bucket, versao: dict, tmpdir: str, timeout: int = 600) -> dict:
@@ -292,9 +296,16 @@ def validar_contagens(ano: int, registros: int, output_rows: int, linhas_partica
         raise ValueError(f"Ano {ano}: " + "; ".join(problemas))
 
 
-def ddl_tabela_bronze(projeto: str, dataset: str = DATASET_BRONZE, tabela: str = TABELA_BRONZE) -> str:
+def ddl_dataset_bronze(projeto: str, dataset: str | None = None, location: str = "US") -> str:
+    """Cria o dataset da bronze do ambiente se não existir (mesma location dos demais)."""
+    dataset = dataset or ambiente.dataset("bronze")
+    return f'CREATE SCHEMA IF NOT EXISTS `{projeto}.{dataset}` OPTIONS(location="{location}")'
+
+
+def ddl_tabela_bronze(projeto: str, dataset: str | None = None, tabela: str = TABELA_BRONZE) -> str:
     """Cria a tabela se não existir: partição por ano do arquivo, cluster pela UF de notificação.
     As colunas da origem entram depois, por ALLOW_FIELD_ADDITION, conforme cada ano."""
+    dataset = dataset or ambiente.dataset("bronze")
     return f"""
 CREATE TABLE IF NOT EXISTS `{projeto}.{dataset}.{tabela}` (
   ano_arquivo INT64 NOT NULL OPTIONS(description="Ano do arquivo DENGBR<aa> de origem"),
@@ -312,7 +323,7 @@ OPTIONS(description="{_DESCRICAO_TABELA}")
 _DESCRICAO_TABELA = (
     "Microdados de dengue do SINAN (OpenDataSUS), sem transformação: colunas de origem como texto, "
     "uma partição por ano de arquivo. Carregada pela ingestao_sinan_brasil a partir de "
-    "gs://<bucket>/landing/sinan/dengue/."
+    "gs://<bucket>/landing/<ambiente>/sinan/dengue/ (em dev, landing/sinan/dengue/)."
 )
 
 
@@ -352,10 +363,12 @@ def carregar_ano_na_bronze(bq, bucket, ano: int, projeto: str) -> dict:
     csv_blob = blob_csv(bucket, nome)
     uri = f"gs://{bucket.name}/{csv_blob.name}"
     colunas = ler_cabecalho_csv(csv_blob, meta.get("encoding", "UTF-8"))
-    destino = f"{projeto}.{DATASET_BRONZE}.{TABELA_BRONZE}"
-    staging = f"{projeto}.{DATASET_BRONZE}._stg_sinan_dengue_{ano}"
+    dataset = ambiente.dataset("bronze")
+    destino = f"{projeto}.{dataset}.{TABELA_BRONZE}"
+    staging = f"{projeto}.{dataset}._stg_sinan_dengue_{ano}"
 
-    bq.query(ddl_tabela_bronze(projeto)).result()
+    bq.query(ddl_dataset_bronze(projeto, dataset)).result()
+    bq.query(ddl_tabela_bronze(projeto, dataset)).result()
     load = bq.load_table_from_uri(
         uri,
         staging,
@@ -418,7 +431,7 @@ def marcar_carregado(bucket, ano: int, etag: str) -> None:
 
 def remover_ano_da_bronze(bq, ano: int, projeto: str) -> int:
     """Apaga a partição de um ano que saiu da origem. Devolve as linhas removidas."""
-    destino = f"{projeto}.{DATASET_BRONZE}.{TABELA_BRONZE}"
+    destino = f"{projeto}.{ambiente.dataset('bronze')}.{TABELA_BRONZE}"
     job = bq.query(f"DELETE FROM `{destino}` WHERE ano_arquivo = {int(ano)}")
     job.result()
     return int(job.num_dml_affected_rows or 0)

@@ -36,10 +36,11 @@ from airflow.sdk import DAG, Param, PokeReturnValue, get_current_context, task, 
     retry_delay=timedelta(minutes=5),
 )
 def detectar_diferencas() -> PokeReturnValue:
-    from atlas_ingest import gcp
+    from atlas_ingest import ambiente, gcp
     from atlas_ingest.etl_brasil import dentro_da_janela
     from atlas_ingest.sinan import listar_landing, listar_origem, planejar_sync
 
+    print(ambiente.descrever())
     ctx = get_current_context()
     plano = planejar_sync(listar_origem(gcp.http()), listar_landing(gcp.bucket()))
     if not plano.vazio():

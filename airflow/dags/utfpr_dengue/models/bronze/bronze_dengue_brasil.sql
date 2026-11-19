@@ -2,7 +2,7 @@
 -- Fonte escolhida por var('sinan_source') (padrão: opendatasus):
 --   basedosdados → microdados.raw_uftpr_microdados_brasil (cópia da Base dos Dados, já
 --                  harmonizada: UF em sigla, município com 7 dígitos, colunas em português)
---   opendatasus  → bronze.sinan_dengue_opendatasus (arquivos do OpenDataSUS, nomes originais
+--   opendatasus  → <bronze do ambiente>.sinan_dengue_opendatasus (arquivos do OpenDataSUS, nomes originais
 --                  do DATASUS, tudo texto), em dois layouts:
 --                    2000-2006 SINAN Windows: CON_CLASSI/CON_EVOLUC/CON_CRITER, NU_IDADE "A021",
 --                              UF em sigla, município com 7 dígitos, semana "WWAAAA"

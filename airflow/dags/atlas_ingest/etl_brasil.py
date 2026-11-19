@@ -16,8 +16,8 @@ from datetime import datetime
 from typing import Any
 
 PROJETO_PADRAO = "ppgcc-dengue-project"
-BRONZE_SINAN = "bronze.sinan_dengue_opendatasus"
-GOLD_CASOS = "gold.gold_dengue_casos_provaveis_uf_semanal"
+# As tabelas dependem do ambiente (ATLAS_ENV): ver atlas_ingest/ambiente.py
+# (bronze.sinan_dengue_opendatasus em dev, bronze_hml.sinan_dengue_opendatasus em hml...).
 MODELOS = ("baseline_bayes", "chronos", "catboost", "svr", "lstm", "ensemble")
 HORIZONTES = (1, 2, 3, 4)
 

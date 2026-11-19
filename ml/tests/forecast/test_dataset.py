@@ -5,7 +5,14 @@ import pandas as pd
 import pytest
 
 from atlas_ml.config import load_settings
-from atlas_ml.forecast.dataset import CASES_TABLE, STATIC_COVARIATES, build_panel, load_snapshot, prepare
+from atlas_ml.forecast.dataset import (
+    CASES_TABLE,
+    STATIC_COVARIATES,
+    build_panel,
+    cases_table,
+    load_snapshot,
+    prepare,
+)
 
 
 def raw_rows():
@@ -75,3 +82,26 @@ def test_prepare_registra_snapshot_e_versao(tracking_uri, monkeypatch):
     panel, v = load_snapshot(run_id)
     assert v == version and len(panel) == 6
     assert "probable_cases AS cases" in client.queries[0]
+
+
+def test_gold_por_ambiente():
+    assert (
+        cases_table("dev")
+        == CASES_TABLE
+        == "ppgcc-dengue-project.gold.gold_dengue_casos_provaveis_uf_semanal"
+    )
+    assert cases_table("hml") == "ppgcc-dengue-project.gold_hml.gold_dengue_casos_provaveis_uf_semanal"
+    assert cases_table("prod") == "ppgcc-dengue-project.gold_prod.gold_dengue_casos_provaveis_uf_semanal"
+    with pytest.raises(ValueError):
+        cases_table("teste")
+
+
+def test_prepare_em_hml_le_a_gold_de_hml(tracking_uri, monkeypatch):
+    monkeypatch.setenv("ATLAS_ENV", "hml")
+    client = FakeClient(raw_rows())
+    run_id = prepare(load_settings(), client)
+    assert "`ppgcc-dengue-project.gold_hml.gold_dengue_casos_provaveis_uf_semanal`" in client.queries[0]
+    assert (
+        "gold_hml.gold_dengue_casos_provaveis_uf_semanal"
+        in mlflow.get_run(run_id).data.tags["atlas.data_version"]
+    )
