@@ -61,6 +61,8 @@ def _dbt_task_ids(dag):
 def test_etl_cosmos_grupos_em_cadeia():
     dag = _dagbag().dags["dbt_brasil"]
     assert dag.max_active_runs == 1
+    # cada tarefa é um processo dbt dentro do scheduler: limitado para não derrubá-lo na VPS
+    assert dag.max_active_tasks == 2
     dbt = _dbt_task_ids(dag)
     assert {_layer_of(t) for t in dbt} == set(ETL_LAYERS)
     for task_id in dbt:
