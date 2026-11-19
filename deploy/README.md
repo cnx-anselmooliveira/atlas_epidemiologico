@@ -118,6 +118,14 @@ Depois de cada imagem publicada em `hml`, o CI chama o webhook e o Portainer ref
 
 O stack `atlas-prod` é o mesmo arquivo lido da branch `main`, com `ATLAS_ENV=prod`, `IMAGE_TAG=X.Y` (a versão publicada, **nunca** a tag móvel `hml`), os hosts e secrets `atlas_prod_...` próprios. O deploy de produção só é acionado por tag `vX.Y` em `main`, depois da aprovação do Environment `prod`. Conferência: `docker service ls --format '{{.Name}} {{.Image}}'` deve mostrar só tags de versão nos serviços do `atlas-prod`.
 
+## Fluxo diário do Brasil (etl_brasil)
+
+- **Quando:** todo dia às **03h00 de Brasília**, só em hml e prod (`ATLAS_ENV`). Em dev a DAG `etl_brasil` roda só à mão.
+- **O que faz:** ingestão do SINAN (`ingestao_sinan_brasil`, espera até 3 h por dados novos) → dbt (`dbt_brasil`, só se a bronze mudou) → treino dos 6 modelos com a base inteira (`atlas_dengue_forecast_br`, só se a gold mudou desde os modelos vigentes) → exportação para o BigQuery. Na maioria dos dias não há dado novo e o fluxo termina em minutos.
+- **Recursos na VPS:** o treino roda dentro do scheduler, limitado a 3 CPUs e 3,5 GB no stack; o pool `atlas_treino` (criado pelo `airflow-init`) deixa um treino pesado por vez (LSTM, Bayesiano ou Chronos), com `ATLAS_THREADS=2` e até 3 h por treino. O MLflow roda com 1 worker (`MLFLOW_WORKERS`). Medição de 18/11/2026: o nó usava ~5,7 GB sem treino, ~2 GB deles de outros stacks.
+- **Primeira execução (base inteira):** no Airflow, dispare `etl_brasil` com `{"forcar_treino": true}`. Acompanhe em Grid: as três etapas em sequência; o treino leva horas. No MLflow do ambiente aparecem 24 runs (6 modelos × 4 horizontes) com `atlas.data_version` da gold completa; depois da exportação, o site mostra as 27 UFs. Durante o treino, confira a memória do nó (por exemplo, `docker stats --no-stream`) e se o site e a API seguem respondendo.
+- **Forçar:** `{"forcar_dbt": true}` refaz a modelagem; `{"forcar_treino": true}` treina mesmo sem gold nova. Cada DAG também pode ser disparada sozinha.
+
 ## Atualizar, conferir, diagnosticar e voltar atrás
 
 Tudo abaixo foi exercitado em um Portainer 2.45.3 real, criando o stack pelo repositório.

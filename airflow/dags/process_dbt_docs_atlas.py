@@ -1,6 +1,6 @@
 """dbt docs do Atlas: gera a documentação do projeto dbt e publica no bucket.
 
-Sem agendamento: dispare depois de mudanças na modelagem (ex.: após a process_etl_atlas).
+Sem agendamento: dispare depois de mudanças na modelagem (ex.: após a dbt_brasil).
 
 - Uma tarefa: `dbt docs generate` (consulta o BigQuery para o catálogo) e envio de
   index.html, manifest.json e catalog.json para gs://<bucket>/dbt_docs/<ATLAS_ENV>/,

@@ -113,7 +113,7 @@ sources:
   - name: sinan_opendatasus
     description: >
       Microdados de dengue do SINAN publicados pelo OpenDataSUS (Ministério da
-      Saúde), carregados pela DAG process_etl_atlas (grupo sinan): o arquivo
+      Saúde), carregados pela DAG ingestao_sinan_brasil: o arquivo
       original fica em gs://ppgcc-bucket/landing/sinan/dengue/ (espelho da
       origem) e cada ano vira uma partição da tabela bronze, sem transformação.
     database: ppgcc-dengue-project

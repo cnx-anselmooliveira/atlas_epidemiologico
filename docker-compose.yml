@@ -13,6 +13,11 @@
 # airflow-init (job de execução única) migra o banco e cria o admin, e os demais componentes do
 # Airflow esperam a migração (airflow db check-migrations) antes de iniciar.
 # Um nó: os volumes são locais e os serviços do Airflow ficam presos ao nó indicado.
+#
+# Recursos (VPS de hml: 4 CPUs, 8 GB, dividida com outros stacks; medido em 18/11/2026: ~5,7 GB
+# em uso sem treino, ~2 GB deles de outros stacks). O treino roda no scheduler (LocalExecutor),
+# que tem o maior limite; o MLflow usa 1 worker (2 workers ocupavam 2,2 GB). Ajuste depois de
+# medir o treino completo (docs/referencias/resultados-forecast-br.md).
 
 x-airflow-env: &airflow-env
   ATLAS_ENV: ${ATLAS_ENV:?hml ou prod}
@@ -32,6 +37,8 @@ x-airflow-env: &airflow-env
   MLFLOW_TRACKING_PASSWORD: ${MLFLOW_ADMIN_PASSWORD:?}
   GCP_PROJECT: ${GCP_PROJECT:-ppgcc-dengue-project}
   # Chave da service account de treino: Docker secret montado como arquivo, nunca o conteúdo
+  # threads por tarefa de treino (VPS de 4 CPUs; o pool atlas_treino limita os pesados)
+  ATLAS_THREADS: ${ATLAS_THREADS:-2}
   GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/training_sa.json
   DBT_BQ_KEYFILE: /run/secrets/training_sa.json
   DBT_PARTIAL_PARSE: "false"
@@ -89,6 +96,12 @@ services:
       retries: 20
     networks: [atlas_internal]
     deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          memory: 128M
       replicas: 1
       placement:
         constraints: ["node.role == ${PLACEMENT_ROLE:-manager}"]
@@ -111,7 +124,7 @@ services:
       MLFLOW_ADMIN_PASSWORD: ${MLFLOW_ADMIN_PASSWORD:?}
       MLFLOW_FLASK_SERVER_SECRET_KEY: ${MLFLOW_FLASK_SECRET_KEY:?}
       MLFLOW_ALLOWED_HOSTS: ${MLFLOW_HOST:-mlflow.invalid},mlflow,mlflow:5000
-      MLFLOW_WORKERS: "2"
+      MLFLOW_WORKERS: ${MLFLOW_WORKERS:-1}
     # Primeira subida: migra os bancos mlflow e mlflow_auth, o que passa da janela da imagem
     # (40 s + 3 × 30 s) e fazia o Swarm matar o container no meio. Mesma sonda, janela maior.
     healthcheck:
@@ -123,6 +136,10 @@ services:
     secrets: [mlflow_sa]
     networks: [atlas_internal, network_public]
     deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
       replicas: 1
       restart_policy:
         condition: on-failure
@@ -147,6 +164,10 @@ services:
     command: /opt/atlas/init.sh
     networks: [atlas_internal]
     deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
       mode: replicated-job
       replicas: 1
       placement:
@@ -168,6 +189,10 @@ services:
     networks: [atlas_internal, network_public]
     deploy:
       <<: *airflow-deploy
+      resources:
+        limits:
+          cpus: "1"
+          memory: 768M
       labels:
         - traefik.enable=true
         - traefik.docker.network=network_public
@@ -187,7 +212,12 @@ services:
       timeout: 10s
       retries: 10
       start_period: 90s
-    deploy: *airflow-deploy
+    deploy:
+      <<: *airflow-deploy
+      resources:
+        limits:
+          cpus: "3"
+          memory: 3584M
 
   airflow-dag-processor:
     <<: *airflow
@@ -198,7 +228,12 @@ services:
       timeout: 20s
       retries: 10
       start_period: 90s
-    deploy: *airflow-deploy
+    deploy:
+      <<: *airflow-deploy
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
 
   airflow-triggerer:
     <<: *airflow
@@ -209,7 +244,12 @@ services:
       timeout: 20s
       retries: 10
       start_period: 90s
-    deploy: *airflow-deploy
+    deploy:
+      <<: *airflow-deploy
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 768M
 
   redis:
     image: redis:7-alpine
@@ -221,6 +261,10 @@ services:
       retries: 10
     networks: [atlas_internal]
     deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 384M
       replicas: 1
       restart_policy:
         condition: on-failure
@@ -238,6 +282,10 @@ services:
     secrets: [backend_sa]
     networks: [atlas_internal, network_public]
     deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
       replicas: 1
       restart_policy:
         condition: on-failure
@@ -263,6 +311,10 @@ services:
       BACKEND_TIMEOUT_MS: ${BACKEND_TIMEOUT_MS:-8000}
     networks: [atlas_internal, network_public]
     deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384M
       replicas: 1
       restart_policy:
         condition: on-failure

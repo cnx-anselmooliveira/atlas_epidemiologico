@@ -1,11 +1,15 @@
 # Atlas Epidemiológico da Dengue
 
-<!-- Os badges de release e docker mostram "no releases" / "repo not found" até a primeira
-     versão (tag v1.0) e a publicação das imagens; o de CI, até o workflow ci.yml existir. -->
-[![ci](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/ci.yml)
+<!-- CI e imagens mostram a branch hml (homologação); a release fica vazia até a primeira tag vX.Y
+     em main. O badge do site fica "fora" até o DNS de atlas.contovisual.com.br existir. -->
+[![site](https://img.shields.io/website?url=https%3A%2F%2Fatlas.contovisual.com.br&label=site&up_message=no%20ar&down_message=fora)](https://atlas.contovisual.com.br)
+[![ci](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/ci.yml/badge.svg?branch=hml)](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/cnx-anselmooliveira/atlas_epidemiologico)](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/releases)
-[![docker](https://img.shields.io/docker/pulls/anselmomendes/atlas-epidemiologia-ml)](https://hub.docker.com/r/anselmomendes/atlas-epidemiologia-ml)
 [![license](https://img.shields.io/github/license/cnx-anselmooliveira/atlas_epidemiologico)](LICENSE)
+
+**Imagens (DockerHub, tag `hml`):** [![frontend](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/frontend.yml/badge.svg?branch=hml)](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/frontend.yml) [![backend](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/backend.yml/badge.svg?branch=hml)](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/backend.yml) [![airflow](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/airflow.yml/badge.svg?branch=hml)](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/airflow.yml) [![mlflow](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/mlflow.yml/badge.svg?branch=hml)](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/mlflow.yml) [![ml](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/ml.yml/badge.svg?branch=hml)](https://github.com/cnx-anselmooliveira/atlas_epidemiologico/actions/workflows/ml.yml) [![docker hub](https://img.shields.io/badge/docker%20hub-anselmomendes-blue?logo=docker)](https://hub.docker.com/u/anselmomendes)
+
+**Site:** <https://atlas.contovisual.com.br>
 
 Plataforma aberta de vigilância e previsão da dengue na América do Sul. Ela reúne os dados oficiais de notificação, modela as séries em camadas, treina e rastreia modelos de previsão e publica indicadores por país, região e município.
 

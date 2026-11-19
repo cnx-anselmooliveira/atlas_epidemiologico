@@ -1,6 +1,6 @@
 """Previsão de dengue por UF (Brasil): treina os modelos em 4 horizontes e registra tudo no MLflow.
 
-Sem agendamento: disparada manualmente (de preferência depois da process_etl_atlas). Ao fim,
+Sem agendamento: disparada pela etl_brasil (só quando a gold muda) ou à mão. Ao fim,
 dispara a exportação para o BigQuery (process_forecast_export_atlas), de onde o site lê.
 
     prepare ─► por horizonte (1..4, em paralelo limitado):
@@ -19,6 +19,9 @@ dispara a exportação para o BigQuery (process_forecast_export_atlas), de onde 
   de cada horizonte junta as runs por ela e pelo horizonte, listando os modelos que faltarem.
 - Um horizonte que falha não impede os outros; os modelos de um horizonte treinam em paralelo
   limitado por max_active_tasks.
+- Recursos (VPS de hml: 4 CPUs, 8 GB): os treinos usam o pool `atlas_treino` (2 vagas, criado pelo
+  init.sh); LSTM, Bayesiano e Chronos ocupam as 2 vagas (um pesado por vez), os demais 1. Cada
+  treino tem até 3 h e a execução inteira até 12 h; ATLAS_THREADS limita as threads de cada um.
 """
 
 from __future__ import annotations
@@ -32,6 +35,18 @@ ATLAS_ML_PYTHON = "/opt/atlas-ml/bin/python"
 BASES = ["baseline_bayes", "chronos", "catboost", "svr", "lstm"]
 STACKED = ["catboost", "svr", "lstm"]
 HORIZONTES = [1, 2, 3, 4]
+# Pool dos treinos: os pesados (memória e CPU) ocupam o pool inteiro, um por vez
+POOL_TREINO = "atlas_treino"
+PESADOS = {"lstm", "baseline_bayes", "chronos"}
+TEMPO_MAX_TREINO = timedelta(hours=3)
+
+
+def _recursos(nome: str) -> dict:
+    return {
+        "pool": POOL_TREINO,
+        "pool_slots": 2 if nome in PESADOS else 1,
+        "execution_timeout": TEMPO_MAX_TREINO,
+    }
 
 
 # Tarefas de ML no venv do atlas_ml (o ambiente do Airflow não tem MLflow, CatBoost nem PyTorch).
@@ -83,12 +98,12 @@ def comparar(horizon, pipeline_run, _depende_de=None):
 def por_horizonte(horizon: int, dataset_run: str, pipeline_run: str, window: int, seed: int):
     """Seis modelos de um horizonte: bases em paralelo, ensemble sobre as três empilhadas."""
     runs = {
-        nome: treinar.override(task_id=f"train_{nome}")(
+        nome: treinar.override(task_id=f"train_{nome}", **_recursos(nome))(
             nome, horizon, dataset_run, pipeline_run, window, seed
         )
         for nome in BASES
     }
-    ensemble = treinar.override(task_id="train_ensemble")(
+    ensemble = treinar.override(task_id="train_ensemble", **_recursos("ensemble"))(
         "ensemble",
         horizon,
         dataset_run,
@@ -107,8 +122,9 @@ with DAG(
     start_date=datetime(2026, 1, 1),
     catchup=False,
     max_active_runs=1,
-    # MCMC, LSTM e Chronos em paralelo saturam a CPU
-    max_active_tasks=3,
+    # MCMC, LSTM e Chronos em paralelo saturam a CPU (o pool atlas_treino limita os pesados)
+    max_active_tasks=2,
+    dagrun_timeout=timedelta(hours=12),
     tags=["atlas", "ml", "forecast"],
     # Todos opcionais: disparar sem configuração usa janela 12, horizontes 1 a 4 e semente 42
     params={

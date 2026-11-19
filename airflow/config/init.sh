@@ -43,4 +43,10 @@ PY
     ;;
 esac
 
+# Pool dos treinos de previsão (atlas_dengue_forecast_br): os pesados ocupam as 2 vagas, um por vez.
+# `pools set` cria ou atualiza: rodar de novo a cada deploy é seguro.
+SLOTS_TREINO="${ATLAS_POOL_TREINO_SLOTS:-2}"
+echo "airflow-init: pool atlas_treino com ${SLOTS_TREINO} vagas"
+airflow pools set atlas_treino "$SLOTS_TREINO" "Treinos de previsão; LSTM, Bayesiano e Chronos ocupam 2 vagas"
+
 echo "airflow-init: pronto"
