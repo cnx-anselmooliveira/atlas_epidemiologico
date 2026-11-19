@@ -17,6 +17,7 @@ from sklearn.ensemble import RandomForestRegressor
 
 from atlas_ml.forecast.base import FUTURE_PREDICTIONS, OOF_PREDICTIONS, PREDICTIONS
 from atlas_ml.forecast.config import ForecastConfig
+from atlas_ml.forecast.threads import threads
 from atlas_ml.forecast.windows import FUTURE, Batch
 
 KEY = ["uf", "target_date"]
@@ -118,7 +119,7 @@ class StackingEnsemble:
             n_estimators=self.hp["n_estimators"],
             max_depth=self.hp["max_depth"],
             random_state=self.cfg.seed,
-            n_jobs=-1,
+            n_jobs=threads(),  # várias tarefas de treino dividem a máquina (ATLAS_THREADS)
         )
         self.model.fit(self._features(X), y)
         self.train_rows = X[KEY]

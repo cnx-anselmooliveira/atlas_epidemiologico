@@ -27,3 +27,17 @@ def test_limitar_define_as_bibliotecas_sem_sobrescrever(monkeypatch):
     monkeypatch.setenv("MKL_NUM_THREADS", "4")  # quem já escolheu, mantém
     assert threads.limitar() == 2
     assert os.environ["OMP_NUM_THREADS"] == "2" and os.environ["MKL_NUM_THREADS"] == "4"
+
+
+def test_modelos_nao_usam_todos_os_nucleos():
+    # n_jobs igual a -1 abre um processo/thread por núcleo e ignora o ATLAS_THREADS: na VPS de hml o SVR
+    # estourou a memória do scheduler (worker do joblib morto com SIGKILL)
+    from pathlib import Path
+
+    import atlas_ml.models
+
+    raiz = Path(atlas_ml.models.__file__).parent
+    culpados = [
+        str(p.relative_to(raiz)) for p in raiz.rglob("*.py") if "n_jobs=-1" in p.read_text(encoding="utf-8")
+    ]
+    assert not culpados, culpados
