@@ -114,10 +114,12 @@ sources:
     description: >
       Microdados de dengue do SINAN publicados pelo OpenDataSUS (Ministério da
       Saúde), carregados pela DAG ingestao_sinan_brasil: o arquivo
-      original fica em gs://ppgcc-bucket/landing/sinan/dengue/ (espelho da
-      origem) e cada ano vira uma partição da tabela bronze, sem transformação.
+      original fica em gs://ppgcc-bucket/landing/<ambiente>/sinan/dengue/ (em
+      dev, landing/sinan/dengue/; espelho da origem) e cada ano vira uma
+      partição da tabela bronze do ambiente, sem transformação.
     database: ppgcc-dengue-project
-    schema: bronze
+    # bronze em dev, bronze_hml em hml, bronze_prod em prod (mesma regra da macro generate_schema_name)
+    schema: "bronze{{ '' if (env_var('ATLAS_ENV', 'dev') | trim | lower) == 'dev' else '_' ~ (env_var('ATLAS_ENV', 'dev') | trim | lower) }}"
     tables:
       - name: sinan_dengue_opendatasus
         description: >

@@ -2,12 +2,16 @@
 
 Sem agendamento: disparada pela etl_brasil depois da ingestão do SINAN, ou à mão.
 
-    decidir_dbt ──► [seed] ──► [bronze] ──► [silver] ──► [gold]   (uma tarefa por model, testes logo depois)
+    decidir_dbt ──► [seed] ──► [bronze] ──► [silver] ──► [gold] ──► gerar_docs
+                  (uma tarefa por model, testes logo depois)      (dispara a process_dbt_docs_atlas)
 
 decidir_dbt roda o dbt se a bronze do SINAN foi modificada depois da gold (decisão pelo estado das
 tabelas: uma ingestão que não chegou ao dbt ontem é modelada hoje), ou com `forcar_dbt=true` (por
 exemplo, mudança só na modelagem). Projeto `utfpr_dengue/` ao lado deste arquivo, profile do próprio
 projeto, dbt do venv /opt/dbt. Para refazer só parte da modelagem: clear da tarefa ou do grupo.
+Os datasets seguem o ambiente (ATLAS_ENV): bronze/silver/gold em dev, *_hml em hml, *_prod em prod.
+Quando o dbt roda, a documentação (process_dbt_docs_atlas) é disparada no fim, sem esperar; quando
+decidir_dbt pula, a documentação também é pulada.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.sdk import DAG, Param, chain, get_current_context, task
 from cosmos import DbtTaskGroup, ExecutionConfig, ProfileConfig, ProjectConfig, RenderConfig
 from cosmos.constants import InvocationMode, TestIndirectSelection
@@ -50,13 +55,16 @@ execution_config = ExecutionConfig(
 @task.short_circuit(ignore_downstream_trigger_rules=True)
 def decidir_dbt() -> bool:
     """Roda o dbt se a bronze do SINAN é mais nova que a gold, ou se o disparo pediu forcar_dbt."""
-    from atlas_ingest import gcp
-    from atlas_ingest.etl_brasil import BRONZE_SINAN, GOLD_CASOS, dbt_precisa_rodar
+    from atlas_ingest import ambiente, gcp
+    from atlas_ingest.etl_brasil import dbt_precisa_rodar
 
     forcar = bool(get_current_context()["params"].get("forcar_dbt"))
+    print(ambiente.descrever())
     cliente = gcp.bigquery()
     decisao = dbt_precisa_rodar(
-        gcp.modificada_em(cliente, BRONZE_SINAN), gcp.modificada_em(cliente, GOLD_CASOS), forcar
+        gcp.modificada_em(cliente, ambiente.bronze_sinan()),
+        gcp.modificada_em(cliente, ambiente.gold_casos()),
+        forcar,
     )
     print(("roda o dbt: " if decisao.rodar else "pula o dbt: ") + decisao.motivo)
     return decisao.rodar
@@ -94,3 +102,9 @@ with DAG(
     ]
     decidir_dbt() >> groups[0]
     chain(*groups)
+    # documentação do dbt do ambiente (dbt_docs/<ambiente>/), só depois de uma modelagem completa
+    groups[-1] >> TriggerDagRunOperator(
+        task_id="gerar_docs",
+        trigger_dag_id="process_dbt_docs_atlas",
+        wait_for_completion=False,
+    )

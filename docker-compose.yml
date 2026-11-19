@@ -21,6 +21,9 @@
 
 x-airflow-env: &airflow-env
   ATLAS_ENV: ${ATLAS_ENV:?hml ou prod}
+  # Dados separados por ambiente (add-env-data-isolation): o landing e os datasets bronze, silver e
+  # gold saem do ATLAS_ENV no código; a exportação das previsões escreve em forecast_<ambiente>
+  ATLAS_FORECAST_DATASET: forecast_${ATLAS_ENV:?}
   # FAB (login e senha); configuração não exposta na API (airflow/config/vps.env)
   AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
   AIRFLOW__API__EXPOSE_CONFIG: "False"
@@ -277,6 +280,9 @@ services:
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/backend_sa
       REDIS_URL: redis://redis:6379/0
       MAX_BYTES_BILLED: ${MAX_BYTES_BILLED:-1073741824}
+      # o site lê a gold e as previsões do próprio ambiente (gold_hml, forecast_hml em hml)
+      BQ_DATASET_GOLD: gold_${ATLAS_ENV:?}
+      BQ_DATASET_FORECAST: forecast_${ATLAS_ENV:?}
       FORECAST_BUCKET: ${ATLAS_BUCKET:-ppgcc-bucket}
       FORECAST_PREFIX: ${FORECAST_PREFIX:-forecast/}
     secrets: [backend_sa]

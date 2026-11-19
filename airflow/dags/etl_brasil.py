@@ -34,9 +34,8 @@ JANELA_SINAN_HORAS = 3
 @task.short_circuit(ignore_downstream_trigger_rules=True)
 def decidir_treino() -> bool:
     """Treina se a gold atual não é a dos modelos vigentes no MLflow do ambiente (ou com forcar_treino)."""
-    from atlas_ingest import gcp
+    from atlas_ingest import ambiente, gcp
     from atlas_ingest.etl_brasil import (
-        GOLD_CASOS,
         data_versions_vigentes,
         nomes_registrados,
         treino_precisa_rodar,
@@ -44,10 +43,12 @@ def decidir_treino() -> bool:
     )
 
     forcar = bool(get_current_context()["params"].get("forcar_treino"))
-    modificada = gcp.modificada_em(gcp.bigquery(), GOLD_CASOS)
+    print(ambiente.descrever())
+    gold = ambiente.gold_casos()
+    modificada = gcp.modificada_em(gcp.bigquery(), gold)
     if modificada is None:
-        raise RuntimeError(f"A gold {GOLD_CASOS} não existe: não há o que treinar.")
-    versao = versao_tabela(f"{gcp.PROJETO}.{GOLD_CASOS}", modificada)
+        raise RuntimeError(f"A gold {gold} não existe: não há o que treinar.")
+    versao = versao_tabela(f"{gcp.PROJETO}.{gold}", modificada)
     sessao, url = gcp.mlflow_sessao()
     vigentes = data_versions_vigentes(sessao, url, AMBIENTE, nomes_registrados())
     decisao = treino_precisa_rodar(versao, vigentes, forcar)

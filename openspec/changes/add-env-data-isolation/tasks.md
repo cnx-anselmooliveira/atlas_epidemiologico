@@ -2,22 +2,22 @@
 
 ## 1. Ambiente em um só lugar
 
-- [ ] 1.1 Criar `airflow/dags/atlas_ingest/ambiente.py` (ambiente a partir de `ATLAS_ENV`, sufixo dos datasets, prefixo do landing, nomes completos da bronze e da gold, erro para ambiente desconhecido) e os testes sem rede para dev, hml, prod e inválido; verificar com os testes na imagem do Airflow
-- [ ] 1.2 Equivalente em `atlas_ml` para a gold lida pelo treino (`forecast/dataset.py` deixa de fixar `gold`), com teste; verificar com `pytest` do `ml/`
+- [x] 1.1 Criar `airflow/dags/atlas_ingest/ambiente.py` (ambiente a partir de `ATLAS_ENV`, sufixo dos datasets, prefixo do landing, nomes completos da bronze e da gold, erro para ambiente desconhecido) e os testes sem rede para dev, hml, prod e inválido; verificar com os testes na imagem do Airflow
+- [x] 1.2 Equivalente em `atlas_ml` para a gold lida pelo treino (`forecast/dataset.py` deixa de fixar `gold`), com teste; verificar com `pytest` do `ml/`
 
 ## 2. Ingestão e decisões
 
-- [ ] 2.1 `atlas_ingest/sinan.py` usa o prefixo e o dataset da bronze do ambiente (inclusive staging) e cria o dataset com `CREATE SCHEMA IF NOT EXISTS` (location `US`) antes do DDL da tabela; verificar com `test_sinan_ingest.py` e um teste novo do DDL do dataset
-- [ ] 2.2 `atlas_ingest/etl_brasil.py` e as DAGs usam as tabelas do ambiente nas decisões do dbt e do treino e registram no log o prefixo e os datasets; verificar com `test_etl_brasil.py` (dev, hml) e `test_dags.py`
+- [x] 2.1 `atlas_ingest/sinan.py` usa o prefixo e o dataset da bronze do ambiente (inclusive staging) e cria o dataset com `CREATE SCHEMA IF NOT EXISTS` (location `US`) antes do DDL da tabela; verificar com `test_sinan_ingest.py` e um teste novo do DDL do dataset
+- [x] 2.2 `atlas_ingest/etl_brasil.py` e as DAGs usam as tabelas do ambiente nas decisões do dbt e do treino e registram no log o prefixo e os datasets; verificar com `test_etl_brasil.py` (dev, hml) e `test_dags.py`
 
 ## 3. dbt
 
-- [ ] 3.1 Macro `generate_schema_name` com o sufixo do ambiente e fonte `sinan_opendatasus` com o schema da bronze do ambiente; verificar com `dbt compile` (ou `dbt ls --output json`) com `ATLAS_ENV=dev` (schemas `bronze`/`silver`/`gold`) e `ATLAS_ENV=hml` (`*_hml`, fonte em `bronze_hml`)
-- [ ] 3.2 `dbt_brasil` dispara a `process_dbt_docs_atlas` ao fim do grupo `gold` (sem esperar); verificar com teste de DAG (tarefa depois do `gold`, pulada quando `decidir_dbt` pula)
+- [x] 3.1 Macro `generate_schema_name` com o sufixo do ambiente e fonte `sinan_opendatasus` com o schema da bronze do ambiente; verificar com `dbt compile` (ou `dbt ls --output json`) com `ATLAS_ENV=dev` (schemas `bronze`/`silver`/`gold`) e `ATLAS_ENV=hml` (`*_hml`, fonte em `bronze_hml`)
+- [x] 3.2 `dbt_brasil` dispara a `process_dbt_docs_atlas` ao fim do grupo `gold` (sem esperar); verificar com teste de DAG (tarefa depois do `gold`, pulada quando `decidir_dbt` pula)
 
 ## 4. Stack e configuração
 
-- [ ] 4.1 `docker-compose.yml`: `ATLAS_FORECAST_DATASET`, `BQ_DATASET_GOLD` e `BQ_DATASET_FORECAST` do ambiente (padrões `forecast_<ambiente>` e `gold_<ambiente>`), e `.env.example` comentado; verificar com `check-stack.sh` e `check-secrets --all`
+- [x] 4.1 `docker-compose.yml`: `ATLAS_FORECAST_DATASET`, `BQ_DATASET_GOLD` e `BQ_DATASET_FORECAST` do ambiente (padrões `forecast_<ambiente>` e `gold_<ambiente>`), e `.env.example` comentado; verificar com `check-stack.sh` e `check-secrets --all`
 
 ## 5. Verificação e primeira carga
 

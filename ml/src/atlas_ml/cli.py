@@ -103,13 +103,13 @@ def forecast_prepare(
     import mlflow
 
     from atlas_ml.data.bigquery import bigquery_client
-    from atlas_ml.forecast.dataset import CASES_TABLE, prepare
+    from atlas_ml.forecast.dataset import prepare
 
     try:
         settings = load_settings()
         _ = settings.git_sha
         mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
-        run_id = prepare(settings, bigquery_client(settings), source_table or CASES_TABLE)
+        run_id = prepare(settings, bigquery_client(settings), source_table or None)
     except (ConfigError, ValueError) as exc:
         _fail(str(exc))
     typer.echo(f"dataset_run_id={run_id}")

@@ -17,8 +17,24 @@ from atlas_ml.data.bigquery import DataSummary, read_features
 from atlas_ml.forecast import EXPERIMENT
 from atlas_ml.tracking import atlas_run
 
-GOLD = "ppgcc-dengue-project.gold"
-CASES_TABLE = f"{GOLD}.gold_dengue_casos_provaveis_uf_semanal"
+PROJECT = "ppgcc-dengue-project"
+CASES_TABLE_NAME = "gold_dengue_casos_provaveis_uf_semanal"
+
+
+def cases_table(env: str = "dev") -> str:
+    """Gold de casos prováveis do ambiente: `gold` em dev, `gold_<ambiente>` em hml e prod.
+
+    Mesma regra do Airflow (atlas_ingest/ambiente.py) e do dbt (macro generate_schema_name).
+    """
+    env = (env or "").strip().lower()
+    if env not in ("dev", "hml", "prod"):
+        raise ValueError(f"Ambiente inválido: {env!r} (use dev, hml ou prod)")
+    dataset = "gold" if env == "dev" else f"gold_{env}"
+    return f"{PROJECT}.{dataset}.{CASES_TABLE_NAME}"
+
+
+# Tabela de dev (compatibilidade); o treino usa cases_table(settings.atlas_env)
+CASES_TABLE = cases_table("dev")
 PANEL_ARTIFACT = "panel.parquet"
 STATIC_COVARIATES = ["mean_elevation_m", "mean_slope_deg"]
 PANEL_COLUMNS = [
@@ -112,10 +128,10 @@ def pipeline_tags() -> dict[str, str]:
     return {"atlas.pipeline_run": os.environ.get("ATLAS_PIPELINE_RUN", "manual")}
 
 
-def prepare(settings: Settings, client: Any, source_table: str = CASES_TABLE) -> str:
-    """Lê a gold (ou outra tabela de mesmo formato), monta o painel e registra o snapshot numa run
-    `dataset`. Devolve o run_id."""
-    source_table = check_source(source_table)
+def prepare(settings: Settings, client: Any, source_table: str | None = None) -> str:
+    """Lê a gold do ambiente (ou outra tabela de mesmo formato), monta o painel e registra o
+    snapshot numa run `dataset`. Devolve o run_id."""
+    source_table = check_source(source_table or cases_table(settings.atlas_env))
     raw, summary = read_features(client, query=query_for(source_table), source_tables=[source_table])
     panel = build_panel(raw)
     with (

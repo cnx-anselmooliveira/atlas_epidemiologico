@@ -143,6 +143,12 @@ def test_dbt_brasil_decide_antes_do_dbt():
     assert decidir.upstream_task_ids == set()
     roots_seed = [t for t in decidir.downstream_task_ids if _layer_of(t) == "seed"]
     assert roots_seed, "decidir_dbt precisa vir antes do grupo seed"
+    # docs do dbt no fim: depois do gold, sem esperar, e pulada junto quando decidir_dbt pula
+    docs = dag.get_task("gerar_docs")
+    assert docs.trigger_dag_id == "process_dbt_docs_atlas" and docs.wait_for_completion is False
+    assert docs.upstream_task_ids and all(_layer_of(u) == "gold" for u in docs.upstream_task_ids)
+    assert docs.trigger_rule == "all_success"
+    assert "process_dbt_docs_atlas" in _dagbag().dags
 
 
 def test_etl_brasil_encadeia_as_etapas():
