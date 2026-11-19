@@ -77,6 +77,10 @@ with DAG(
     start_date=datetime(2026, 11, 1),
     catchup=False,
     max_active_runs=1,
+    # Cada tarefa do Cosmos é um processo dbt dentro do scheduler (LocalExecutor). Sem limite,
+    # o seed e a bronze abriam até 16 de uma vez na VPS de hml (3 CPUs, 3,5 GB no scheduler):
+    # o scheduler parava de dar heartbeat, o Swarm o reiniciava e as tarefas morriam junto.
+    max_active_tasks=2,
     tags=["atlas", "dbt", "etl", "cosmos", "brasil"],
     params={
         "forcar_dbt": Param(

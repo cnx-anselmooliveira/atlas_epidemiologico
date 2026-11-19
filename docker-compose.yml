@@ -42,6 +42,9 @@ x-airflow-env: &airflow-env
   # Chave da service account de treino: Docker secret montado como arquivo, nunca o conteúdo
   # threads por tarefa de treino (VPS de 4 CPUs; o pool atlas_treino limita os pesados)
   ATLAS_THREADS: ${ATLAS_THREADS:-2}
+  # Teto de tarefas simultâneas do Airflow inteiro: o LocalExecutor roda tudo dentro do scheduler,
+  # e tarefas demais o deixam sem heartbeat (o health check falha e o Swarm o reinicia)
+  AIRFLOW__CORE__PARALLELISM: ${AIRFLOW_PARALLELISM:-6}
   GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/training_sa.json
   DBT_BQ_KEYFILE: /run/secrets/training_sa.json
   DBT_PARTIAL_PARSE: "false"
