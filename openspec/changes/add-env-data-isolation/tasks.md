@@ -21,6 +21,6 @@
 
 ## 5. Verificação e primeira carga
 
-- [ ] 5.1 Rodar a suíte (testes do Airflow, `ml`, `ruff`, `check-stack`) e promover pelo fluxo de PR, com a aprovação do usuário
+- [x] 5.1 Rodar a suíte (testes do Airflow, `ml`, `ruff`, `check-stack`) e promover pelo fluxo de PR, com a aprovação do usuário
 - [ ] 5.2 Na VPS, com a aprovação do usuário: despausar a `etl_brasil` e dispará-la com `forcar_treino`; verificar o landing em `landing/hml/sinan/dengue/`, os datasets `bronze_hml`, `silver_hml`, `gold_hml` e `forecast_hml` criados e preenchidos, a docs em `dbt_docs/hml/`, e o site de hml lendo a gold e as previsões de hml
 - [ ] 5.3 Conferir que os dados de dev não mudaram (última modificação de `bronze`, `silver`, `gold`, `forecast` e do landing de dev antes e depois) e registrar tempos e custo da primeira carga em `docs/referencias/resultados-forecast-br.md`

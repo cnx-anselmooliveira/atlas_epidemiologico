@@ -13,6 +13,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.svm import SVR
 
 from atlas_ml.forecast.config import ForecastConfig
+from atlas_ml.forecast.threads import threads
 from atlas_ml.forecast.windows import Batch, augment
 
 # Espaço do artigo de referência (kernel, C, gamma, epsilon)
@@ -79,7 +80,9 @@ class SVRForecast:
             cv=TimeSeriesSplit(n_splits=self.hp["cv"]),
             scoring="neg_root_mean_squared_error",
             random_state=self.cfg.seed,
-            n_jobs=-1,
+            # um processo por fold com cópia dos dados e cache do kernel: um por núcleo (o padrão -1)
+            # estourava a memória do scheduler na VPS de hml (SIGKILL); segue o ATLAS_THREADS
+            n_jobs=threads(),
             refit=True,
         )
         search.fit(X, y)
