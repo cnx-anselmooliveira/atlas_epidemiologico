@@ -4,6 +4,7 @@ import dataclasses
 from pathlib import Path
 
 import pytest
+from mlflow import MlflowClient
 
 from atlas_ml.config import load_settings
 from atlas_ml.forecast import export_read
@@ -41,6 +42,17 @@ def test_alias_de_outro_ambiente_nao_aparece(tracking_uri, tmp_path):
     _train((1,), dataset_run())  # em dev o registro só aponta @dev
     manifest = export_read.read_versions("hml", ["persistence"], [1], tmp_path)
     assert manifest["entries"] == [] and manifest["missing"] == ["persistence-h1"]
+
+
+def test_exportacao_de_hml_le_o_nome_com_sufixo_hml(tracking_uri, tmp_path, monkeypatch):
+    # treino de hml registra atlas-br-<m>-h<H>_hml (sem alias); a promoção aponta @hml nesse nome
+    monkeypatch.setenv("ATLAS_ENV", "hml")
+    res = _train((1,), dataset_run())[1]
+    MlflowClient().set_registered_model_alias("atlas-br-persistence-h1_hml", "hml", res.model_version)
+    manifest = export_read.read_versions("hml", ["persistence"], [1], tmp_path)
+    assert [e["mlflow_run_id"] for e in manifest["entries"]] == [res.run_id]
+    # e o dev não enxerga o modelo de hml
+    assert export_read.read_versions("dev", ["persistence"], [1], tmp_path)["entries"] == []
 
 
 def test_figura_grande_ou_fora_do_padrao_e_ignorada_com_aviso(tracking_uri, tmp_path, monkeypatch):

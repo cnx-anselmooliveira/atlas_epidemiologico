@@ -80,7 +80,7 @@ def read_versions(
     warnings: list[str] = []
     for model in models:
         for horizon in horizons:
-            name = registered_name(model, horizon)
+            name = registered_name(model, horizon, env)
             try:
                 version = client.get_model_version_by_alias(name, env)
             except MlflowException:

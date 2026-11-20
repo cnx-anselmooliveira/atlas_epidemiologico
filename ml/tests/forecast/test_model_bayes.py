@@ -36,7 +36,7 @@ def test_bayes_intervalos_e_diagnosticos(tracking_uri):
     assert (future.lower <= future.upper).all() and (future.y_pred >= 0).all()
 
     # o pyfunc registrado prevê a partir de colunas simples
-    model = mlflow.pyfunc.load_model("models:/atlas-br-baseline_bayes-h1@dev")
+    model = mlflow.pyfunc.load_model("models:/atlas-br-baseline_bayes-h1_dev@dev")
     out = model.predict(
         pd.DataFrame(
             {"uf_code": [0, 1], "year": [2030, 2019], "epi_week": [10, 40], "lag_incidence": [5.0, 0.0]}

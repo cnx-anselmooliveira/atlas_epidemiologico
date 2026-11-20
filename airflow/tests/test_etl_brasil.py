@@ -43,12 +43,21 @@ def test_dbt_sem_bronze_pula():
 
 
 def _vigentes(versao):
-    return {n: versao for n in eb.nomes_registrados()}
+    return {n: versao for n in eb.nomes_registrados("hml")}
 
 
 def test_nomes_registrados_seguem_o_treino():
-    nomes = eb.nomes_registrados()
-    assert len(nomes) == 24 and "atlas-br-lstm-h3" in nomes and "atlas-br-ensemble-h1" in nomes
+    # mesmos nomes que o atlas_ml registra: sufixo _dev e _hml; prod com o nome puro
+    hml = eb.nomes_registrados("hml")
+    assert len(hml) == 24 and "atlas-br-lstm-h3_hml" in hml and "atlas-br-ensemble-h1_hml" in hml
+    assert "atlas-br-svr-h2_dev" in eb.nomes_registrados("dev")
+    assert "atlas-br-svr-h2" in eb.nomes_registrados("prod")
+    try:
+        eb.nomes_registrados("teste")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("ambiente inválido deveria falhar")
 
 
 def test_versao_no_formato_do_treino():
@@ -79,9 +88,9 @@ def test_treino_com_amostra_avulsa_roda():
 def test_treino_sem_modelo_vigente_roda():
     versao = eb.versao_tabela(GOLD, T0)
     vig = _vigentes(f"query:abc+{versao}")
-    vig["atlas-br-lstm-h2"] = None
+    vig["atlas-br-lstm-h2_hml"] = None
     d = eb.treino_precisa_rodar(versao, vig)
-    assert d.rodar is True and "atlas-br-lstm-h2" in d.motivo
+    assert d.rodar is True and "atlas-br-lstm-h2_hml" in d.motivo
     assert eb.treino_precisa_rodar(versao, {}).rodar is True
 
 

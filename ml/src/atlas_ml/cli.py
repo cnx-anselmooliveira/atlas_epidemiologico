@@ -127,7 +127,9 @@ def forecast_train(
         "", "--base-runs", help="Só ensemble: catboost=ID,svr=ID,lstm=ID (runs com OOF)."
     ),
     register: bool = typer.Option(
-        True, "--register/--no-register", help="Registra atlas-br-<modelo>-h<horizonte>."
+        True,
+        "--register/--no-register",
+        help="Registra atlas-br-<modelo>-h<horizonte> com o sufixo do ambiente.",
     ),
 ) -> None:
     """Treina um modelo sobre o snapshot, avalia e registra no MLflow (imprime run_id=)."""

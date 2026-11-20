@@ -27,7 +27,11 @@ TABELAS: dict[str, list[bigquery.SchemaField]] = {
             "STRING",
             description="Família do modelo (gbm, kernel, rnn, bayes, foundation, stacking).",
         ),
-        SF("model_version", "STRING", description="Versão registrada no MLflow (atlas-br-<modelo>-h<H>)."),
+        SF(
+            "model_version",
+            "STRING",
+            description="Versão registrada no MLflow (atlas-br-<modelo>-h<H>, com _dev ou _hml).",
+        ),
         SF("mlflow_run_id", "STRING", "REQUIRED", description="Run do MLflow que originou a versão."),
         SF("data_version", "STRING", description="Versão dos dados do treino (snapshot da gold)."),
         SF("trained_at", "TIMESTAMP", description="Início do treino."),

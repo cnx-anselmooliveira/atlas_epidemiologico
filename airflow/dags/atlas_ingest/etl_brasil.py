@@ -64,9 +64,17 @@ def treino_precisa_rodar(versao_gold: str, vigentes: dict[str, str | None], forc
     return Decisao(False, f"todos os {len(vigentes)} modelos vigentes já usam {versao_gold}")
 
 
-def nomes_registrados(modelos=MODELOS, horizontes=HORIZONTES) -> list[str]:
-    """Mesmo padrão do treino (atlas_ml.forecast.base): `atlas-br-<modelo>-h<H>`."""
-    return [f"atlas-br-{m}-h{h}" for m in modelos for h in horizontes]
+# Mesmos sufixos do treino (atlas_ml.forecast.base.REGISTERED_SUFFIXES): dev e hml podem dividir o
+# MLflow com prod, então levam sufixo; prod fica com o nome puro
+SUFIXOS_REGISTRO = {"dev": "_dev", "hml": "_hml", "prod": ""}
+
+
+def nomes_registrados(ambiente: str, modelos=MODELOS, horizontes=HORIZONTES) -> list[str]:
+    """Mesmo padrão do treino (atlas_ml.forecast.base): `atlas-br-<modelo>-h<H><sufixo>`."""
+    if ambiente not in SUFIXOS_REGISTRO:
+        raise ValueError(f"ambiente inválido {ambiente!r}")
+    sufixo = SUFIXOS_REGISTRO[ambiente]
+    return [f"atlas-br-{m}-h{h}{sufixo}" for m in modelos for h in horizontes]
 
 
 def data_versions_vigentes(sessao: Any, base_url: str, alias: str, nomes: list[str]) -> dict[str, str | None]:

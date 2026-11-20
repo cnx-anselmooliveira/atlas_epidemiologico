@@ -50,7 +50,7 @@ def decidir_treino() -> bool:
         raise RuntimeError(f"A gold {gold} não existe: não há o que treinar.")
     versao = versao_tabela(f"{gcp.PROJETO}.{gold}", modificada)
     sessao, url = gcp.mlflow_sessao()
-    vigentes = data_versions_vigentes(sessao, url, AMBIENTE, nomes_registrados())
+    vigentes = data_versions_vigentes(sessao, url, AMBIENTE, nomes_registrados(AMBIENTE))
     decisao = treino_precisa_rodar(versao, vigentes, forcar)
     print(("treina: " if decisao.rodar else "pula o treino: ") + decisao.motivo)
     return decisao.rodar
