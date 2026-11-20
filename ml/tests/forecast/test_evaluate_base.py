@@ -78,7 +78,7 @@ def test_run_model_registra_metricas_artefatos_oof_e_modelo(tracking_uri, monkey
     assert (pd.to_datetime(oof.target_date) >= pd.to_datetime(oof.fit_until)).all()
     assert pd.to_datetime(oof.target_date).max() < pd.Timestamp(run.data.params["val_start"])
 
-    mv = client.get_model_version_by_alias("atlas-br-persistence-h1", "dev")
+    mv = client.get_model_version_by_alias("atlas-br-persistence-h1_dev", "dev")
     assert str(mv.version) == result.model_version
 
 
@@ -136,9 +136,14 @@ def test_previsao_do_futuro_por_uf_e_nome_por_horizonte(tracking_uri):
     by_uf = pd.read_csv(mlflow.artifacts.download_artifacts(f"runs:/{result.run_id}/{METRICS_BY_UF}"))
     assert (by_uf.horizon == 3).all()
     assert str(
-        MlflowClient().get_model_version_by_alias(registered_name("persistence", 3), "dev").version
+        MlflowClient().get_model_version_by_alias(registered_name("persistence", 3, "dev"), "dev").version
     ) == (result.model_version)
-    assert registered_name("catboost", 2) == "atlas-br-catboost-h2"
+    # os três ambientes podem dividir um MLflow: dev e hml com sufixo, prod com o nome puro
+    assert registered_name("catboost", 2, "dev") == "atlas-br-catboost-h2_dev"
+    assert registered_name("catboost", 2, "hml") == "atlas-br-catboost-h2_hml"
+    assert registered_name("catboost", 2, "prod") == "atlas-br-catboost-h2"
+    with pytest.raises(ValueError):
+        registered_name("catboost", 2, "teste")
 
 
 def test_horizontes_independentes_nas_metricas(tracking_uri):

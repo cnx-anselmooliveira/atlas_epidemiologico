@@ -12,7 +12,8 @@ Cada modelo (atlas_ml/models/<nome>/model.py) só implementa o que é específic
 
 `run_model` cuida do resto: snapshot do dataset, janelas, divisão, ajuste, previsões de
 validação e teste, OOF por blocos (rolling origin), métricas, artefatos e registro
-como `atlas-br-<nome>-h<horizonte>` (alias @dev em dev), e a previsão das próximas semanas por UF.
+como `atlas-br-<nome>-h<horizonte><sufixo do ambiente>` (alias @dev em dev), e a previsão das
+próximas semanas por UF.
 """
 
 from __future__ import annotations
@@ -56,6 +57,8 @@ OOF_PREDICTIONS = "oof_predictions.parquet"
 FUTURE_PREDICTIONS = "future_predictions.parquet"
 METRICS_BY_UF = "metrics_by_uf.csv"
 REGISTERED_PREFIX = "atlas-br-"
+# Os três ambientes podem dividir um MLflow: dev e hml levam sufixo; prod fica com o nome puro
+REGISTERED_SUFFIXES = {"dev": "_dev", "hml": "_hml", "prod": ""}
 FUTURE_COLUMNS = ["uf", "origin_date", "target_date", "horizon", "y_pred", "lower", "upper"]
 OOF_INNER_VAL_WEEKS = 26  # validação interna (early stopping) dentro de cada bloco OOF
 
@@ -84,9 +87,12 @@ class ModelResult:
     model_version: str | None
 
 
-def registered_name(model_name: str, horizon: int) -> str:
-    """Um modelo registrado por horizonte: `atlas-br-<modelo>-h<H>` (cada um com seu alias de ambiente)."""
-    return f"{REGISTERED_PREFIX}{model_name}-h{horizon}"
+def registered_name(model_name: str, horizon: int, env: str) -> str:
+    """Um modelo registrado por horizonte e ambiente: `atlas-br-<modelo>-h<H>_dev`, `..._hml` ou, em
+    prod, `atlas-br-<modelo>-h<H>` (cada um com o alias do seu ambiente)."""
+    if env not in REGISTERED_SUFFIXES:
+        raise ValueError(f"ambiente inválido {env!r} (use {', '.join(REGISTERED_SUFFIXES)})")
+    return f"{REGISTERED_PREFIX}{model_name}-h{horizon}{REGISTERED_SUFFIXES[env]}"
 
 
 def pipeline_tags(name: str, family: str, dataset_run_id: str, horizon: int = 1) -> dict[str, str]:
@@ -239,7 +245,7 @@ def run_model(
         if extra:
             extra(model, tmp)
         version = (
-            register_model(settings, model_uri, registered_name(model.name, cfg.horizon))
+            register_model(settings, model_uri, registered_name(model.name, cfg.horizon, settings.atlas_env))
             if register
             else None
         )

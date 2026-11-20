@@ -104,7 +104,7 @@ Use sempre `--extra models` no `uv run`. Sem ele, o `uv` sincroniza o ambiente s
 3. **Divisão:** pela data do alvo, com teste = últimas 52 semanas, validação = 52 anteriores e treino = o resto. O `TrainOnlyScaler` é ajustado só no treino.
 4. **Ajuste:** `fit` com o treino; validação só para early stopping e seleção.
 5. **Previsões:** de validação e teste, com corte em 0. Para CatBoost, SVR e LSTM, também as previsões out-of-fold (3 blocos rolling origin de 52 semanas).
-6. **Registro:** métricas por UF e médias (NRMSE, MAE, RMSE, R², cobertura do intervalo), artefatos `predictions.parquet`, `metrics_by_uf.csv` e `oof_predictions.parquet`, e o modelo como `atlas-br-<modelo>` (`@dev` em dev).
+6. **Registro:** métricas por UF e médias (NRMSE, MAE, RMSE, R², cobertura do intervalo), artefatos `predictions.parquet`, `metrics_by_uf.csv` e `oof_predictions.parquet`, e o modelo como `atlas-br-<modelo>-h<H>` com o sufixo do ambiente: `_dev` em dev (alias `@dev` automático), `_hml` em hml e sem sufixo em prod. Assim os três ambientes podem dividir um MLflow sem misturar versões; a exportação e a decisão de treino da `etl_brasil` usam o mesmo nome.
 
 Todas as runs ficam no experimento `atlas/dengue-forecast-br`, com as tags `atlas.pipeline_run`, `atlas.dataset_run` e `atlas.model_family`. Pelo Airflow, a DAG `atlas_dengue_forecast_br` roda tudo em sequência.
 

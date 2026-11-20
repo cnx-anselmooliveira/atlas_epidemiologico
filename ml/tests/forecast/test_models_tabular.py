@@ -56,5 +56,5 @@ def test_modelo_registra_metricas_oof_e_e_reprodutivel(name, tracking_uri):
     )
 
     # o modelo registrado carrega e prevê
-    model = mlflow.pyfunc.load_model(f"models:/atlas-br-{name}-h1@dev")
+    model = mlflow.pyfunc.load_model(f"models:/atlas-br-{name}-h1_dev@dev")
     assert model is not None
