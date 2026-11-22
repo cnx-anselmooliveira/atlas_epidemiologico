@@ -29,8 +29,13 @@ jobs:
     secrets: inherit
 
   image-notebook:
+    # Depois da imagem ml e sem repetir os testes: o ci.yml cancela execuções simultâneas do mesmo workflow e
+    # ref, então os dois jobs em paralelo se cancelavam e a ml-notebook não era publicada. Os testes do mesmo
+    # commit já passaram no job image (é o que libera esta publicação).
+    needs: image
     uses: ./.github/workflows/_image.yml
     with:
+      testes: false
       image: ml-notebook
       context: ml
       target: notebook

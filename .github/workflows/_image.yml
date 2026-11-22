@@ -37,6 +37,14 @@ on:
         required: false
         type: string
         default: ""
+      testes:
+        description: >-
+          Roda o pipeline de testes antes de publicar. Só desligue numa segunda imagem do MESMO commit, chamada
+          depois (needs) de uma imagem que já passou pelos testes: o ci.yml cancela execuções simultâneas do
+          mesmo workflow e ref, então dois chamadores em paralelo se cancelariam.
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -65,11 +73,14 @@ jobs:
     # Nenhuma imagem é publicada se o pipeline de testes falhar (add-ci-test-pipeline)
     name: Testes (pipeline ci.yml)
     needs: secrets-check
+    if: inputs.testes
     uses: ./.github/workflows/ci.yml
 
   publish:
     name: Publicar ${{ inputs.image }}
-    needs: tests
+    needs: [secrets-check, tests]
+    # com testes desligados o job tests é pulado (skipped); só falha ou cancelamento bloqueiam
+    if: ${{ !cancelled() && needs.secrets-check.result == 'success' && (needs.tests.result == 'success' || needs.tests.result == 'skipped') }}
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
