@@ -57,7 +57,19 @@
 - [x] 9.4 Atualizar `ml/README.md` e `airflow/README.md` (novos comandos `atlas-ml forecast …`, DAG, pastas dos modelos); verificar seguindo os comandos documentados
 - [ ] 9.5 Commit do módulo em `dev` (`feat(forecast): DAG atlas_dengue_forecast_br e resultados`); verificar `git log -1 --stat`
 
+## 10. Features do SINAN nas janelas (técnica da referência)
+
+- [x] 10.1 Ampliar `forecast/dataset.py` (`query_for`, `build_panel`, `PANEL_COLUMNS`) para carregar `notified_cases`, `discarded_cases`, `confirmed_cases`, `alarm_cases`, `severe_cases`, `inconclusive_cases`, `investigation_cases` e `deaths`, completando com zero as semanas preenchidas; verificar com testes sobre o cliente BigQuery simulado (colunas presentes, nada de `other_cases` nem `*_fallback_cases` nas features)
+- [x] 10.2 Definir o conjunto padrão de canais em `forecast/config.py` e converter cada um em taxa por 100 mil, `log1p` e padronização só no treino em `windows.py`; verificar com testes de que a janela tem `window × (1 + n_canais)` valores, de que o scaler não muda ao alterar validação/teste e de que nenhum canal da semana t+1 em diante entra numa janela com origem em t
+- [x] 10.3 Adaptar LSTM, CatBoost, SVR e Ensemble às entradas multivariadas (canais por passo na LSTM, nomes `<canal>_t-k` no CatBoost, entrada achatada no SVR e no Ensemble); registrar `n_inputs_per_step`, `n_trainable_params` e a lista de canais; verificar com os testes `@pytest.mark.models` no painel sintético (agora com canais) e com a reprodutibilidade com a mesma semente
+- [ ] 10.4 Medir a maturidade dos canais (valor de cada canal nas últimas semanas contra o consolidado) e ajustar `drop_recent_weeks` se `confirmed_cases` ou `deaths` forem mais lentos que `probable_cases`; verificar registrando o corte adotado como parâmetro da run
+- [ ] 10.5 Rodar a DAG no compose de dev contra a gold real, com os canais e sem eles (mesma semente), e registrar em `docs/referencias/resultados-forecast-br.md` as métricas de teste por modelo, a média das 27 UFs e o Rio de Janeiro em destaque; verificar que as runs têm a mesma `atlas.data_version` e que a diferença contra a versão univariada está explícita
+- [x] 10.6 Atualizar os READMEs dos modelos e `ml/README.md` (canais, exceção do Chronos e do bayesiano, parâmetros registrados) e registrar no doc de resultados o que ficou para a fase 2 (clima, geo, socio, PLS, alvo por idade, paridade com a referência)
+- [ ] 10.7 Commit do módulo em `dev` (`feat(forecast): canais do SINAN nas janelas`); verificar `uv run pytest` e `uv run pytest -m models` verdes
+
 ## Workflow follow-up
+
+- Fase 2 (nova mudança, depois desta): ingerir clima, geo e socioeconômicas, PLS por grupo ajustado só no treino, alvo por faixa etária e paridade ou mais capacidade do que a referência (ver a decisão 10 do design).
 
 - Promover para hml/prod pelo fluxo da `add-ml-platform` depois da validação em dev.
 - Arquivar a mudança quando os modelos estiverem em `@prod`.

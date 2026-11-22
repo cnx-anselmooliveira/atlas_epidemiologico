@@ -71,7 +71,7 @@ Cada `README.md` de modelo traz:
 Assim cada `model.py` só contém o que é específico do modelo.
 
 ### 2. Dataset e snapshot
-- **Consulta:** um `SELECT` simples da `gold_dengue_casos_provaveis_uf_semanal` (mudança `add-gold-casos-provaveis-uf`): `probable_cases` vira `cases`, com a população do ano epidemiológico e o relevo (`mean_elevation_m`, `mean_slope_deg`) como covariáveis estáticas, disponíveis para `cfg.features`. A leitura usa `read_features(query=…, source_tables=[gold])`, então a `data_version` registra a geração da tabela. A curva antiga (`gold_dengue_epi_curve_weekly`) não serve como alvo: soma descartados até 2021 e não depois, o que cria uma quebra de nível em 2022 (`docs/referencias/gold-casos-provaveis-uf.md`).
+- **Consulta:** um `SELECT` simples da `gold_dengue_casos_provaveis_uf_semanal` (mudança `add-gold-casos-provaveis-uf`): `probable_cases` vira `cases`, com a população do ano epidemiológico, o relevo (`mean_elevation_m`, `mean_slope_deg`) como covariáveis estáticas e os canais epidemiológicos da gold (`notified_cases`, `discarded_cases`, `confirmed_cases`, `alarm_cases`, `severe_cases`, `inconclusive_cases`, `investigation_cases`, `deaths`), todos disponíveis para `cfg.features`. A leitura usa `read_features(query=…, source_tables=[gold])`, então a `data_version` registra a geração da tabela. A curva antiga (`gold_dengue_epi_curve_weekly`) não serve como alvo: soma descartados até 2021 e não depois, o que cria uma quebra de nível em 2022 (`docs/referencias/gold-casos-provaveis-uf.md`).
 - **Painel:**
   - semanas faltantes completadas com zero e `filled=true`;
   - `incidence = cases / population × 1e5`;
@@ -84,7 +84,7 @@ Assim cada `model.py` só contém o que é específico do modelo.
   - as últimas N incidências transformadas;
   - `sin` e `cos` da semana do ano do alvo;
   - `uf_code`: categórica no CatBoost, one-hot no SVR, embedding na LSTM;
-  - as covariáveis listadas em `cfg.features`, nenhuma por enquanto, como janelas de N semanas. É por esse ponto que temperatura, vento e chuva vão entrar.
+  - as covariáveis listadas em `cfg.features`, como janelas de N semanas: por padrão, os canais epidemiológicos da gold como taxas por 100 mil (ver a decisão 10). É por esse mesmo ponto que temperatura, vento e chuva vão entrar na fase 2.
 - **Semanas imaturas:** `drop_recent_weeks` (padrão 8) descarta as últimas semanas do painel antes da divisão. Por causa do atraso de notificação, elas seriam um "observado" subestimado e contaminariam o teste. O valor é registrado como parâmetro.
 - **Divisão por data do alvo:**
   - teste = últimas 52 semanas;
@@ -152,6 +152,24 @@ A DAG `atlas_dengue_forecast_br`:
 - **Tags:** além das `atlas.*`, cada run grava `atlas.pipeline_run` e `atlas.model_family` (`bayes`, `gbm`, `kernel`, `rnn`, `foundation`, `stacking`).
 - **Modelos registrados:** `atlas-br-<modelo>`, com `@dev` automático em dev.
 
+### 10. Features do SINAN e técnica da referência
+A referência monta cada amostra como `(janela de 12 passos × todas as variáveis)` e prevê a taxa seguinte. Os modelos do Atlas passam a seguir a mesma forma de entrada.
+
+- **Canais:** incidência de casos prováveis + notificadas, descartadas, confirmadas, com alarme, graves, inconclusivas, em investigação e óbitos, cada uma como taxa por 100 mil (`valor / população × 1e5`), em `log1p` e padronizada com o `TrainOnlyScaler` (uma média e um desvio por canal, ajustados só no treino). Relevo, sazonalidade e `uf_code` seguem como antes.
+- **Só o passado:** o canal de uma semana só entra se ela for anterior ou igual à origem. `confirmed_cases` e `deaths` da semana-alvo, por exemplo, não existem no momento da previsão.
+- **Onde muda cada modelo:**
+  - LSTM: `n_inputs` por passo passa de 1 para `1 + n_canais`; o `Embedding(27, 4)` e as camadas seguem iguais.
+  - CatBoost e SVR: a entrada achatada cresce de `window` para `window × (1 + n_canais)` colunas, com nomes `<canal>_t-k`.
+  - Ensemble: herda a entrada pelos modelos-base e pelas extrapolações da janela de incidência.
+  - Chronos e baseline bayesiano: seguem univariados; ficam como comparadores sem covariáveis.
+- **Capacidade:** cada run grava `n_inputs_per_step` e `n_trainable_params` (LSTM) e o número de colunas de entrada (CatBoost/SVR), para a comparação com a referência. Os hiperparâmetros de treino (CatBoost de 27 mil iterações a `lr=0,001`; LSTM com RMSprop, `lr=1e-4` e perda MAE) NÃO mudam nesta etapa: primeiro isola-se o efeito das features.
+- **UF de referência:** o Rio de Janeiro é reportado em destaque nas tabelas de `docs/referencias/resultados-forecast-br.md`, ao lado das médias entre as 27 UFs.
+- **Fase 2 (fora desta etapa, mas já prevista pela interface):**
+  - ingerir clima, geo e socioeconômicas por UF e semana (as socioeconômicas são anuais ou censitárias, repetidas por UF);
+  - redução por grupo com PLS (4 climáticas, 6 geo, 10 socio na referência), ajustada só no treino (`TrainOnlyScaler` ganha o redutor);
+  - alvo por faixa etária (taxa total e 0–19), que exige dados por idade que a gold ainda não tem;
+  - paridade ou mais capacidade do que a referência (entradas e parâmetros), com hiperparâmetros alinhados ao `config.py` dela.
+
 ## Ajustes da implementação
 
 - **Fonte:** o painel lê a `gold_dengue_casos_provaveis_uf_semanal` (casos prováveis, população anual e relevo), não a curva antiga (ver seção 2).
@@ -172,6 +190,9 @@ A DAG `atlas_dengue_forecast_br`:
 - **[População de um único ano (2022) aplicada a 2000–2026]** → a incidência de anos antigos fica subestimada, mas as métricas por UF no teste (2024–2026) quase não são afetadas. Trocar por população anual quando a gold tiver a série.
 - **[Gold do Brasil com mudanças de definição ao longo dos anos (SINAN)]** → por ora o dado é tratado como está. O `data_summary.json` mostra o período e as semanas preenchidas para inspeção.
 - **[Aumento de dados distorce a LSTM em séries com muitos zeros]** → aumento configurável (`augment=0` desliga) e registrado como parâmetro.
+- **[Canais atrasados (`confirmed_cases`, `deaths`) e `drop_recent_weeks` de 8 semanas]** → a classificação final e o óbito consolidam mais devagar que a notificação. Medir a maturidade de cada canal antes de treinar e ampliar o corte se for preciso; o valor fica registrado na run.
+- **[Canais colineares (`notified`, `probable`, `discarded`, `confirmed` crescem juntos)]** → CatBoost e a regularização do SVR lidam bem; na LSTM vale conferir se o ganho vem dos canais ou só do tamanho da entrada, comparando com a versão univariada na mesma semente.
+- **[Mais canais, mesmo número de amostras]** → 27 UFs × ~200 semanas pode favorecer sobreajuste. Manter o early stopping na validação e comparar teste contra a versão univariada antes de adotar.
 - **[Chaves GCP ainda não fornecidas]** → as primeiras tarefas checam as chaves e falham cedo com instruções. Os testes e o desenvolvimento usam o painel sintético.
 
 ## Migration Plan
@@ -182,4 +203,7 @@ A DAG `atlas_dengue_forecast_br`:
 ## Open Questions
 
 - Revisão fixa do checkpoint do Chronos (`chronos-bolt-small` vs `-base`): começar pelo `small` por causa da CPU e reavaliar depois de medir o tempo.
+- Tamanho das camadas da LSTM e do ensemble na referência: o `mmodels.py` e o notebook `modelling-Brazil.ipynb` não vieram na cópia em `projeto_referencia/`, então só a configuração (`config.py`) foi lida. Obter esses arquivos antes da fase 2 para alinhar a capacidade.
+- O PLS da referência é ajustado só no treino ou em todos os dados? Se for em todos, há vazamento que não deve ser replicado.
+- Alvo por faixa etária (taxa 0–19): depende de dados por idade na gold, hoje inexistentes.
 - O tamanho do teste (52 semanas) cobre um único ciclo sazonal. Avaliar uma validação rolling-origin adicional quando houver mais anos e covariáveis.

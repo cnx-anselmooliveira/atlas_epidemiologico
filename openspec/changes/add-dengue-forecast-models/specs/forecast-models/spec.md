@@ -13,6 +13,25 @@ Cada modelo SHALL ficar em sua própria pasta do pacote (`baseline_bayes`, `catb
 - **WHEN** `atlas-ml train forecast-catboost` é executado com um snapshot disponível
 - **THEN** uma run do CatBoost é registrada sem depender dos outros modelos
 
+### Requirement: Entrada multivariada
+CatBoost, SVR, LSTM e Ensemble SHALL consumir todos os canais configurados em cada passo da janela, sem código específico por canal: a LSTM recebe os canais por passo, e CatBoost, SVR e o Ensemble recebem a janela achatada. O baseline bayesiano e o Chronos SHALL continuar univariados (incidência da UF), e essa exceção SHALL constar nos READMEs e nos parâmetros das runs.
+
+#### Scenario: Canais na entrada
+- **WHEN** CatBoost, SVR ou LSTM são treinados com a configuração padrão de features
+- **THEN** a run registra a lista de canais e o número de entradas por passo
+- **AND** os nomes das features do CatBoost incluem cada canal e a defasagem (ex.: `confirmed_cases_t-3`)
+
+#### Scenario: Modelo univariado
+- **WHEN** o Chronos ou o baseline bayesiano são treinados
+- **THEN** a run registra que a entrada é só a incidência da UF
+
+### Requirement: Capacidade registrada
+Cada run SHALL registrar o número de entradas e, quando o modelo tiver parâmetros treináveis (LSTM, CatBoost, SVR), o número de parâmetros, para comparar a capacidade com a do projeto de referência.
+
+#### Scenario: Parâmetros da LSTM
+- **WHEN** a LSTM termina
+- **THEN** a run tem `n_inputs_per_step` e `n_trainable_params`
+
 ### Requirement: Saídas na escala original
 As previsões SHALL estar na escala de incidência por 100 mil habitantes, com qualquer escalonamento revertido e valores negativos fixados em zero.
 
