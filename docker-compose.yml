@@ -177,7 +177,11 @@ services:
   git-sync:
     image: registry.k8s.io/git-sync/git-sync:v4.4.0
     user: "0:0"
+    # O volume novo herda o dono da pasta /git da imagem (uid 65533, modo 2775): root sem capacidades não
+    # escreve nela ("git init: /git/.git: Permission denied") e o Airflow ficava sem DAGs. DAC_OVERRIDE e
+    # FOWNER deixam o root criar e limpar o clone; o resto continua removido.
     cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE, FOWNER]
     environment:
       GITSYNC_REPO: ${ATLAS_DAGS_REPO:-https://github.com/cnx-anselmooliveira/atlas_epidemiologico.git}
       GITSYNC_REF: ${ATLAS_DAGS_BRANCH:?branch do ambiente (hml ou main)}
