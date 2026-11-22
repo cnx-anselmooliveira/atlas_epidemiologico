@@ -293,6 +293,7 @@ def test_forecast_executa_o_notebook_e_limpa_a_execucao():
     dag = _forecast()
     inicio = dag.get_task("iniciar_execucao")
     assert inicio.python == "/opt/atlas-ml/bin/python"
+
     def ancestrais(task_id):
         vistos, pendentes = set(), [task_id]
         while pendentes:
