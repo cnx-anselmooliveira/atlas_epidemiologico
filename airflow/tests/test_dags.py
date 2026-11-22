@@ -293,8 +293,20 @@ def test_forecast_executa_o_notebook_e_limpa_a_execucao():
     dag = _forecast()
     inicio = dag.get_task("iniciar_execucao")
     assert inicio.python == "/opt/atlas-ml/bin/python"
-    for t in ["horizonte.train_catboost", "horizonte.train_ensemble", "horizonte.comparar"]:
+    def ancestrais(task_id):
+        vistos, pendentes = set(), [task_id]
+        while pendentes:
+            for pai in dag.get_task(pendentes.pop()).upstream_task_ids:
+                if pai not in vistos:
+                    vistos.add(pai)
+                    pendentes.append(pai)
+        return vistos
+
+    # os treinos dependem direto do início; o comparar, pelos treinos (transitivo)
+    for t in ["horizonte.train_catboost", "horizonte.train_ensemble"]:
         assert "iniciar_execucao" in dag.get_task(t).upstream_task_ids, t
+    assert "iniciar_execucao" in ancestrais("horizonte.comparar")
+    assert "horizonte.train_ensemble" in dag.get_task("horizonte.comparar").upstream_task_ids
     # o diretório da execução some no fim, com sucesso ou falha
     limpar = dag.get_task("limpar")
     assert limpar.trigger_rule == "all_done" and limpar.retries == 0
