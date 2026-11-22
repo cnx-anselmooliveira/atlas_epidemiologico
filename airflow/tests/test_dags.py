@@ -252,7 +252,6 @@ def test_forecast_estrutura_e_regras():
         assert t.execution_timeout.total_seconds() == 3 * 3600, nome
     por_horizonte = {f"horizonte.train_{b}" for b in FORECAST_BASES}
     esperado = {
-        "prepare",
         "configuracao",
         "iniciar_execucao",
         "lista_de_horizontes",
@@ -268,7 +267,7 @@ def test_forecast_estrutura_e_regras():
     do_grupo = lambda t: {u for u in t.upstream_task_ids if u.startswith("horizonte.")}  # noqa: E731
     assert do_grupo(ensemble) == {f"horizonte.train_{b}" for b in FORECAST_STACKED}
     # snapshot, janela e semente, e o diretório e a versão do notebook da execução
-    assert {"prepare", "configuracao", "iniciar_execucao"} <= ensemble.upstream_task_ids
+    assert {"configuracao", "iniciar_execucao"} <= ensemble.upstream_task_ids
     comparar = dag.get_task("horizonte.comparar")
     assert do_grupo(comparar) == {
         "horizonte.train_baseline_bayes",
@@ -276,7 +275,7 @@ def test_forecast_estrutura_e_regras():
         "horizonte.train_ensemble",
     }
     assert comparar.trigger_rule == "all_done" and comparar.retries == 0
-    for t in por_horizonte | {"prepare", "horizonte.train_ensemble"}:
+    for t in por_horizonte | {"horizonte.train_ensemble"}:
         assert dag.get_task(t).retries == 1, t
     # um grupo por horizonte (mapeado) e a exportação depois dele
     from airflow.sdk.definitions.mappedoperator import MappedOperator
@@ -294,17 +293,19 @@ def test_forecast_executa_o_notebook_e_limpa_a_execucao():
     dag = _forecast()
     inicio = dag.get_task("iniciar_execucao")
     assert inicio.python == "/opt/atlas-ml/bin/python"
-    for t in ["prepare", "horizonte.train_catboost", "horizonte.train_ensemble", "horizonte.comparar"]:
+    for t in ["horizonte.train_catboost", "horizonte.train_ensemble", "horizonte.comparar"]:
         assert "iniciar_execucao" in dag.get_task(t).upstream_task_ids, t
     # o diretório da execução some no fim, com sucesso ou falha
     limpar = dag.get_task("limpar")
     assert limpar.trigger_rule == "all_done" and limpar.retries == 0
     assert "horizonte.comparar" in limpar.upstream_task_ids
     assert limpar.python == "/opt/atlas-ml/bin/python"
-    # as tarefas executam o notebook (run_step); o módulo pipeline e o CLI saíram
+    # sem snapshot; as tarefas executam o notebook do modelo; o pipeline antigo e o CLI saíram
     with open(os.path.join(DAGS_FOLDER, "atlas_dengue_forecast_br.py"), encoding="utf-8") as f:
         fonte = f.read()
-    assert "run_step" in fonte and "forecast.pipeline" not in fonte and "atlas-ml forecast" not in fonte
+    assert "run_model_notebook" in fonte and "run_step" not in fonte
+    assert "forecast.pipeline" not in fonte and "atlas-ml forecast" not in fonte
+    assert "prepare" not in dag.task_ids
 
 
 def test_forecast_parametros_e_ambiente():
@@ -319,7 +320,7 @@ def test_forecast_parametros_e_ambiente():
     for t in dag.tasks:
         assert type(t).__name__ != "BashOperator", t.task_id
     for t in [
-        "prepare",
+        "iniciar_execucao",
         "horizonte.train_catboost",
         "horizonte.train_ensemble",
         "horizonte.comparar",

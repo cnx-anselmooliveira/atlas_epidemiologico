@@ -1,4 +1,5 @@
-# Publica a imagem de treino atlas-ml (alvo runtime de ml/Dockerfile): dev e hml por push, X.Y por tag, ou à mão.
+# Publica as imagens do ml: a de treino atlas-ml (alvo runtime de ml/Dockerfile) e a do Jupyter (alvo notebook,
+# atlas-epidemiologia-ml-notebook). dev e hml por push, X.Y por tag, ou à mão.
 name: ml
 
 on:
@@ -25,4 +26,15 @@ jobs:
       image: ml
       context: ml
       target: runtime
+    secrets: inherit
+
+  image-notebook:
+    uses: ./.github/workflows/_image.yml
+    with:
+      image: ml-notebook
+      context: ml
+      target: notebook
+      # CatBoost, PyTorch, PyMC e Chronos: as mesmas versões que o Airflow usa nos notebooks dos modelos
+      build_args: |
+        ATLAS_ML_EXTRAS=models
     secrets: inherit

@@ -107,7 +107,11 @@ uv run --extra models python notebooks/_ferramentas/verificar_requirements.py   
 
 Detalhes (estrutura, parâmetros, como rodar na mão e como alterar o código comum): [`notebooks/README.md`](notebooks/README.md).
 
-### Notebook do pipeline
+**No Airflow:** cada tarefa de modelo da DAG executa o notebook do modelo com `atlas_ml.forecast.notebook.run_model_notebook` (papermill, resultado em `result.json` por tarefa, notebook executado anexado à run). A versão da gold e a do notebook ficam fixas durante a execução, e a comparação dos modelos é código da própria DAG.
+
+### Notebook único do pipeline (transitório)
+
+> **Transitório.** A DAG `atlas_dengue_forecast_br` já executa os notebooks por modelo (seção anterior) e não usa mais este notebook único. Ele e o código do pacote que ele chama ficam até a validação em hml, quando saem (change `self-contained-model-notebooks`, grupo 10).
 
 O pipeline é o notebook [`notebooks/forecast_pipeline.ipynb`](notebooks/forecast_pipeline.ipynb): as células são finas e chamam o pacote `atlas_ml`. O Airflow o executa com papermill, uma tarefa por passo, e passa os parâmetros de cada uma.
 

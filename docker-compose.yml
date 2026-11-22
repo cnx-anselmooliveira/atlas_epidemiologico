@@ -290,6 +290,48 @@ services:
           cpus: "0.5"
           memory: 768M
 
+  # Jupyter de exploração: a imagem ml-notebook (mesmas versões do Airflow), em host próprio com senha e TLS.
+  # É um caderno ISOLADO: sem secrets, sem credenciais de nenhum serviço e fora da rede atlas_internal (não
+  # alcança MLflow, Airflow, banco nem Redis). Os dados são os que a pessoa subir. A senha chega só como hash
+  # (JUPYTER_PASSWORD_HASH). Sem lista de IPs: o proxy limita as tentativas por origem. O check-stack.sh
+  # garante o isolamento. Receita: deploy/README.md. JUPYTER_REPLICAS=0 desliga sem tocar nos outros.
+  jupyter:
+    image: ${IMAGE_REPO_PREFIX:-anselmomendes/atlas-epidemiologia}-ml-notebook:${IMAGE_TAG:?tag das imagens (hml ou X.Y), nunca latest}
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    environment:
+      ATLAS_ENV: ${ATLAS_ENV:?hml ou prod}
+      # só o HASH da senha (argon2), nunca a senha; o servidor não sobe sem ele. O valor vai cru, sem aspas
+      JUPYTER_PASSWORD_HASH: ${JUPYTER_PASSWORD_HASH:?hash argon2 da senha do Jupyter}
+      ATLAS_THREADS: ${ATLAS_THREADS:-2}
+      HF_HOME: /home/atlas/hf-cache
+    volumes:
+      - jupyter_work:/home/atlas/work
+      - jupyter_hf_cache:/home/atlas/hf-cache
+      - type: tmpfs
+        target: /tmp
+    networks: [network_public]
+    deploy:
+      <<: *airflow-deploy
+      replicas: ${JUPYTER_REPLICAS:-1}
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1536M
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=network_public
+        - traefik.http.routers.atlas-${ATLAS_ENV}-jupyter.rule=Host(`${JUPYTER_HOST:-jupyter.invalid}`)
+        - traefik.http.routers.atlas-${ATLAS_ENV}-jupyter.entrypoints=websecure
+        - traefik.http.routers.atlas-${ATLAS_ENV}-jupyter.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.atlas-${ATLAS_ENV}-jupyter.middlewares=atlas-${ATLAS_ENV}-jupyter-limite
+        # sem lista de IPs: limita as requisições por origem (freia tentativas de senha em massa, resposta 429)
+        - traefik.http.middlewares.atlas-${ATLAS_ENV}-jupyter-limite.ratelimit.average=10
+        - traefik.http.middlewares.atlas-${ATLAS_ENV}-jupyter-limite.ratelimit.period=1s
+        - traefik.http.middlewares.atlas-${ATLAS_ENV}-jupyter-limite.ratelimit.burst=20
+        - traefik.http.services.atlas-${ATLAS_ENV}-jupyter.loadbalancer.server.port=8888
+
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
@@ -399,6 +441,8 @@ volumes:
   airflow_shared:
   airflow_dags:
   hf_cache:
+  jupyter_work:
+  jupyter_hf_cache:
 
 networks:
   atlas_internal:

@@ -12,8 +12,6 @@ Motivação e escopo: ver `proposal.md`. Estado atual relevante:
 - **Imagens do stack.** `platform/ci/check-stack.sh` aceita só imagens do projeto, `postgres` e `redis`.
 - **dbt/Cosmos.** `dbt_brasil.py` e `process_dbt_docs_atlas.py` localizam o projeto com `Path(__file__).resolve().parent / "utfpr_dengue"`. O venv do dbt é montado na imagem a partir do `pyproject.toml` e do `uv.lock` desse projeto.
 - **Repositório.** `cnx-anselmooliveira/atlas_epidemiologico`, **público**.
-- **Contas e dados.** Há três contas de serviço por ambiente: treino e dbt (`training_sa`, que também escreve a gold e lê bronze e silver), leitura do backend (`backend_sa`: BigQuery `gold` e `forecast`, prefixo `forecast/` do bucket) e MLflow (`mlflow_sa`, só o bucket). O bucket guarda `mlflow/<amb>/`, `cosmos_cache/<amb>/`, `dbt_docs/<amb>/`, `forecast/<amb>/` e o SINAN bruto em `landing/<amb>/sinan/dengue/`. O MLflow tem autenticação básica e serve os artefatos (`--serve-artifacts`).
-- **Jupyter hoje.** Só em dev (`platform/compose.dev.yml`, profile `notebook`, porta em `127.0.0.1`): imagem `ml` com o alvo `notebook`, que **não é publicada**; usa `training-sa.json` e o token padrão `atlas`. Em hml e prod não há.
 
 ## Goals / Non-Goals
 
@@ -90,35 +88,6 @@ O Swarm não tem sidecar, então o `git-sync` é um serviço próprio do stack:
 - Documentação a atualizar: `ml/README.md` (seção `atlas-ml forecast`), o README do ensemble, `airflow/README.md` e `deploy/README.md`.
 - `local/treino_local.py` está fora do Git, então não entra no PR: a migração é manual (usar o notebook com `papermill`, ou chamar `dataset.prepare` e `base.run_model` diretamente).
 
-### 9. Jupyter de exploração
-Um serviço `jupyter` em dev, hml e prod, para explorar uma cópia do que o Airflow roda.
-
-- **Imagem:** o alvo `notebook` de `ml/Dockerfile`, que passa a ser **publicado** (`atlas-epidemiologia-ml-notebook`, tags como as demais; `ml.yml`, `release.yml` e a lista de imagens do `check-stack.sh` acompanham). Ela é construída do mesmo `ml/uv.lock` e do mesmo commit que a do Airflow, então tem as mesmas versões do `atlas_ml`. O Jupyter **não** é instalado na imagem do Airflow: ela carrega a senha do banco, o JWT e o Fernet.
-- **Configuração do servidor** (arquivo na imagem): sem terminal, sem root, token lido de um arquivo (`/run/secrets/…`), falha ao subir se o arquivo faltar ou estiver vazio, `root_dir` no volume de trabalho.
-- **Volumes:** o clone do `git-sync` (`airflow_dags`) em somente leitura em `/opt/airflow/git`, para ler as mesmas DAGs e o mesmo notebook; um volume `jupyter_work` gravável, onde o usuário trabalha numa cópia. Quando o volume está vazio, o serviço copia `ml/notebooks` do clone para ele.
-- **Identidade no Google Cloud, uma por ambiente** (`atlas-<amb>-jupyter`, secret `atlas_<amb>_jupyter_sa`; nunca `training_sa`, `backend_sa` nem `mlflow_sa`):
-
-  | Recurso | Papel | Escopo |
-  |---|---|---|
-  | Projeto | `bigquery.jobUser` | consultas, com cota diária de bytes para a conta |
-  | `gold<_amb>` e `forecast<_amb>` | `bigquery.dataViewer` | dataset a dataset, nunca no projeto |
-  | `sandbox_jupyter<_amb>` | `bigquery.dataEditor` | dataset novo, com expiração padrão das tabelas (7 a 30 dias) |
-  | Bucket | `storage.objectViewer` | condição por prefixo: só `forecast/<amb>/` |
-  | Bucket | `storage.objectCreator` + `objectViewer` | condição por prefixo: só `jupyter/<amb>/` |
-
-  Sem bronze nem silver (dados individuais) e sem `landing/`, `cosmos_cache/` e `dbt_docs/`. As condições por prefixo exigem acesso uniforme no nível do bucket. Os artefatos do MLflow não pedem acesso ao bucket, porque o servidor os serve.
-- **MLflow:** usuário próprio (`jupyter`), com leitura no experimento oficial e escrita só em `atlas/sandbox`, sem permissão no registro de modelos. O serviço leva `ATLAS_FORECAST_EXPERIMENT=sandbox` (o pacote passa a ler essa variável; padrão `dengue-forecast-br`), e as credenciais desse usuário vêm de variáveis do stack, nunca as do administrador.
-- **Acesso:** sem porta publicada; roteador do Traefik com o mesmo `ipallowlist` do Airflow e do MLflow (`ADMIN_ALLOWED_CIDRS`) e TLS. Em dev, porta em `127.0.0.1` e token obrigatório (sem o padrão `atlas`).
-- **Contêiner:** usuário não-root (`atlas`, uid 1000), `cap_drop: [ALL]`, `read_only: true` com `tmpfs` em `/tmp` e o volume de trabalho gravável, e limites de CPU e memória que preservem o scheduler (3,5 GB) e o MLflow numa VPS de 4 CPUs e 8 GB. O `no-new-privileges` **não** é aceito em serviços do Swarm, então não entra.
-- **Réplicas:** `JUPYTER_REPLICAS` (padrão 1, a pedido) permite desligar o serviço sem tocar nos outros.
-- **Notebooks sem dados:** verificação de `nbstripout` no CI e no hook local para `ml/notebooks`, porque o repositório é público.
-- **`check-stack.sh`:** novas regras para o serviço `jupyter`: sem porta publicada, sem os secrets `training_sa`, `mlflow_sa` e `backend_sa`, com os secrets próprios e com `cap_drop` e `read_only`.
-
-*Alternativas descartadas:*
-- Reutilizar `training_sa` ou `backend_sa`: a primeira escreve a gold e lê o bruto; a segunda é a do backend, e compartilhar tira a auditoria e a revogação isoladas.
-- Instalar o Jupyter na imagem do Airflow: aumenta a superfície de ataque do componente que guarda as credenciais do pipeline.
-- Dar acesso de leitura a bronze e silver "só para explorar": são microdados individuais; a exploração é sobre as camadas agregadas.
-
 ## Risks / Trade-offs
 
 - **[Merge executa código em produção]** → proteção das branches `hml` e `main`; o CI valida as DAGs antes; `atlas.notebook_sha` registra o que rodou.
@@ -132,12 +101,6 @@ Um serviço `jupyter` em dev, hml e prod, para explorar uma cópia do que o Airf
 - **[Imagem do `git-sync` fora da regra do `check-stack.sh`]** → ajuste explícito da regra, com tag fixa.
 - **[Duas fontes das DAGs (imagem e clone) divergem]** → a variável `DAGS_FOLDER` decide em hml e prod; a cópia da imagem só serve ao CI.
 - **[Notebook executado pesa no MLflow]** → `log_output=False` e sem barras de progresso; o treino imprime pouco.
-- **[Jupyter ligado em prod por padrão]** → a conta é só de leitura em `gold_prod` e `forecast_prod`, sem bronze, silver nem `landing/`, com allowlist de IPs, TLS, token em secret e limites de recursos. Quando não estiver em uso, `JUPYTER_REPLICAS=0` em prod tira a superfície de ataque sem mexer no resto.
-- **[Chave de conta de serviço como Docker secret]** → a VPS fica fora do Google Cloud, então não há identidade federada; usar chaves próprias por ambiente, com rotação periódica (a receita fica no `deploy/README.md`).
-- **[Exploração custosa no BigQuery]** → cota diária de bytes para a conta e teto de bytes por consulta definido no ambiente do Jupyter.
-- **[Jupyter disputa CPU e memória com o Airflow na VPS]** → limites do serviço abaixo da folga da máquina; um estouro reinicia só o Jupyter.
-- **[Notebook com saída de dados indo ao repositório público]** → `nbstripout` no CI e no hook local.
-- **[Condições IAM por prefixo exigem acesso uniforme no bucket]** → verificar a configuração do bucket antes de aplicar; se não for possível, usar um bucket separado para `jupyter/`.
 - **[Sobreposição com `add-hml-stack` e `add-hml-cicd-images`]** → esta mudança altera `docker-compose.yml`, `check-stack.sh`, `airflow.yml` e o `deploy/README.md`, que as duas ainda tocam. Aplicar depois de fecharem ou combinar a ordem dos merges; os artefatos delas não são editados aqui.
 
 ## Migration Plan
@@ -152,5 +115,4 @@ Um serviço `jupyter` em dev, hml e prod, para explorar uma cópia do que o Airf
 
 - **Primeiro uso real do arquivo de tabela:** nenhum passo entrega tabela hoje; definir qual será (por exemplo, a comparação por horizonte) quando surgir a necessidade.
 - **Intervalo de sincronização:** 60 s é um padrão razoável; ajustar depois de ver o consumo de rede e de processamento do dag-processor.
-- **Expiração do sandbox e rotação das chaves:** 7 a 30 dias e 90 dias são pontos de partida; ajustar depois de ver o uso.
 - **Repositório privado no futuro:** se ocorrer, adicionar o secret de acesso ao `git-sync` e à documentação.

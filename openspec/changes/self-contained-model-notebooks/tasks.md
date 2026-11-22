@@ -44,8 +44,8 @@
 
 - [x] 8.1 Acrescentar `run_model_notebook(model, params, out_dir, name, expected_sha)` a `atlas_ml/forecast/notebook.py` (escolhe `<ATLAS_NOTEBOOKS_DIR>/<modelo>/<modelo>.ipynb`, confere a versão do notebook, executa, anexa o notebook executado à run); verificar com testes: notebook ausente falha indicando o caminho, versão trocada falha antes de executar e o notebook executado vira artefato
 - [ ] 8.2 Trocar `treinar` de `atlas_dengue_forecast_br.py` para executar o notebook do modelo (mesmo `external_python`, pool, tempos máximos, retentativas e regras de disparo), remover a tarefa `prepare` e fazer `iniciar_execucao` registrar também a versão da gold e passá-la como `data_version_esperada`; verificar com `airflow/tests/test_dags.py` atualizado (mesmas tarefas de modelo, dependências e pools, sem `prepare`) e com teste da falha por gold alterada
-- [ ] 8.3 Mover a comparação para uma tarefa Python da DAG (corpo autocontido no `external_python`, com a lógica de `forecast/compare.py`: junta as runs por `atlas.pipeline_run` e `atlas.horizon`, registra a run `compare`, lista os ausentes); verificar com teste que usa MLflow em arquivo e um modelo ausente
-- [ ] 8.4 Atualizar `airflow/README.md`, a docstring da DAG e o `ml/README.md` (notebooks por modelo, sem `prepare`, como rodar na mão, requirements, células comuns e as três verificações); verificar seguindo os comandos documentados com o painel sintético
+- [x] 8.3 Mover a comparação para uma tarefa Python da DAG (corpo autocontido no `external_python`, com a lógica de `forecast/compare.py`: junta as runs por `atlas.pipeline_run` e `atlas.horizon`, registra a run `compare`, lista os ausentes); verificar com teste que usa MLflow em arquivo e um modelo ausente
+- [x] 8.4 Atualizar `airflow/README.md`, a docstring da DAG e o `ml/README.md` (notebooks por modelo, sem `prepare`, como rodar na mão, requirements, células comuns e as três verificações); verificar seguindo os comandos documentados com o painel sintético
 
 ## 9. Validação em hml e prod
 

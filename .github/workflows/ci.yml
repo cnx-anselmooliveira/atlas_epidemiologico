@@ -41,8 +41,10 @@ jobs:
           uv sync --frozen
           uv run ruff check . ../airflow/dags ../airflow/tests
           uv run ruff format --check . ../airflow/dags ../airflow/tests
+      - name: notebooks versionados sem saídas (o repositório é público)
+        run: python3 ml/notebooks/_ferramentas/verificar_sem_saidas.py
       - name: shellcheck
-        run: shellcheck infra/mlflow/entrypoint.sh airflow/config/init.sh airflow/config/aguardar-clone.sh platform/postgres/init-databases.sh platform/ci/e2e.sh platform/ci/check-secrets.sh .githooks/pre-commit
+        run: shellcheck infra/mlflow/entrypoint.sh airflow/config/init.sh airflow/config/aguardar-clone.sh platform/postgres/init-databases.sh platform/ci/e2e.sh platform/ci/check-secrets.sh platform/ci/test-check-stack-jupyter.sh .githooks/pre-commit
       - name: actionlint
         run: |
           bash <(curl -fsSL "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash") "${ACTIONLINT_VERSION}"
@@ -294,6 +296,8 @@ jobs:
         run: python3 -c "import yaml" 2>/dev/null || sudo apt-get install -y python3-yaml
       - name: validar o stack de hml e prod
         run: bash platform/ci/check-stack.sh
+      - name: o serviço jupyter recusa cada violação (testes negativos)
+        run: bash platform/ci/test-check-stack-jupyter.sh
 
   promocao:
     # Fluxo dev → hml → main: hml só recebe PR de dev e main só recebe PR de hml. Só roda em PR;
