@@ -21,6 +21,12 @@
 
 x-airflow-env: &airflow-env
   ATLAS_ENV: ${ATLAS_ENV:?hml ou prod}
+  # DAGs e notebook do pipeline vêm do clone do serviço git-sync (volume airflow_dags): o merge na
+  # branch do ambiente chega ao Airflow sem nova imagem. A imagem guarda só uma cópia de reserva.
+  AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/git/current/airflow/dags
+  AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: "60"
+  ATLAS_DAGS_LINK: /opt/airflow/git/current
+  ATLAS_NOTEBOOKS_DIR: /opt/airflow/git/current/ml/notebooks
   # Dados separados por ambiente (add-env-data-isolation): o landing e os datasets bronze, silver e
   # gold saem do ATLAS_ENV no código; a exportação das previsões escreve em forecast_<ambiente>
   ATLAS_FORECAST_DATASET: forecast_${ATLAS_ENV:?}
@@ -67,6 +73,7 @@ x-airflow: &airflow
     - airflow_logs:/opt/airflow/logs
     - airflow_shared:/opt/airflow/shared
     - hf_cache:/opt/airflow/hf-cache
+    - airflow_dags:/opt/airflow/git:ro   # clone do git-sync, somente leitura
   networks: [atlas_internal]
 
 x-airflow-deploy: &airflow-deploy
@@ -163,6 +170,32 @@ services:
         - traefik.http.middlewares.atlas-${ATLAS_ENV}-admin.ipallowlist.sourcerange=${ADMIN_ALLOWED_CIDRS:-127.0.0.1/32}
         - traefik.http.services.atlas-${ATLAS_ENV}-mlflow.loadbalancer.server.port=5000
 
+  # Clona a branch do ambiente (hml ou main) num volume que o Airflow lê somente leitura. O link `current`
+  # é trocado de forma atômica a cada sincronização. O repositório é público: HTTPS, sem credencial (se
+  # virar privado, um secret do stack com a credencial; ver deploy/README.md). GITSYNC_MAX_FAILURES=-1:
+  # com o GitHub fora do ar o serviço segue tentando e o Airflow fica com a última versão sincronizada.
+  git-sync:
+    image: registry.k8s.io/git-sync/git-sync:v4.4.0
+    user: "0:0"
+    cap_drop: [ALL]
+    environment:
+      GITSYNC_REPO: ${ATLAS_DAGS_REPO:-https://github.com/cnx-anselmooliveira/atlas_epidemiologico.git}
+      GITSYNC_REF: ${ATLAS_DAGS_BRANCH:?branch do ambiente (hml ou main)}
+      GITSYNC_PERIOD: ${ATLAS_DAGS_SYNC_PERIOD:-60s}
+      GITSYNC_DEPTH: "1"
+      GITSYNC_ROOT: /git
+      GITSYNC_LINK: current
+      GITSYNC_MAX_FAILURES: "-1"
+    volumes:
+      - airflow_dags:/git
+    networks: [atlas_internal]
+    deploy:
+      <<: *airflow-deploy
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
   # Job de execução única: migra o banco e garante o admin (idempotente, roda a cada deploy)
   airflow-init:
     <<: *airflow
@@ -185,7 +218,7 @@ services:
 
   airflow-api-server:
     <<: *airflow
-    command: ["bash", "-c", "airflow db check-migrations --migration-wait-timeout 900 && exec airflow api-server"]
+    command: ["bash", "-c", "/opt/atlas/aguardar-clone.sh && airflow db check-migrations --migration-wait-timeout 900 && exec airflow api-server"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/v2/monitor/health"]
       interval: 15s
@@ -211,7 +244,7 @@ services:
 
   airflow-scheduler:
     <<: *airflow
-    command: ["bash", "-c", "airflow db check-migrations --migration-wait-timeout 900 && exec airflow scheduler"]
+    command: ["bash", "-c", "/opt/atlas/aguardar-clone.sh && airflow db check-migrations --migration-wait-timeout 900 && exec airflow scheduler"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8974/health"]
       interval: 15s
@@ -227,7 +260,7 @@ services:
 
   airflow-dag-processor:
     <<: *airflow
-    command: ["bash", "-c", "airflow db check-migrations --migration-wait-timeout 900 && exec airflow dag-processor"]
+    command: ["bash", "-c", "/opt/atlas/aguardar-clone.sh && airflow db check-migrations --migration-wait-timeout 900 && exec airflow dag-processor"]
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
       interval: 30s
@@ -243,7 +276,7 @@ services:
 
   airflow-triggerer:
     <<: *airflow
-    command: ["bash", "-c", "airflow db check-migrations --migration-wait-timeout 900 && exec airflow triggerer"]
+    command: ["bash", "-c", "/opt/atlas/aguardar-clone.sh && airflow db check-migrations --migration-wait-timeout 900 && exec airflow triggerer"]
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
       interval: 30s
@@ -364,6 +397,7 @@ volumes:
   pgdata:
   airflow_logs:
   airflow_shared:
+  airflow_dags:
   hf_cache:
 
 networks:

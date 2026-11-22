@@ -18,6 +18,17 @@ def test_run_recebe_todas_as_tags_obrigatorias(tracking_uri):
     assert mlflow.get_experiment(run.info.experiment_id).name == "atlas/teste"
 
 
+def test_run_leva_a_versao_do_notebook_quando_ha(tracking_uri, monkeypatch):
+    settings = load_settings()
+    with atlas_run(settings, "teste", data_version="synthetic-seed1") as sem:
+        pass
+    assert "atlas.notebook_sha" not in mlflow.get_run(sem.info.run_id).data.tags
+    monkeypatch.setenv("ATLAS_NOTEBOOK_SHA", "9f2c1ab")
+    with atlas_run(settings, "teste", data_version="synthetic-seed1") as com:
+        pass
+    assert mlflow.get_run(com.info.run_id).data.tags["atlas.notebook_sha"] == "9f2c1ab"
+
+
 def test_versao_de_dados_vazia_falha_antes_de_abrir_run(tracking_uri):
     settings = load_settings()
     with (

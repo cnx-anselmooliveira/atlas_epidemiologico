@@ -74,7 +74,7 @@ df, summary = read_features(
 # summary.data_version → "…gold_dengue_epi_curve_weekly@2026-11-14T06:12:00+00:00"
 ```
 
-## Previsão de dengue por UF (`atlas-ml forecast`)
+## Previsão de dengue por UF
 
 Seis modelos sobre o mesmo painel de casos prováveis por UF e semana, lido da `gold_dengue_casos_provaveis_uf_semanal`:
 
@@ -88,19 +88,86 @@ Seis modelos sobre o mesmo painel de casos prováveis por UF e semana, lido da `
 | Ensemble (RandomForest sobre OOF) | [`models/ensemble`](src/atlas_ml/models/ensemble/README.md) | stacking | — |
 
 ```sh
-uv sync --extra models                                   # CatBoost, PyTorch CPU, PyMC/nutpie, Chronos
-uv run --extra models atlas-ml forecast prepare          # gold → run `dataset`  → dataset_run_id=…
-uv run --extra models atlas-ml forecast train catboost --dataset-run ID [--window 12 --horizon 1 --seed 42]
-uv run --extra models atlas-ml forecast train ensemble --dataset-run ID --base-runs catboost=ID,svr=ID,lstm=ID
-uv run --extra models atlas-ml forecast compare --pipeline-run <atlas.pipeline_run>
+uv sync --extra models        # CatBoost, PyTorch CPU, PyMC/nutpie, Chronos e papermill
 ```
 
+O pipeline roda pelo notebook (seção "Notebook do pipeline", abaixo). O CLI `atlas-ml forecast` e o módulo `forecast/pipeline.py` foram removidos; os demais comandos (`train example`, `promote`) continuam.
+
 Use sempre `--extra models` no `uv run`. Sem ele, o `uv` sincroniza o ambiente sem o grupo e remove os pacotes.
+
+### Notebooks dos modelos
+
+Cada modelo é um notebook autocontido em [`notebooks/<modelo>/`](notebooks/README.md), com o código do modelo, o `requirements.txt` e as saídas impressas, que roda na mão (célula por célula) ou pelo Airflow. O código comum (dados, janelas, métricas, MLflow) é idêntico nos seis, e três verificações rodam no CI e à mão (em `ml/`, com `--extra models`):
+
+```sh
+uv run --extra models python notebooks/_ferramentas/sincronizar_comum.py            # propaga o código comum
+uv run --extra models python notebooks/_ferramentas/verificar_comum.py              # células comuns idênticas e sem import proibido
+uv run --extra models python notebooks/_ferramentas/verificar_requirements.py       # requirements × uv.lock × imports
+```
+
+Detalhes (estrutura, parâmetros, como rodar na mão e como alterar o código comum): [`notebooks/README.md`](notebooks/README.md).
+
+### Notebook do pipeline
+
+O pipeline é o notebook [`notebooks/forecast_pipeline.ipynb`](notebooks/forecast_pipeline.ipynb): as células são finas e chamam o pacote `atlas_ml`. O Airflow o executa com papermill, uma tarefa por passo, e passa os parâmetros de cada uma.
+
+| Parâmetro | Para quê |
+|---|---|
+| `step` | `prepare` (snapshot dos dados), `train` (um modelo num horizonte) ou `compare` (junta as runs de uma execução) |
+| `model`, `horizon`, `window`, `seed` | só no `train` (e `horizon` também no `compare`; 0 compara todos) |
+| `dataset_run` | `train`: a run `dataset` criada pelo `prepare` |
+| `base_runs` | só ensemble: `{"catboost": "<run_id>", "svr": "…", "lstm": "…"}` |
+| `pipeline_run` | valor da tag `atlas.pipeline_run` (a DAG passa o `run_id` dela) |
+| `features` | vazio = canais do SINAN + relevo; `-` = só a incidência; ou a lista separada por vírgulas |
+| `painel_parquet` | `prepare`: usa um painel pronto em vez de ler o BigQuery (testes e reprocessamento) |
+| `fonte` | `prepare`: tabela `projeto.dataset.tabela` no lugar da gold do ambiente |
+| `register` | `train`: registra o modelo (`atlas-br-<modelo>-h<H>` com o sufixo do ambiente) |
+| `result_path`, `out_dir` | definidos por quem executa; o notebook grava aí o JSON do passo (`dataset_run_id` ou `run_id`) |
+
+Um passo ou modelo inexistente, ou um `train` sem `dataset_run`, falha na primeira célula, antes de criar qualquer run. O notebook declara a versão do contrato do pacote de que precisa (`REQUIRES_API`, comparada com `atlas_ml.forecast.NOTEBOOK_API`) e falha, também antes de criar run, se a imagem for mais antiga.
+
+**Rodar à mão** (MLflow em arquivo local, painel sintético, sem BigQuery):
+
+```sh
+export MLFLOW_ALLOW_FILE_STORE=true MLFLOW_TRACKING_URI=./mlruns ATLAS_GIT_SHA=local
+uv run --extra models python -c "from atlas_ml.forecast.synthetic import synthetic_panel as s; s(n_weeks=320).to_parquet('painel.parquet', index=False)"
+uv run --extra models papermill notebooks/forecast_pipeline.ipynb saida-prepare.ipynb -p step prepare -p painel_parquet painel.parquet
+# o dataset_run_id sai no fim da execução; use-o no treino:
+uv run --extra models papermill notebooks/forecast_pipeline.ipynb saida-train.ipynb -p step train -p model catboost -p dataset_run <dataset_run_id>
+```
+
+Contra a gold real, omita `painel_parquet` e configure as credenciais do BigQuery (`GOOGLE_APPLICATION_CREDENTIALS`) e do MLflow. Sem `result_path`, o notebook só imprime o resultado.
+
+**Migrar scripts que usavam `atlas-ml forecast` ou `atlas_ml.forecast.pipeline`** (por exemplo um script local fora do Git): cada comando virou um passo do notebook, e `run_step` o executa como o Airflow faz.
+
+| Antes | Agora |
+|---|---|
+| `atlas-ml forecast prepare` / `prepare_snapshot(fonte)` | passo `prepare` (`fonte`, ou `painel_parquet`) → `dataset_run_id` |
+| `atlas-ml forecast train <modelo> --dataset-run ID --horizon H` / `train(...)` | passo `train` (`model`, `horizon`, `dataset_run`, `base_runs` no ensemble) → `run_id` |
+| `atlas-ml forecast compare --pipeline-run X` / `compare_horizon(...)` | passo `compare` (`pipeline_run`, `horizon`) → `run_id` |
+
+```python
+import os
+
+os.environ["ATLAS_NOTEBOOKS_DIR"] = "notebooks"  # onde está forecast_pipeline.ipynb
+from atlas_ml.forecast.notebook import run_step
+
+out = "/tmp/atlas/minha-execucao"  # um diretório por execução
+ds = run_step("prepare", {"pipeline_run": "manual"}, out, "prepare")["dataset_run_id"]
+run = run_step(
+    "train",
+    {"model": "catboost", "horizon": 1, "dataset_run": ds, "pipeline_run": "manual"},
+    out,
+    "train-catboost-h1",
+)["run_id"]
+```
+
+**Versões gravadas em cada run:** `atlas.git_sha` (a imagem, onde está o pacote) e `atlas.notebook_sha` (o notebook). Em hml e prod, o `atlas.notebook_sha` é o commit que o `git-sync` clonou; fora disso vale `local`. O notebook executado, com as saídas de cada célula, fica como artefato `notebook/` da run.
 
 **Como cada modelo é treinado** (`forecast/base.py`, `run_model`):
 
 1. **Snapshot:** baixa o snapshot da run `dataset`. O BigQuery nunca é relido.
-2. **Janelas:** descarta as 8 semanas imaturas e monta janelas N→H em `log1p(incidência)`.
+2. **Janelas:** descarta as 8 semanas imaturas e monta janelas N→H em `log1p(incidência)`. Cada passo da janela leva também os **canais do SINAN** como taxa por 100 mil em `log1p` (`notified_cases`, `discarded_cases`, `confirmed_cases`, `alarm_cases`, `severe_cases`, `inconclusive_cases`, `investigation_cases`, `deaths`) e o relevo da UF (`mean_elevation_m`, `mean_slope_deg`), só com semanas até a origem. `--features` troca a lista (separada por vírgula); `--features -` volta a só a incidência. CatBoost, SVR, LSTM e Ensemble usam todos os canais; Chronos e o baseline bayesiano seguem só com a incidência.
 3. **Divisão:** pela data do alvo, com teste = últimas 52 semanas, validação = 52 anteriores e treino = o resto. O `TrainOnlyScaler` é ajustado só no treino.
 4. **Ajuste:** `fit` com o treino; validação só para early stopping e seleção.
 5. **Previsões:** de validação e teste, com corte em 0. Para CatBoost, SVR e LSTM, também as previsões out-of-fold (3 blocos rolling origin de 52 semanas).

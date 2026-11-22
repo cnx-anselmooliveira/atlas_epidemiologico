@@ -254,18 +254,21 @@ def test_forecast_estrutura_e_regras():
     esperado = {
         "prepare",
         "configuracao",
+        "iniciar_execucao",
         "lista_de_horizontes",
         *por_horizonte,
         "horizonte.train_ensemble",
         "horizonte.comparar",
         "exportar",
+        "limpar",
     }
     assert set(dag.task_ids) == esperado
     # o ensemble depende só dos modelos empilhados
     ensemble = dag.get_task("horizonte.train_ensemble")
     do_grupo = lambda t: {u for u in t.upstream_task_ids if u.startswith("horizonte.")}  # noqa: E731
     assert do_grupo(ensemble) == {f"horizonte.train_{b}" for b in FORECAST_STACKED}
-    assert {"prepare", "configuracao"} <= ensemble.upstream_task_ids  # snapshot, janela e semente
+    # snapshot, janela e semente, e o diretório e a versão do notebook da execução
+    assert {"prepare", "configuracao", "iniciar_execucao"} <= ensemble.upstream_task_ids
     comparar = dag.get_task("horizonte.comparar")
     assert do_grupo(comparar) == {
         "horizonte.train_baseline_bayes",
@@ -287,6 +290,23 @@ def test_forecast_estrutura_e_regras():
     assert "horizonte.comparar" in exportar.upstream_task_ids
 
 
+def test_forecast_executa_o_notebook_e_limpa_a_execucao():
+    dag = _forecast()
+    inicio = dag.get_task("iniciar_execucao")
+    assert inicio.python == "/opt/atlas-ml/bin/python"
+    for t in ["prepare", "horizonte.train_catboost", "horizonte.train_ensemble", "horizonte.comparar"]:
+        assert "iniciar_execucao" in dag.get_task(t).upstream_task_ids, t
+    # o diretório da execução some no fim, com sucesso ou falha
+    limpar = dag.get_task("limpar")
+    assert limpar.trigger_rule == "all_done" and limpar.retries == 0
+    assert "horizonte.comparar" in limpar.upstream_task_ids
+    assert limpar.python == "/opt/atlas-ml/bin/python"
+    # as tarefas executam o notebook (run_step); o módulo pipeline e o CLI saíram
+    with open(os.path.join(DAGS_FOLDER, "atlas_dengue_forecast_br.py"), encoding="utf-8") as f:
+        fonte = f.read()
+    assert "run_step" in fonte and "forecast.pipeline" not in fonte and "atlas-ml forecast" not in fonte
+
+
 def test_forecast_parametros_e_ambiente():
     dag = _forecast()
     assert dag.params["window"] == 12 and dag.params["seed"] == 42
@@ -298,7 +318,13 @@ def test_forecast_parametros_e_ambiente():
     # tudo roda em Python no venv do atlas_ml, sem scripts de shell
     for t in dag.tasks:
         assert type(t).__name__ != "BashOperator", t.task_id
-    for t in ["prepare", "horizonte.train_catboost", "horizonte.train_ensemble", "horizonte.comparar"]:
+    for t in [
+        "prepare",
+        "horizonte.train_catboost",
+        "horizonte.train_ensemble",
+        "horizonte.comparar",
+        "limpar",
+    ]:
         assert dag.get_task(t).python == "/opt/atlas-ml/bin/python", t
 
 

@@ -4,6 +4,7 @@ Support Vector Regression sobre as janelas de incidência. Modelo-base do ensemb
 
 - **Referência:** notebook de SVC/SVR do ESA-UNICEF Dengue Forecast ([levantamento](../../../../../docs/referencias/esa-unicef-dengue-forecast.md)). O original chamava de SVC, mas o alvo é contínuo, então aqui é regressão.
 - **Pipeline:** `OneHotEncoder(uf_code)` + `StandardScaler`, seguidos de `SVR`.
+- **Entrada:** a janela achatada de incidência e dos canais de `cfg.features` (padrão: 8 canais do SINAN mais relevo), sazonalidade e UF. A run registra `model.channels` e `model.n_input_columns`.
 - **Busca:** `RandomizedSearchCV` com `TimeSeriesSplit(3)`, só no treino, no espaço do original:
   - `kernel` ∈ {rbf, poly, sigmoid};
   - `C` log-uniforme em 0,01 a 10;

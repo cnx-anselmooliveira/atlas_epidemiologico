@@ -6,6 +6,7 @@ Meta-modelo sobre as previsões de CatBoost, SVR e LSTM.
 - **Meta-features por janela:**
   - as previsões de CatBoost, SVR e LSTM;
   - extrapolações polinomiais de graus 0, 1 e 2 da janela de incidência até t + `horizon`.
+- **Canais do SINAN:** o ensemble não os lê diretamente; herda o efeito deles pelas previsões de CatBoost, SVR e LSTM.
 - **Meta-modelo:** `RandomForestRegressor(n_estimators=300, max_depth=8)`.
 
 ## O que mudou em relação ao original
@@ -18,9 +19,7 @@ Meta-modelo sobre as previsões de CatBoost, SVR e LSTM.
 
 ## Uso
 
-```
-atlas-ml forecast train ensemble --dataset-run ID --base-runs catboost=ID,svr=ID,lstm=ID
-```
+Passo `train` do notebook do pipeline com `model=ensemble` e `base_runs={"catboost": "<run_id>", "svr": "<run_id>", "lstm": "<run_id>"}` (ver "Notebook do pipeline" em `ml/README.md`).
 
 As runs dos modelos-base precisam ser do mesmo snapshot e da mesma configuração (`window`, `horizon`). Na DAG, os IDs vêm por XCom.
 

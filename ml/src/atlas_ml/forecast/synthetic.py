@@ -24,6 +24,19 @@ def synthetic_panel(
         rate = 5 * season * outbreak  # casos por 100 mil
         cases = rng.poisson(rate * pop / 1e5)
         iso = weeks.isocalendar()
+        # canais derivados dos casos prováveis; gerador próprio para não mudar o resto da série
+        crng = np.random.default_rng(seed + 1000 + i)
+        discarded = crng.poisson(0.4 * cases)
+        channels = {
+            "notified_cases": cases + discarded,
+            "discarded_cases": discarded,
+            "confirmed_cases": crng.binomial(cases, 0.5),
+            "alarm_cases": crng.binomial(cases, 0.02),
+            "severe_cases": crng.binomial(cases, 0.005),
+            "inconclusive_cases": crng.binomial(cases, 0.03),
+            "investigation_cases": crng.binomial(cases, 0.1),
+            "deaths": crng.binomial(cases, 0.001),
+        }
         frames.append(
             pd.DataFrame(
                 {
@@ -36,6 +49,7 @@ def synthetic_panel(
                     "population": pop,
                     "incidence": cases / pop * 1e5,
                     "filled": False,
+                    **{k: v.astype("int64") for k, v in channels.items()},
                     "mean_elevation_m": float(rng.uniform(50, 1200)),
                     "mean_slope_deg": float(rng.uniform(1, 12)),
                 }

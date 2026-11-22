@@ -46,6 +46,7 @@ x-airflow-common: &airflow-common
     - ../airflow/dags:/opt/airflow/dags            # DAGs ao vivo, sem rebuild
     - hf-cache:/opt/airflow/hf-cache               # checkpoint do Chronos (HF_HOME da imagem)
     - ../ml/src:/opt/atlas-ml-src/src               # atlas_ml editável
+    - ../ml/notebooks:/opt/atlas/notebooks:ro        # notebook do pipeline ao vivo, sem rebuild
     - airflow-logs:/opt/airflow/logs
     - airflow-shared:/opt/airflow/shared
     - ./secrets:/secrets:ro

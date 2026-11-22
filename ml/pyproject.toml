@@ -28,6 +28,9 @@ models = [
     "h5py>=3.11",
     "chronos-forecasting>=1.5",
     "matplotlib>=3.9",  # figuras das runs
+    # execução do notebook do pipeline pelo Airflow (move-forecast-to-notebook-pipeline)
+    "papermill>=2.6",
+    "ipykernel>=6.29",
 ]
 
 [project.scripts]
@@ -60,8 +63,20 @@ packages = ["src/atlas_ml"]
 line-length = 110
 target-version = "py312"
 
+[tool.ruff.format]
+# o código das células comuns vem de notebooks/_ferramentas/comum.py (sincronizar_comum.py): se o formatador
+# reescrevesse as células, elas divergiriam da fonte a cada formatação. O lint dos notebooks continua valendo.
+exclude = ["notebooks/**/*.ipynb"]
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# células de notebook têm imports no meio (depois de configurar as threads) e linhas de print longas;
+# o código dos modelos mora nos notebooks e é lido na tela, não em um editor de largura fixa
+"notebooks/**/*.ipynb" = ["E402", "E501"]
+# ferramentas dos notebooks: a fonte das células comuns guarda código dentro de strings e as mensagens são longas
+"notebooks/_ferramentas/*.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

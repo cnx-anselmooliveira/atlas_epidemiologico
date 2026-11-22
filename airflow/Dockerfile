@@ -57,7 +57,7 @@ ENV AIRFLOW__CORE__EXECUTOR=LocalExecutor \
     DBT_PARTIAL_PARSE=false \
     DBT_SEND_ANONYMOUS_USAGE_STATS=false \
     HF_HOME=/opt/airflow/hf-cache \
-    NUMBA_CACHE_DIR=/tmp/numba-cache
+    NUMBA_CACHE_DIR=/tmp/numba-cache \n    ATLAS_NOTEBOOKS_DIR=/opt/atlas/notebooks \n    ATLAS_PIPELINE_DIR=/tmp/atlas
 
 # Diretório compartilhado entre componentes (ex.: senha do Simple Auth Manager em dev) e
 # cache do Hugging Face (checkpoint do Chronos)
@@ -72,8 +72,13 @@ RUN --mount=type=secret,id=extra_ca,required=false,uid=50000 \
     if [ -s /run/secrets/extra_ca ]; then export PIP_CERT=/run/secrets/extra_ca; fi; \
     pip install --no-cache-dir "apache-airflow==${AIRFLOW_VERSION}" "astronomer-cosmos==1.16.0"
 USER root
+# Cópia das DAGs e do notebook do pipeline só para o CI (os testes de DAG rodam nesta imagem) e como
+# reserva. Em hml e prod o Airflow lê as DAGs e o notebook do clone do git-sync (AIRFLOW__CORE__DAGS_FOLDER
+# e ATLAS_NOTEBOOKS_DIR no stack); em dev, das pastas montadas do disco.
 COPY --chown=airflow:0 airflow/dags /opt/airflow/dags
+COPY --chown=airflow:0 ml/notebooks /opt/atlas/notebooks
 COPY --chown=airflow:0 --chmod=0755 airflow/config/init.sh /opt/atlas/init.sh
+COPY --chown=airflow:0 --chmod=0755 airflow/config/aguardar-clone.sh /opt/atlas/aguardar-clone.sh
 COPY --chown=airflow:0 airflow/tests /opt/atlas/tests
 
 ARG ATLAS_GIT_SHA

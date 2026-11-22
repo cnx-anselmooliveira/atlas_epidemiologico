@@ -7,8 +7,8 @@
 # Confere: (a) o stack, o .env.example e o script do Postgres existem, e todo arquivo do
 # repositório que o stack referencia (configs.file) também; (b) `docker stack config` valida com
 # as variáveis do .env.example para hml (tag hml) e prod (tag 1.0); (c) na saída resolvida, sem
-# tag latest, sem porta publicada no host, secrets externos, só imagens do projeto, postgres e
-# redis, e nenhuma tag móvel (hml, dev) quando a tag é de versão.
+# tag latest, sem porta publicada no host, secrets externos, só imagens do projeto, postgres,
+# redis e o git-sync (tag fixa), e nenhuma tag móvel (hml, dev) quando a tag é de versão.
 # Variável STACK_FILE troca o arquivo (testes); o padrão é docker-compose.yml.
 set -euo pipefail
 
@@ -79,7 +79,7 @@ import yaml
 arquivo, ambiente, tag, prefixo = sys.argv[1:5]
 d = yaml.safe_load(open(arquivo, encoding="utf-8"))
 erros = []
-oficiais = {"postgres:16-alpine", "redis:7-alpine"}
+oficiais = {"postgres:16-alpine", "redis:7-alpine", "registry.k8s.io/git-sync/git-sync:v4.4.0"}
 for nome, s in (d.get("services") or {}).items():
     img = s.get("image") or ""
     if not img:

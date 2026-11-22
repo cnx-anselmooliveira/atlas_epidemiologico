@@ -7,7 +7,8 @@ Rede recorrente sobre as janelas de incidência, com embedding de UF. Modelo-bas
   1. `Embedding(27, 4)` da UF, concatenado a cada passo da janela;
   2. `LSTM(60)`, dropout 0,5 e `LSTM(20)`;
   3. o último estado, concatenado a `sin`/`cos` da semana do alvo, passa por `Linear(1)`.
-- **Entrada por passo:** `log1p(incidência)` padronizada, mais as covariáveis de `cfg.features`.
+- **Entrada por passo:** `log1p(incidência)` padronizada, mais os canais de `cfg.features` (padrão: 8 canais do SINAN como taxa por 100 mil em `log1p`, mais altitude e declividade), ou seja, 11 canais por passo.
+- **Capacidade registrada:** `model.n_inputs_per_step` e `model.n_trainable_params`, para comparar com a referência.
 
 ## O que mudou em relação ao original
 

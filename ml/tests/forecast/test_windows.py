@@ -3,6 +3,7 @@ import dataclasses
 import numpy as np
 import pytest
 
+from atlas_ml.forecast.config import CHANNELS, STATIC_COVARIATES
 from atlas_ml.forecast.splits import TEST, TRAIN, VAL
 from atlas_ml.forecast.synthetic import synthetic_panel
 from atlas_ml.forecast.windows import (
@@ -66,6 +67,57 @@ def test_covariavel_nova_entra_nas_janelas_sem_mudar_codigo():
     assert prep.train.features.shape[1] == 2 * cfg.window
     assert "temp_c_t-0" in prep.train.tabular_names()
     assert prep.train.tabular().shape[1] == cfg.window + 2 + 2 * cfg.window + 1
+
+
+def test_janela_padrao_e_multivariada_com_todos_os_canais():
+    cfg = dataclasses.replace(SMALL)  # features padrão
+    assert cfg.features == (*CHANNELS, *STATIC_COVARIATES)
+    prep = prepare_batches(_raw(synthetic_panel(n_weeks=320), cfg), cfg)
+    k = len(cfg.features)
+    assert prep.train.features.shape[1] == k * cfg.window
+    assert prep.train.tabular().shape[1] == cfg.window + 2 + k * cfg.window + 1
+    names = prep.train.tabular_names()
+    assert "confirmed_cases_t-0" in names and "deaths_t-7" in names
+    assert not any("fallback" in n or "other_cases" in n for n in names)
+
+
+def test_canal_entra_como_taxa_por_100_mil_em_log1p():
+    panel = synthetic_panel(n_weeks=320)
+    cfg = dataclasses.replace(SMALL, features=("deaths",))
+    raw = build_windows(drop_immature(panel, cfg), cfg)
+    first = raw.meta.iloc[0]
+    g = panel[(panel.uf == first.uf) & (panel.week_start == first.origin_date)].iloc[0]
+    esperado = np.log1p(g.deaths / g.population * 1e5)
+    assert raw.features[0, cfg.window - 1] == pytest.approx(esperado)
+
+
+def test_nenhum_canal_da_semana_alvo_ou_posterior_entra_na_janela():
+    panel = synthetic_panel(n_weeks=320)
+    cfg = dataclasses.replace(SMALL, horizon=2)
+    base = build_windows(drop_immature(panel, cfg), cfg)
+    # embaralha tudo o que vem depois da origem de uma janela: as features dela não podem mudar
+    j = len(base) // 2
+    uf, origin = base.meta.loc[j, ["uf", "origin_date"]]
+    alterado = panel.copy()
+    depois = (alterado.uf == uf) & (alterado.week_start > origin)
+    for c in CHANNELS:
+        alterado.loc[depois, c] = alterado.loc[depois, c] * 37 + 11
+    novo = build_windows(drop_immature(alterado, cfg), cfg)
+    assert np.allclose(base.features[j], novo.features[j])
+    assert np.allclose(base.hist[j], novo.hist[j])
+
+
+def test_scaler_dos_canais_so_depende_do_treino():
+    panel = synthetic_panel(n_weeks=320)
+    raw = _raw(panel)
+    a = prepare_batches(raw, SMALL).scaler
+    cut = raw.meta.loc[raw.meta.split != TRAIN, "target_date"].min()
+    mudado = panel.copy()
+    tarde = mudado.week_start >= cut
+    for c in CHANNELS:
+        mudado.loc[tarde, c] = mudado.loc[tarde, c] * 50 + 5
+    b = prepare_batches(_raw(mudado), SMALL).scaler
+    assert np.allclose(a.feat_mean, b.feat_mean) and np.allclose(a.feat_std, b.feat_std)
 
 
 def test_covariavel_ausente_falha():

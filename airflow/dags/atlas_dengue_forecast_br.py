@@ -3,18 +3,23 @@
 Sem agendamento: disparada pela etl_brasil (só quando a gold muda) ou à mão. Ao fim,
 dispara a exportação para o BigQuery (process_forecast_export_atlas), de onde o site lê.
 
-    prepare ─► por horizonte (1..4, em paralelo limitado):
+    iniciar_execucao ─► prepare ─► por horizonte (1..4, em paralelo limitado):
                  train_baseline_bayes ──────────────────────────┐
                  train_chronos ─────────────────────────────────┤
                  train_catboost ─┐                              ├─► compare (all_done)
                  train_svr ──────┼─► train_ensemble ────────────┘
                  train_lstm ─────┘
               ─► exportar (dispara process_forecast_export_atlas)
+              ─► limpar (all_done: remove o diretório da execução)
 
 - prepare: lê a gold_dengue_casos_provaveis_uf_semanal e grava o snapshot (run `dataset`);
   todos os modelos e horizontes usam esse mesmo snapshot (mesma atlas.data_version).
-- As tarefas são Python (TaskFlow) e rodam no venv do atlas_ml (@task.external_python): chamam
-  as funções de atlas_ml.forecast.pipeline, as mesmas do CLI `atlas-ml forecast ...`.
+- Cada tarefa de ML executa o notebook do pipeline (ml/notebooks/forecast_pipeline.ipynb, papermill)
+  no venv do atlas_ml (@task.external_python), com o passo e os parâmetros da tarefa. O notebook
+  vem de ATLAS_NOTEBOOKS_DIR (no stack, o clone do git-sync) e grava o resultado do passo num
+  arquivo do diretório da execução (ATLAS_PIPELINE_DIR/<run_id>/), que a tarefa lê; o notebook
+  executado vira artefato da run. `iniciar_execucao` cria o diretório e registra a versão do
+  notebook; se ela mudar no meio da execução (um merge), as tarefas seguintes falham com mensagem.
 - ATLAS_PIPELINE_RUN = run_id da DAG: vira a tag atlas.pipeline_run de todas as runs; a comparação
   de cada horizonte junta as runs por ela e pelo horizonte, listando os modelos que faltarem.
 - Um horizonte que falha não impede os outros; os modelos de um horizonte treinam em paralelo
@@ -70,36 +75,79 @@ def lista_de_horizontes() -> list[int]:
     return horizontes
 
 
+@task.external_python(python="/opt/atlas-ml/bin/python", expect_airflow=False, multiple_outputs=True)
+def iniciar_execucao(pipeline_run) -> dict:
+    """Diretório próprio desta execução (arquivos entre tarefas) e a versão do notebook de partida."""
+    from atlas_ml.forecast.notebook import notebook_sha, run_dir
+
+    pasta = run_dir(pipeline_run)
+    pasta.mkdir(parents=True, exist_ok=True)
+    return {"out_dir": str(pasta), "notebook_sha": notebook_sha()}
+
+
 @task.external_python(python="/opt/atlas-ml/bin/python", expect_airflow=False)
-def prepare(fonte="") -> str:
-    from atlas_ml.forecast.pipeline import prepare_snapshot
+def prepare(fonte, pipeline_run, out_dir, notebook_sha) -> str:
+    """Passo `prepare` do notebook: snapshot da gold numa run `dataset`. Devolve o dataset_run_id."""
+    from atlas_ml.forecast.notebook import run_step
 
-    return prepare_snapshot(fonte)
+    params = {"fonte": fonte or "", "pipeline_run": pipeline_run}
+    return run_step("prepare", params, out_dir, "prepare", notebook_sha)["dataset_run_id"]
 
 
 @task.external_python(python="/opt/atlas-ml/bin/python", expect_airflow=False)
-def treinar(model, horizon, dataset_run, pipeline_run, window, seed, base_runs=None):
-    from atlas_ml.forecast.pipeline import train
+def treinar(model, horizon, dataset_run, pipeline_run, window, seed, out_dir, notebook_sha, base_runs=None):
+    """Passo `train` do notebook: um modelo num horizonte. Devolve o run_id."""
+    from atlas_ml.forecast.notebook import run_step
 
-    return train(model, horizon, dataset_run, pipeline_run, window, seed, base_runs)
+    params = {
+        "model": model,
+        "horizon": int(horizon),
+        "dataset_run": dataset_run,
+        "pipeline_run": pipeline_run,
+        "window": int(window),
+        "seed": int(seed),
+    }
+    if base_runs:
+        params["base_runs"] = dict(base_runs)
+    return run_step("train", params, out_dir, f"train-{model}-h{horizon}", notebook_sha)["run_id"]
 
 
 @task.external_python(
     python="/opt/atlas-ml/bin/python", expect_airflow=False, retries=0, trigger_rule="all_done"
 )
-def comparar(horizon, pipeline_run, _depende_de=None):
-    """Registra a comparação mesmo com modelos faltando (aparecem em atlas.missing_models)."""
-    from atlas_ml.forecast.pipeline import compare_horizon
+def comparar(horizon, pipeline_run, out_dir, notebook_sha, _depende_de=None):
+    """Passo `compare` do notebook: registra a comparação mesmo com modelos faltando (aparecem em
+    atlas.missing_models)."""
+    from atlas_ml.forecast.notebook import run_step
 
-    return compare_horizon(pipeline_run, horizon)
+    params = {"horizon": int(horizon), "pipeline_run": pipeline_run}
+    return run_step("compare", params, out_dir, f"compare-h{horizon}", notebook_sha)["run_id"]
+
+
+@task.external_python(
+    python="/opt/atlas-ml/bin/python", expect_airflow=False, retries=0, trigger_rule="all_done"
+)
+def limpar(out_dir, _depende_de=None):
+    """Remove o diretório desta execução, com sucesso ou falha."""
+    from atlas_ml.forecast.notebook import clean_dir
+
+    clean_dir(out_dir)
 
 
 @task_group(group_id="horizonte")
-def por_horizonte(horizon: int, dataset_run: str, pipeline_run: str, window: int, seed: int):
+def por_horizonte(
+    horizon: int,
+    dataset_run: str,
+    pipeline_run: str,
+    window: int,
+    seed: int,
+    out_dir: str,
+    notebook_sha: str,
+):
     """Seis modelos de um horizonte: bases em paralelo, ensemble sobre as três empilhadas."""
     runs = {
         nome: treinar.override(task_id=f"train_{nome}", **_recursos(nome))(
-            nome, horizon, dataset_run, pipeline_run, window, seed
+            nome, horizon, dataset_run, pipeline_run, window, seed, out_dir, notebook_sha
         )
         for nome in BASES
     }
@@ -110,9 +158,13 @@ def por_horizonte(horizon: int, dataset_run: str, pipeline_run: str, window: int
         pipeline_run,
         window,
         seed,
+        out_dir,
+        notebook_sha,
         {nome: runs[nome] for nome in STACKED},
     )
-    comparar(horizon, pipeline_run, [runs["baseline_bayes"], runs["chronos"], ensemble])
+    comparar(
+        horizon, pipeline_run, out_dir, notebook_sha, [runs["baseline_bayes"], runs["chronos"], ensemble]
+    )
 
 
 with DAG(
@@ -147,13 +199,16 @@ with DAG(
 ) as dag:
     pipeline_run = "{{ run_id }}"
     config = configuracao()
-    snapshot = prepare(config["fonte"])
+    inicio = iniciar_execucao(pipeline_run)
+    snapshot = prepare(config["fonte"], pipeline_run, inicio["out_dir"], inicio["notebook_sha"])
     horizontes = lista_de_horizontes()
     grupos = por_horizonte.partial(
         dataset_run=snapshot,
         pipeline_run=pipeline_run,
         window=config["window"],
         seed=config["seed"],
+        out_dir=inicio["out_dir"],
+        notebook_sha=inicio["notebook_sha"],
     ).expand(horizon=horizontes)
 
     # a exportação só precisa de algum horizonte com modelo registrado
@@ -165,3 +220,5 @@ with DAG(
         retries=0,
     )
     grupos >> exportar
+    # o diretório desta execução some no fim, com sucesso ou falha (trigger_rule all_done)
+    grupos >> limpar(inicio["out_dir"])

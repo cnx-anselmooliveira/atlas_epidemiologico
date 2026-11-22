@@ -16,11 +16,23 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from atlas_ml.forecast.config import ForecastConfig
+from atlas_ml.forecast.config import CHANNELS, ForecastConfig
 from atlas_ml.forecast.splits import TEST, TRAIN, VAL, SplitDates, split_dates
 
 META_COLUMNS = ["uf", "uf_code", "origin_date", "target_date", "population", "y_true"]
 FUTURE = "future"  # split das janelas sem alvo (previsão das próximas semanas)
+
+
+def feature_values(g: pd.DataFrame, name: str) -> np.ndarray:
+    """Série de uma covariável de uma UF, sem escala.
+
+    Canal epidemiológico (contagem) → log1p(taxa por 100 mil), como a incidência; qualquer outra
+    coluna do painel (relevo, temperatura…) entra como está.
+    """
+    x = g[name].to_numpy(dtype="float64")
+    if name in CHANNELS:
+        return np.log1p(x / g["population"].to_numpy(dtype="float64") * 1e5)
+    return x
 
 
 def drop_immature(panel: pd.DataFrame, cfg: ForecastConfig) -> pd.DataFrame:
@@ -79,7 +91,8 @@ def build_windows(panel: pd.DataFrame, cfg: ForecastConfig) -> RawWindows:
         angle = 2 * np.pi * (target_dates.isocalendar().week.to_numpy(dtype="float64") - 1) / 52.0
         seasons.append(np.column_stack([np.sin(angle), np.cos(angle)]))
         if cfg.features:
-            cols = [g[f].to_numpy(dtype="float64")[idx] for f in cfg.features]
+            # idx vai só até a origem: nenhum canal da semana-alvo (t+h) entra na janela
+            cols = [feature_values(g, f)[idx] for f in cfg.features]
             feats.append(np.concatenate(cols, axis=1))
         else:
             feats.append(np.empty((n, 0)))
@@ -130,7 +143,7 @@ def build_future_windows(panel: pd.DataFrame, cfg: ForecastConfig) -> RawWindows
         angle = 2 * np.pi * (target.isocalendar().week - 1) / 52.0
         seasons.append(np.array([[np.sin(angle), np.cos(angle)]]))
         if cfg.features:
-            feats.append(np.concatenate([tail[f].to_numpy(dtype="float64") for f in cfg.features])[None, :])
+            feats.append(np.concatenate([feature_values(tail, f) for f in cfg.features])[None, :])
         else:
             feats.append(np.empty((1, 0)))
         metas.append(

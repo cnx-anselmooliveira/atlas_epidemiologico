@@ -7,6 +7,7 @@ import pytest
 from atlas_ml.config import load_settings
 from atlas_ml.forecast.dataset import (
     CASES_TABLE,
+    CHANNEL_COLUMNS,
     STATIC_COVARIATES,
     build_panel,
     cases_table,
@@ -30,6 +31,7 @@ def raw_rows():
                     "epi_week": 1,
                     "cases": c,
                     "population": pop,
+                    **{canal: c + i for i, canal in enumerate(CHANNEL_COLUMNS)},
                     "mean_elevation_m": 100.0 if uf == "A" else 800.0,
                     "mean_slope_deg": 2.0,
                 }
@@ -49,6 +51,32 @@ def test_painel_preenche_semanas_e_calcula_incidencia():
     # covariáveis estáticas preenchidas também na semana completada
     assert hole.mean_elevation_m == 800.0
     assert set(STATIC_COVARIATES) <= set(p.columns)
+
+
+def test_painel_traz_os_canais_e_zera_a_semana_preenchida():
+    p = build_panel(raw_rows())
+    assert set(CHANNEL_COLUMNS) <= set(p.columns)
+    hole = p[(p.uf == "B") & (p.week_start == "2018-01-14")].iloc[0]
+    assert all(hole[c] == 0 for c in CHANNEL_COLUMNS)
+    a = p[(p.uf == "A") & (p.week_start == "2018-01-21")].iloc[0]
+    assert a.deaths == 30 + CHANNEL_COLUMNS.index("deaths")
+    # nada de qualidade ou proveniência no painel
+    for c in ("other_cases", "date_fallback_cases", "place_fallback_cases", "gold_generated_at"):
+        assert c not in p.columns
+
+
+def test_gold_sem_canal_falha_listando_o_canal():
+    raw = raw_rows().drop(columns=["deaths", "severe_cases"])
+    with pytest.raises(ValueError, match="severe_cases, deaths"):
+        build_panel(raw)
+
+
+def test_consulta_pede_os_canais():
+    from atlas_ml.forecast.dataset import query_for
+
+    sql = query_for(CASES_TABLE)
+    assert all(c in sql for c in CHANNEL_COLUMNS)
+    assert "other_cases" not in sql and "fallback" not in sql
 
 
 def test_uf_sem_populacao_falha_listando_a_uf():

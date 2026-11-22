@@ -42,7 +42,7 @@ jobs:
           uv run ruff check . ../airflow/dags ../airflow/tests
           uv run ruff format --check . ../airflow/dags ../airflow/tests
       - name: shellcheck
-        run: shellcheck infra/mlflow/entrypoint.sh airflow/config/init.sh platform/postgres/init-databases.sh platform/ci/e2e.sh platform/ci/check-secrets.sh .githooks/pre-commit
+        run: shellcheck infra/mlflow/entrypoint.sh airflow/config/init.sh airflow/config/aguardar-clone.sh platform/postgres/init-databases.sh platform/ci/e2e.sh platform/ci/check-secrets.sh .githooks/pre-commit
       - name: actionlint
         run: |
           bash <(curl -fsSL "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash") "${ACTIONLINT_VERSION}"
@@ -80,6 +80,12 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
           cache-dependency-glob: ml/uv.lock
+      - name: notebooks de modelo (células comuns idênticas, imports e requirements)
+        working-directory: ml
+        run: |
+          uv sync --frozen --all-extras
+          uv run --frozen --all-extras python notebooks/_ferramentas/verificar_comum.py
+          uv run --frozen --all-extras python notebooks/_ferramentas/verificar_requirements.py
       - name: pytest -m models (grupo de dependências pesadas)
         working-directory: ml
         run: |
@@ -155,6 +161,8 @@ jobs:
         run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_forecast_export.py
       - name: decisões do fluxo etl_brasil (funções puras, sem rede)
         run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_etl_brasil.py
+      - name: ingestão de arquivos do notebook no BigQuery (cliente simulado, sem rede)
+        run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_ingestao_arquivo.py
 
   platform-e2e:
     name: platform-e2e

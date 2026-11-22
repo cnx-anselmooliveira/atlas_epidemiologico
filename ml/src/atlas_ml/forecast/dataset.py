@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -15,6 +16,8 @@ import pandas as pd
 from atlas_ml.config import Settings
 from atlas_ml.data.bigquery import DataSummary, read_features
 from atlas_ml.forecast import EXPERIMENT
+from atlas_ml.forecast.config import CHANNELS
+from atlas_ml.forecast.config import STATIC_COVARIATES as _STATIC
 from atlas_ml.tracking import atlas_run
 
 PROJECT = "ppgcc-dengue-project"
@@ -36,7 +39,8 @@ def cases_table(env: str = "dev") -> str:
 # Tabela de dev (compatibilidade); o treino usa cases_table(settings.atlas_env)
 CASES_TABLE = cases_table("dev")
 PANEL_ARTIFACT = "panel.parquet"
-STATIC_COVARIATES = ["mean_elevation_m", "mean_slope_deg"]
+STATIC_COVARIATES = list(_STATIC)
+CHANNEL_COLUMNS = list(CHANNELS)
 PANEL_COLUMNS = [
     "uf",
     "uf_code",
@@ -47,6 +51,7 @@ PANEL_COLUMNS = [
     "population",
     "incidence",
     "filled",
+    *CHANNEL_COLUMNS,
     *STATIC_COVARIATES,
 ]
 
@@ -57,6 +62,7 @@ PANEL_COLUMNS = [
 def query_for(table: str) -> str:
     return f"""
 SELECT uf, week_start, epi_year AS year, epi_week, probable_cases AS cases, population,
+       {", ".join(CHANNEL_COLUMNS)},
        {", ".join(STATIC_COVARIATES)}
 FROM `{table}`
 """
@@ -76,6 +82,9 @@ def build_panel(raw: pd.DataFrame) -> pd.DataFrame:
     """Normaliza o resultado da consulta num painel regular (semanas faltantes → 0, filled=True)."""
     df = raw.copy()
     df["week_start"] = pd.to_datetime(df["week_start"])
+    sem_canal = [c for c in CHANNEL_COLUMNS if c not in df]
+    if sem_canal:
+        raise ValueError(f"A gold não trouxe os canais: {', '.join(sem_canal)}")
     for col in STATIC_COVARIATES:
         if col not in df:
             df[col] = float("nan")
@@ -94,6 +103,8 @@ def build_panel(raw: pd.DataFrame) -> pd.DataFrame:
         g["filled"] = g["cases"].isna()
         g["uf"] = uf
         g["cases"] = g["cases"].fillna(0).astype("int64")
+        for col in CHANNEL_COLUMNS:  # semana completada = sem notificação em nenhum canal
+            g[col] = g[col].fillna(0).astype("int64")
         g["population"] = g["population"].ffill().bfill()
         for col in STATIC_COVARIATES:
             g[col] = g[col].ffill().bfill()
@@ -128,12 +139,8 @@ def pipeline_tags() -> dict[str, str]:
     return {"atlas.pipeline_run": os.environ.get("ATLAS_PIPELINE_RUN", "manual")}
 
 
-def prepare(settings: Settings, client: Any, source_table: str | None = None) -> str:
-    """Lê a gold do ambiente (ou outra tabela de mesmo formato), monta o painel e registra o
-    snapshot numa run `dataset`. Devolve o run_id."""
-    source_table = check_source(source_table or cases_table(settings.atlas_env))
-    raw, summary = read_features(client, query=query_for(source_table), source_tables=[source_table])
-    panel = build_panel(raw)
+def _register_snapshot(settings: Settings, panel: pd.DataFrame, summary: DataSummary) -> str:
+    """Grava o painel numa run `dataset` (panel.parquet e data_summary.json). Devolve o run_id."""
     with (
         atlas_run(
             settings,
@@ -153,6 +160,30 @@ def prepare(settings: Settings, client: Any, source_table: str | None = None) ->
             {"rows": info["rows"], "ufs": len(info["ufs"]), "filled_weeks": info["filled_weeks"]}
         )
     return run.info.run_id
+
+
+def prepare(settings: Settings, client: Any, source_table: str | None = None) -> str:
+    """Lê a gold do ambiente (ou outra tabela de mesmo formato), monta o painel e registra o
+    snapshot numa run `dataset`. Devolve o run_id."""
+    source_table = check_source(source_table or cases_table(settings.atlas_env))
+    raw, summary = read_features(client, query=query_for(source_table), source_tables=[source_table])
+    return _register_snapshot(settings, build_panel(raw), summary)
+
+
+def prepare_from_parquet(settings: Settings, path: str | os.PathLike[str]) -> str:
+    """Registra como snapshot um painel já montado (parquet com as colunas de PANEL_COLUMNS), sem
+    ler o BigQuery: testes do pipeline e reprocessamento de um painel guardado."""
+    file = Path(path)
+    panel = pd.read_parquet(file)
+    missing = [c for c in PANEL_COLUMNS if c not in panel.columns]
+    if missing:
+        raise ValueError(f"O painel {file.name} não tem as colunas: {', '.join(missing)}")
+    panel["week_start"] = pd.to_datetime(panel["week_start"])
+    version = "parquet:" + hashlib.sha1(file.read_bytes()).hexdigest()[:12]
+    summary = DataSummary(
+        rows=len(panel), columns=list(panel.columns), data_version=version, sources={file.name: version}
+    )
+    return _register_snapshot(settings, panel[PANEL_COLUMNS], summary)
 
 
 def load_snapshot(dataset_run_id: str) -> tuple[pd.DataFrame, str]:

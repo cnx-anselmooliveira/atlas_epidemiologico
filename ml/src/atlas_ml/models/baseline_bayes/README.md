@@ -7,6 +7,8 @@ Modelo estatístico interpretável, usado como comparador fora do stacking.
 
 ```
 casos ~ BinomialNegativa(μ, α)
+> Entrada univariada: só a incidência da UF (termo defasado); os canais do SINAN não entram. A run registra `model.inputs`.
+
 log μ = log(pop/1e5) + a + u_uf + v_ano + Σ_k (b_k sin(2πk·s/52) + c_k cos(2πk·s/52)) + β · log1p(incidência_{t−H})
 ```
 

@@ -43,6 +43,7 @@ class SVRForecast:
         self.hp = {"n_iter": n_iter, "max_train_rows": max_train_rows, "max_iter": max_iter, "cv": 3}
         self.model: Pipeline | None = None
         self.best: dict[str, object] = {}
+        self.n_input_columns: int | None = None
 
     def _pipeline(self, numeric: list[str]) -> Pipeline:
         prep = ColumnTransformer(
@@ -73,6 +74,7 @@ class SVRForecast:
         t = np.argsort(aug.meta["target_date"].to_numpy(), kind="stable")
         X, y = X.iloc[t].reset_index(drop=True), y[t]
         numeric = [c for c in X.columns if c != "uf_code"]
+        self.n_input_columns = X.shape[1]
         search = RandomizedSearchCV(
             self._pipeline(numeric),
             SEARCH_SPACE,
@@ -94,7 +96,13 @@ class SVRForecast:
         return pd.DataFrame({"y_pred": batch.to_incidence(self.model.predict(_frame(batch)))})
 
     def params(self) -> dict[str, object]:
-        return {**self.hp, **self.best}
+        return {
+            **self.hp,
+            **self.best,
+            "inputs": "incidência + canais",
+            "channels": ",".join(self.cfg.features) or "-",
+            "n_input_columns": self.n_input_columns,
+        }
 
     def log_model(self, example: Batch) -> str:
         X = _frame(example)

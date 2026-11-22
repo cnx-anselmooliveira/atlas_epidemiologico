@@ -81,6 +81,8 @@ class LSTMForecast:
             "patience": patience,
         }
         self.net = None
+        self.n_inputs_per_step: int | None = None
+        self.n_trainable_params: int | None = None
         self.best_epoch: int | None = None
         self.epochs_run = 0
         self.val_curve: list[float] = []  # erro de validação por época (figura de aprendizado)
@@ -96,6 +98,8 @@ class LSTMForecast:
         self.net = Net(
             n_ufs, seq.shape[2], self.hp["emb"], self.hp["hidden1"], self.hp["hidden2"], self.hp["dropout"]
         )
+        self.n_inputs_per_step = seq.shape[2]  # incidência + um canal por covariável
+        self.n_trainable_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
         # Adam com o lr configurado de fato (o original criava o otimizador e não o usava)
         opt = torch.optim.Adam(self.net.parameters(), lr=self.hp["lr"])
         loss_fn = torch.nn.MSELoss()
@@ -141,7 +145,15 @@ class LSTMForecast:
         return pd.DataFrame({"y_pred": batch.to_incidence(z)})
 
     def params(self) -> dict[str, object]:
-        return {**self.hp, "best_epoch": self.best_epoch, "epochs_run": self.epochs_run}
+        return {
+            **self.hp,
+            "best_epoch": self.best_epoch,
+            "epochs_run": self.epochs_run,
+            "inputs": "incidência + canais",
+            "channels": ",".join(self.cfg.features) or "-",
+            "n_inputs_per_step": self.n_inputs_per_step,
+            "n_trainable_params": self.n_trainable_params,
+        }
 
     def log_model(self, example: Batch) -> str:
         # pickle: o forward tem 3 entradas (seq, uf_code, season), que o formato pt2 não descreve
