@@ -6,6 +6,8 @@ A plataforma de ML (`add-ml-platform`) já roda localmente, mas só com um exper
 
 Antes de chegar ao modelo de nicho com dados de satélite e clima, precisamos dos modelos de referência rodando de ponta a ponta sobre dados reais do Atlas, rastreados e comparáveis no MLflow.
 
+Os primeiros resultados mostraram que os modelos recebem só a incidência passada da UF, a sazonalidade e a identidade da UF, embora a gold traga muito mais (notificadas, descartadas, confirmadas, com alarme, graves, óbitos…). O projeto de referência alimenta cada passo da janela com todas as variáveis disponíveis, não só com a taxa de casos. Esta mudança aproxima os modelos do Atlas dessa técnica, primeiro com tudo o que a gold já tem e depois com as demais variáveis (fase 2).
+
 ## What Changes
 
 - **Seis modelos em Python, cada um em sua pasta** dentro do pacote `atlas_ml`:
@@ -19,7 +21,9 @@ Antes de chegar ao modelo de nicho com dados de satélite e clima, precisamos do
   Cada modelo tem a mesma interface de treino e previsão e é registrado no MLflow como modelo próprio.
 - **Dataset de teste: a gold do Brasil (SINAN) no BigQuery.**
   - Casos semanais por UF, convertidos em **incidência por 100 mil habitantes** com a população da UF.
-  - Por enquanto só o histórico de casos, a sazonalidade e a identidade da UF. As variáveis de satélite e clima (temperatura, vento, chuva, NDVI…) entram depois, sem mudar a interface.
+  - **Janela multivariada, como na referência:** cada passo da janela leva, além da incidência de casos prováveis, os demais canais epidemiológicos da gold (notificadas, descartadas, confirmadas, com alarme, graves, inconclusivas, em investigação e óbitos, como taxas por 100 mil), mais a sazonalidade, a UF e as covariáveis estáticas de relevo. Os canais entram só com o passado: nada da semana-alvo ou posterior.
+  - Vale para todas as UFs. O Rio de Janeiro serve de UF de referência nas tabelas de resultado, sem modelo próprio.
+  - **Fase 2 (fora desta etapa):** variáveis de satélite, clima e socioeconômicas (temperatura, vento, chuva, NDVI, IDHM, IVS…), redução por grupo com PLS ajustada só no treino, alvo por faixa etária e paridade ou mais capacidade (entradas e parâmetros) do que a referência. A interface de janelas já comporta essas variáveis.
 - **Metodologia corrigida** em relação ao original:
   - divisão temporal treino / validação / teste, com o teste nunca usado em ajuste ou seleção;
   - escalonamento e aumento de dados ajustados só no treino;
@@ -58,7 +62,8 @@ Antes de chegar ao modelo de nicho com dados de satélite e clima, precisamos do
   - As duas chaves ainda **precisam ser fornecidas**.
 - **Rede**: o Chronos baixa os pesos do Hugging Face na primeira execução. Na rede corporativa, isso pode exigir a CA da inspeção TLS (`EXTRA_CA_PATH`).
 - **Fora de escopo**:
-  - covariáveis de satélite e clima;
+  - covariáveis de satélite, clima e socioeconômicas, e a redução por PLS (fase 2);
+  - alvo por faixa etária (a gold não tem idade; fase 2);
   - outros países;
   - previsão por município;
   - publicar as previsões em tabela gold para a API;

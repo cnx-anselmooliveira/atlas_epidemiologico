@@ -21,7 +21,10 @@ from airflow.sdk import DAG
 from cosmos import ProfileConfig
 from cosmos.operators import DbtDocsGCSOperator
 
-DBT_DIR = Path(__file__).resolve().parent / "utfpr_dengue"
+# absolute(), não resolve(): no stack a pasta das DAGs é o link `current` do git-sync, que aponta para uma
+# árvore nova a cada commit; seguir o link mudaria o caminho do projeto a cada merge e invalidaria o
+# cache do Cosmos. Pelo link o caminho é estável e o cache vale pelo conteúdo do projeto.
+DBT_DIR = Path(__file__).absolute().parent / "utfpr_dengue"
 BUCKET = os.environ.get("ATLAS_DBT_DOCS_BUCKET", "ppgcc-bucket")
 FOLDER = f"dbt_docs/{os.environ.get('ATLAS_ENV', 'dev')}"
 

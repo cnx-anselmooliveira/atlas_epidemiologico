@@ -28,6 +28,12 @@ def test_lstm_registra_oof_e_varia_pouco_entre_execucoes(tracking_uri):
     assert "test_nrmse_mean" in run.data.metrics and "oof_nrmse_mean" in run.data.metrics
     assert run.data.params["model.lr"] == "0.001"  # lr de fato aplicado e registrado
     assert int(run.data.params["model.epochs_run"]) <= FAST["max_epochs"]
+    # capacidade registrada: incidência + 10 canais por passo (8 do SINAN + 2 de relevo)
+    assert run.data.params["model.n_inputs_per_step"] == str(1 + len(SMALL.features)) == "11"
+    assert "confirmed_cases" in run.data.params["model.channels"]
+    # Embedding(27,4) + LSTM(11+4→16) + LSTM(16→8) + Linear(8+2→1), com os dois vieses do LSTM
+    emb, l1, l2, head = 27 * 4, 4 * 16 * (15 + 16) + 8 * 16, 4 * 8 * (16 + 8) + 8 * 8, 8 + 2 + 1
+    assert int(run.data.params["model.n_trainable_params"]) == emb + l1 + l2 + head
     oof = _artifact(a.run_id, OOF_PREDICTIONS)
     assert (pd.to_datetime(oof.target_date) >= pd.to_datetime(oof.fit_until)).all()
 

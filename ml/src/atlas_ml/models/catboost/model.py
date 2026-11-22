@@ -36,6 +36,7 @@ class CatBoostForecast:
             "od_wait": od_wait,
         }
         self.model = None
+        self.n_input_columns: int | None = None
 
     def fit(self, train: Batch, val: Batch) -> None:
         from catboost import CatBoostRegressor, Pool
@@ -54,7 +55,9 @@ class CatBoostForecast:
             allow_writing_files=False,
             thread_count=threads(),
         )
-        train_pool = Pool(_frame(train), train.y, cat_features=["uf_code"])
+        X_train = _frame(train)
+        self.n_input_columns = X_train.shape[1]
+        train_pool = Pool(X_train, train.y, cat_features=["uf_code"])
         # early stopping só na validação; o teste nunca entra no ajuste
         eval_pool = Pool(_frame(val), val.y, cat_features=["uf_code"]) if len(val) else None
         self.model.fit(train_pool, eval_set=eval_pool, use_best_model=eval_pool is not None)
@@ -64,7 +67,14 @@ class CatBoostForecast:
 
     def params(self) -> dict[str, object]:
         best = self.model.get_best_iteration() if self.model is not None else None
-        return {**self.hp, "loss": "RMSE", "best_iteration": best}
+        return {
+            **self.hp,
+            "loss": "RMSE",
+            "best_iteration": best,
+            "inputs": "incidência + canais",
+            "channels": ",".join(self.cfg.features) or "-",
+            "n_input_columns": self.n_input_columns,
+        }
 
     def log_model(self, example: Batch) -> str:
         X = _frame(example)

@@ -32,17 +32,33 @@ ENV PATH=/app/.venv/bin:$PATH \
 RUN useradd --create-home --uid 1000 atlas
 COPY --from=build /app /app
 
-# JupyterLab para exploração no compose de dev (profile "notebook"); não é publicada.
+# JupyterLab de exploração: no compose de dev (profile "notebook") e no stack de hml (atlas-epidemiologia-ml-notebook).
+# Mesmas versões do Airflow: o venv sai do mesmo ml/uv.lock. A senha (hash, por Docker secret) ou o token de dev
+# vêm de /etc/jupyter/jupyter_server_config.py: sem uma das duas coisas o servidor não sobe.
 FROM base AS notebook
 COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /usr/local/bin/uv
 RUN --mount=type=secret,id=extra_ca,required=false \
     if [ -s /run/secrets/extra_ca ]; then export SSL_CERT_FILE=/run/secrets/extra_ca; fi; \
     uv pip install --python /app/.venv/bin/python --no-cache "jupyterlab>=4.4,<5" matplotlib
+COPY docker/jupyter_server_config.py /etc/jupyter/jupyter_server_config.py
+COPY docker/semear_notebooks.py /opt/atlas/semear_notebooks.py
+# cópia dos notebooks do repositório: semente do volume de trabalho quando não há clone do git-sync
+COPY notebooks /opt/atlas/notebooks
+# o sistema de arquivos raiz é somente leitura no stack: o que o Jupyter e as bibliotecas gravam vai para /tmp
+ENV JUPYTER_RUNTIME_DIR=/tmp/jupyter/runtime \
+    JUPYTER_DATA_DIR=/tmp/jupyter/data \
+    IPYTHONDIR=/tmp/ipython \
+    MPLCONFIGDIR=/tmp/matplotlib \
+    NUMBA_CACHE_DIR=/tmp/numba \
+    JUPYTER_ROOT_DIR=/home/atlas/work
+# um volume novo herda o dono desta pasta: tem de ser o usuário do processo, senão o Jupyter não grava nada
+RUN mkdir -p /home/atlas/work && chown atlas:atlas /home/atlas/work
 USER atlas
 WORKDIR /home/atlas/work
 EXPOSE 8888
 ENTRYPOINT []
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--ServerApp.root_dir=/home/atlas/work"]
+# semeia o volume de trabalho (só se vazio) e sobe o servidor; a configuração vem de /etc/jupyter
+CMD ["bash", "-c", "python /opt/atlas/semear_notebooks.py && exec jupyter lab --ip=0.0.0.0 --port=8888 --no-browser"]
 
 # Imagem publicada (último estágio = alvo padrão do build)
 FROM base AS runtime

@@ -4,6 +4,7 @@ Modelo fundacional de séries temporais da Amazon, usado sem treino como compara
 
 - **Referência:** o Chronos citado no levantamento do ESA-UNICEF Dengue Forecast ([levantamento](../../../../../docs/referencias/esa-unicef-dengue-forecast.md)).
 - **Checkpoint:** `amazon/chronos-bolt-small`, via `chronos-forecasting`, em CPU.
+- **Entrada univariada:** usa só a incidência da UF; os canais do SINAN não entram (o Chronos-Bolt não recebe covariáveis). A run registra `model.inputs`.
 - **Contexto:** para cada janela (UF, origem t), todo o histórico de incidência da UF até t, limitado a `context_weeks=512`. Por isso o modelo recebe o painel (`use_panel`), não só a janela.
 - **Previsão:**
   - mediana (quantil 0,5) no passo t + `horizon`;

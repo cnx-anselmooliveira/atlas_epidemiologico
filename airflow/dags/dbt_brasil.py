@@ -24,7 +24,10 @@ from airflow.sdk import DAG, Param, chain, get_current_context, task
 from cosmos import DbtTaskGroup, ExecutionConfig, ProfileConfig, ProjectConfig, RenderConfig
 from cosmos.constants import InvocationMode, TestIndirectSelection
 
-DBT_DIR = Path(__file__).resolve().parent / "utfpr_dengue"
+# absolute(), não resolve(): no stack a pasta das DAGs é o link `current` do git-sync, que aponta para uma
+# árvore nova a cada commit; seguir o link mudaria o caminho do projeto a cada merge e invalidaria o
+# cache do Cosmos. Pelo link o caminho é estável e o cache vale pelo conteúdo do projeto.
+DBT_DIR = Path(__file__).absolute().parent / "utfpr_dengue"
 DBT_EXECUTABLE = "/opt/dbt/bin/dbt"
 
 # Seletores de cada camada (juntos cobrem todos os seeds e models do projeto)

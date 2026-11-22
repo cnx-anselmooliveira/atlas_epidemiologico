@@ -13,6 +13,7 @@
 | Chave da service account de **leitura** (BigQuery `gold` e `forecast`, prefixo `forecast/` do bucket) | **Docker secret** `atlas_<ambiente>_backend_sa` | `backend` |
 | Chave da service account de treino e do dbt | **Docker secret** `atlas_<ambiente>_training_sa` | Airflow (tarefas, dbt via Cosmos) |
 | Chave da service account do MLflow (só o bucket) | **Docker secret** `atlas_<ambiente>_mlflow_sa` | MLflow |
+| **Hash** da senha do Jupyter (nunca a senha em texto; o Jupyter não recebe nenhuma outra credencial) | variável do stack `JUPYTER_PASSWORD_HASH` | `jupyter` |
 | Senhas do Postgres (`POSTGRES_PASSWORD`, `MLFLOW_DB_PASSWORD`, `AIRFLOW_DB_PASSWORD`) | variáveis do stack no Portainer | Postgres, MLflow, Airflow |
 | `AIRFLOW_ADMIN_PASSWORD`, `AIRFLOW_JWT_SECRET`, `AIRFLOW_FERNET_KEY` | variáveis do stack | Airflow |
 | `MLFLOW_ADMIN_USERNAME`, `MLFLOW_ADMIN_PASSWORD`, `MLFLOW_FLASK_SECRET_KEY` | variáveis do stack | MLflow e tarefas de treino |
@@ -32,8 +33,9 @@ Todas saem de `anselmomendes/atlas-epidemiologia-<imagem>`; os repositórios sã
 | `airflow` | `airflow.yml` | `airflow/**` e `ml/**` (embute as DAGs, o dbt e o `atlas_ml`) | Airflow (4 serviços) |
 | `mlflow` | `mlflow.yml` | `infra/mlflow/**` | servidor MLflow |
 | `ml` (alvo `runtime`) | `ml.yml` | `ml/**` | treino avulso em container |
+| `ml-notebook` (alvo `notebook`) | `ml.yml` | `ml/**` | Jupyter de exploração (mesmas versões do Airflow) |
 
-Não são publicadas: `ml-notebook` (só desenvolvimento), `postgres` e `redis` (imagens oficiais).
+Não são publicadas: `postgres` e `redis` (imagens oficiais). A `ml-notebook` deixou de ser só de desenvolvimento: é a imagem do Jupyter do stack de hml.
 
 **Tags:** push em `dev` → `dev`; push em `hml` → `hml`; tag `vX.Y` em `main` → `X.Y` (imutável: falha se a versão já existe). Nunca há `latest`: o stack recebe a tag em `IMAGE_TAG` e recusa subir sem ela. Para publicar a primeira tag `hml` de uma imagem sem mexer em arquivo dela, abra Actions › workflow da imagem › **Run workflow** na branch `hml`.
 
@@ -87,7 +89,7 @@ A condição de IAM exige acesso uniforme no nível do bucket. As contas de trei
 
 ### 3. Docker secrets no Portainer
 
-Em Secrets › Add secret, crie os três do ambiente, colando o JSON de cada chave:
+Em Secrets › Add secret, crie os do ambiente, colando o JSON de cada chave:
 
 | Nome | Conteúdo |
 |---|---|
@@ -117,6 +119,67 @@ Depois de cada imagem publicada em `hml`, o CI chama o webhook e o Portainer ref
 ### 6. Produção
 
 O stack `atlas-prod` é o mesmo arquivo lido da branch `main`, com `ATLAS_ENV=prod`, `IMAGE_TAG=X.Y` (a versão publicada, **nunca** a tag móvel `hml`), os hosts e secrets `atlas_prod_...` próprios. O deploy de produção só é acionado por tag `vX.Y` em `main`, depois da aprovação do Environment `prod`. Conferência: `docker service ls --format '{{.Name}} {{.Image}}'` deve mostrar só tags de versão nos serviços do `atlas-prod`.
+
+## Jupyter de exploração (hml)
+
+O Jupyter do stack roda a imagem `ml-notebook` (mesmas versões do Airflow) em `https://jupyter-hml.contovisual.com.br`, com **senha e TLS e sem lista de IPs**. É um **caderno isolado**: não tem Docker secret, credencial do Google Cloud, usuário do MLflow nem acesso à rede interna do stack, e não vê nenhum dado do Atlas. Quem quiser dados baixa um arquivo e o sobe para a pasta de trabalho, ou digita uma credencial na própria sessão e a apaga ao terminar. Não há conta de serviço, IAM nem secret para criar.
+
+**Por que a proteção é assim.** Sem lista de IPs, a tela de login fica na internet. O que limita o estrago: o Jupyter não alcança nada do projeto, o proxy limita as tentativas (429), a senha é longa com hash argon2, e o terminal fica desligado. Se o risco incomodar, a lista de IPs entra com um middleware `ipallowlist`, como no Airflow e no MLflow.
+
+### 1. DNS
+
+Registro `A` de `jupyter-hml` para o **mesmo IP do `atlas-hml`** (hoje `37.27.80.107`), **só como DNS, sem o proxy do Cloudflare** (nuvem cinza): com proxy, o Traefik só vê o IP do Cloudflare e o limite de tentativas passa a valer para todo mundo junto. Sem o registro, o certificado do Let's Encrypt não é emitido. Confira:
+
+```bash
+nslookup atlas-hml.contovisual.com.br       # o IP do servidor de hml
+nslookup jupyter-hml.contovisual.com.br     # tem de devolver o mesmo IP (e não os do Cloudflare)
+```
+
+### 2. Senha: gerar o hash
+
+A senha não vai para o stack, só o **hash** (argon2). Escolha uma senha longa e aleatória, de pelo menos 20 caracteres (o login fica na internet), guarde-a num gerenciador (perdê-la significa gerar outro hash) e gere o hash:
+
+```bash
+# pede a senha duas vezes e imprime o hash (argon2:...); o uv baixa o jupyter-server só para este comando
+uv run --with jupyter-server python -c "from jupyter_server.auth import passwd; print(passwd())"
+```
+
+### 3. Variáveis do stack
+
+No Portainer (Stacks › atlas_epidemiologico_hml › Environment variables) e no seu `.env.hml`:
+
+| Variável | Valor |
+|---|---|
+| `JUPYTER_HOST` | `jupyter-hml.contovisual.com.br` |
+| `JUPYTER_REPLICAS` | `1` (`0` desliga o serviço) |
+| `JUPYTER_PASSWORD_HASH` | o hash do passo 2 |
+
+O hash tem `$`. **No Portainer cole o valor cru, sem aspas.** Num arquivo `.env` lido por shell, use aspas simples. Se o valor chegar estragado, o serviço não sobe e o log diz que o valor não parece um hash. Variáveis que **não valem mais** e podem ser apagadas do stack: `JUPYTER_TOKEN` e `JUPYTER_PORT` (só do dev), `JUPYTER_MLFLOW_USERNAME` e `JUPYTER_MLFLOW_PASSWORD`.
+
+O `atlas-prod` não precisa de nada para o Jupyter existir no stack, mas sem a `JUPYTER_PASSWORD_HASH` o deploy de prod falha. Defina `JUPYTER_REPLICAS=0` e um hash qualquer até haver um host de prod.
+
+### 4. Implantar
+
+Publique a imagem (`ml.yml` em `hml` gera `atlas-epidemiologia-ml-notebook:hml`) e redeploy o stack no Portainer. Se o serviço não subir: `docker service logs atlas_epidemiologico_hml_jupyter --tail 50`.
+
+### 5. Conferir
+
+| O que | Como | Esperado |
+|---|---|---|
+| DNS | `nslookup jupyter-hml.contovisual.com.br` | o IP do servidor, não o do Cloudflare |
+| Certificado | abrir `https://jupyter-hml.contovisual.com.br` | tela de login, certificado válido |
+| Senha | entrar com a senha certa e com uma errada | entra / é negada |
+| Limite de tentativas | `for i in $(seq 1 60); do curl -s -o /dev/null -w '%{http_code}\n' https://jupyter-hml.contovisual.com.br/login; done` | passa a responder `429`; o uso normal não é afetado |
+| Terminal | abrir um terminal pela interface | recusado |
+| Sem o hash | subir o serviço sem `JUPYTER_PASSWORD_HASH` | o deploy não sai (a variável é obrigatória) |
+| Isolado | num notebook: `import socket; socket.create_connection(("mlflow", 5000), 3)` e o mesmo para `scheduler`, `postgres`, `redis` | falha (nome não resolve) |
+| Versões | `pip list` no Jupyter e no Airflow | `atlas_ml` e as bibliotecas de ML iguais |
+| Notebook de modelo | subir um parquet e rodar o `catboost` à mão | roda; as runs do MLflow ficam numa pasta local |
+
+### 6. Rotação e desligar
+
+- **Senha:** gere outro hash (passo 2), troque `JUPYTER_PASSWORD_HASH` no Portainer e no `.env.hml` e redeploy.
+- **Desligar:** `JUPYTER_REPLICAS=0` e redeploy; os outros serviços não mudam. Para remover de vez, apague o registro DNS e os volumes `jupyter_work` e `jupyter_hf_cache`.
 
 ## Fluxo diário do Brasil (etl_brasil)
 

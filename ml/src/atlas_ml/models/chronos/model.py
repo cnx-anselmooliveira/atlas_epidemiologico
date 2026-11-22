@@ -123,7 +123,7 @@ class ChronosForecast:
         return pd.DataFrame({"y_pred": q[:, 1], "lower": q[:, 0], "upper": q[:, 2]})
 
     def params(self) -> dict[str, object]:
-        return {**self.hp, "revision": self.revision or "pendente"}
+        return {**self.hp, "revision": self.revision or "pendente", "inputs": "só a incidência da UF"}
 
     def log_model(self, example: Batch) -> str:
         _ = self.pipeline  # garante a revisão resolvida

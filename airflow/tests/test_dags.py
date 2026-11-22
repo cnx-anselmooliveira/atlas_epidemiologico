@@ -252,20 +252,22 @@ def test_forecast_estrutura_e_regras():
         assert t.execution_timeout.total_seconds() == 3 * 3600, nome
     por_horizonte = {f"horizonte.train_{b}" for b in FORECAST_BASES}
     esperado = {
-        "prepare",
         "configuracao",
+        "iniciar_execucao",
         "lista_de_horizontes",
         *por_horizonte,
         "horizonte.train_ensemble",
         "horizonte.comparar",
         "exportar",
+        "limpar",
     }
     assert set(dag.task_ids) == esperado
     # o ensemble depende só dos modelos empilhados
     ensemble = dag.get_task("horizonte.train_ensemble")
     do_grupo = lambda t: {u for u in t.upstream_task_ids if u.startswith("horizonte.")}  # noqa: E731
     assert do_grupo(ensemble) == {f"horizonte.train_{b}" for b in FORECAST_STACKED}
-    assert {"prepare", "configuracao"} <= ensemble.upstream_task_ids  # snapshot, janela e semente
+    # snapshot, janela e semente, e o diretório e a versão do notebook da execução
+    assert {"configuracao", "iniciar_execucao"} <= ensemble.upstream_task_ids
     comparar = dag.get_task("horizonte.comparar")
     assert do_grupo(comparar) == {
         "horizonte.train_baseline_bayes",
@@ -273,7 +275,7 @@ def test_forecast_estrutura_e_regras():
         "horizonte.train_ensemble",
     }
     assert comparar.trigger_rule == "all_done" and comparar.retries == 0
-    for t in por_horizonte | {"prepare", "horizonte.train_ensemble"}:
+    for t in por_horizonte | {"horizonte.train_ensemble"}:
         assert dag.get_task(t).retries == 1, t
     # um grupo por horizonte (mapeado) e a exportação depois dele
     from airflow.sdk.definitions.mappedoperator import MappedOperator
@@ -287,6 +289,38 @@ def test_forecast_estrutura_e_regras():
     assert "horizonte.comparar" in exportar.upstream_task_ids
 
 
+def test_forecast_executa_o_notebook_e_limpa_a_execucao():
+    dag = _forecast()
+    inicio = dag.get_task("iniciar_execucao")
+    assert inicio.python == "/opt/atlas-ml/bin/python"
+
+    def ancestrais(task_id):
+        vistos, pendentes = set(), [task_id]
+        while pendentes:
+            for pai in dag.get_task(pendentes.pop()).upstream_task_ids:
+                if pai not in vistos:
+                    vistos.add(pai)
+                    pendentes.append(pai)
+        return vistos
+
+    # os treinos dependem direto do início; o comparar, pelos treinos (transitivo)
+    for t in ["horizonte.train_catboost", "horizonte.train_ensemble"]:
+        assert "iniciar_execucao" in dag.get_task(t).upstream_task_ids, t
+    assert "iniciar_execucao" in ancestrais("horizonte.comparar")
+    assert "horizonte.train_ensemble" in dag.get_task("horizonte.comparar").upstream_task_ids
+    # o diretório da execução some no fim, com sucesso ou falha
+    limpar = dag.get_task("limpar")
+    assert limpar.trigger_rule == "all_done" and limpar.retries == 0
+    assert "horizonte.comparar" in limpar.upstream_task_ids
+    assert limpar.python == "/opt/atlas-ml/bin/python"
+    # sem snapshot; as tarefas executam o notebook do modelo; o pipeline antigo e o CLI saíram
+    with open(os.path.join(DAGS_FOLDER, "atlas_dengue_forecast_br.py"), encoding="utf-8") as f:
+        fonte = f.read()
+    assert "run_model_notebook" in fonte and "run_step" not in fonte
+    assert "forecast.pipeline" not in fonte and "atlas-ml forecast" not in fonte
+    assert "prepare" not in dag.task_ids
+
+
 def test_forecast_parametros_e_ambiente():
     dag = _forecast()
     assert dag.params["window"] == 12 and dag.params["seed"] == 42
@@ -298,7 +332,13 @@ def test_forecast_parametros_e_ambiente():
     # tudo roda em Python no venv do atlas_ml, sem scripts de shell
     for t in dag.tasks:
         assert type(t).__name__ != "BashOperator", t.task_id
-    for t in ["prepare", "horizonte.train_catboost", "horizonte.train_ensemble", "horizonte.comparar"]:
+    for t in [
+        "iniciar_execucao",
+        "horizonte.train_catboost",
+        "horizonte.train_ensemble",
+        "horizonte.comparar",
+        "limpar",
+    ]:
         assert dag.get_task(t).python == "/opt/atlas-ml/bin/python", t
 
 

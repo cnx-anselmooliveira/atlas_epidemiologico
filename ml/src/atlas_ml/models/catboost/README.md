@@ -6,8 +6,9 @@ Gradient boosting sobre as janelas de incidência. Modelo-base do ensemble.
 - **Entrada por janela:**
   - as últimas `window` incidências em `log1p`, padronizadas pelo `TrainOnlyScaler`;
   - `sin`/`cos` da semana do alvo;
-  - covariáveis de `cfg.features`;
+  - os canais de `cfg.features` em cada passo da janela (padrão: 8 canais do SINAN como taxa por 100 mil em `log1p`, mais altitude e declividade), com nomes `<canal>_t-k` (ex.: `confirmed_cases_t-3`);
   - `uf_code` como **categórica**.
+- **Capacidade registrada:** `model.channels` e `model.n_input_columns` (com a janela de 12 e os 10 canais padrão são 12 × 11 + 2 + 1 = 135 colunas).
 - **Alvo:** incidência da semana t + `horizon` (mesma transformação). A previsão volta com `expm1` e nunca fica negativa.
 
 ## O que mudou em relação ao original

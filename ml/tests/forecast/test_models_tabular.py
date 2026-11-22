@@ -33,6 +33,9 @@ def test_modelo_registra_metricas_oof_e_e_reprodutivel(name, tracking_uri):
     for key in ("test_nrmse_mean", "val_nrmse_mean", "oof_nrmse_mean"):
         assert key in run.data.metrics, key
     assert run.data.tags["atlas.model_family"] in ("gbm", "kernel")
+    # entrada multivariada: janela × (incidência + 10 canais) + sazonalidade (2) + UF (1)
+    assert run.data.params["model.n_input_columns"] == str(SMALL.window * (1 + len(SMALL.features)) + 2 + 1)
+    assert "deaths" in run.data.params["model.channels"]
     oof = _artifact(a.run_id, OOF_PREDICTIONS)
     # nenhum alvo OOF previsto por um ajuste que já o tinha visto
     assert (pd.to_datetime(oof.target_date) >= pd.to_datetime(oof.fit_until)).all()

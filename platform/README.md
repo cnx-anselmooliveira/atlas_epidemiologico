@@ -7,7 +7,7 @@ Este diretório guarda o compose de **desenvolvimento local** da plataforma de M
 | MLflow | <http://127.0.0.1:5000> | experimentos, métricas, artefatos e registro de modelos |
 | Airflow | <http://127.0.0.1:8080> | DAGs (treinos agora; ingestão e dbt depois) |
 | API gold (`backend/`) + Redis | <http://127.0.0.1:8000> | dados das tabelas gold para o site (`/gold/*`, `/health`) |
-| JupyterLab (opcional) | <http://127.0.0.1:8888> | exploração com o pacote `atlas_ml` já instalado |
+| JupyterLab (opcional) | <http://127.0.0.1:8888> | exploração isolada (sem credenciais) com o pacote `atlas_ml` já instalado |
 | Postgres | só na rede interna | bancos `mlflow`, `mlflow_auth` e `airflow`, cada um com o seu usuário |
 
 Todas as portas escutam só em `127.0.0.1`.
@@ -52,7 +52,7 @@ Sem bucket, os artefatos ficam no volume `mlartifacts`. Para usar o bucket do pr
 
 Os novos artefatos passam a ir para `gs://ppgcc-bucket/mlflow/dev/`. Quem treina continua sem precisar de credencial: o MLflow faz o upload.
 
-Para ler features do BigQuery nos treinos e notebooks, coloque a chave de treino em `platform/secrets/training-sa.json`.
+Para ler features do BigQuery nos treinos, coloque a chave de treino em `platform/secrets/training-sa.json`. O Jupyter **não recebe nenhuma chave nem acesso ao MLflow**: é um caderno isolado, igual ao do hml, e trabalha só com os dados que você subir para a pasta de trabalho (por exemplo, um parquet que os notebooks de modelo leem).
 
 ### Rede da empresa (inspeção TLS)
 
@@ -104,7 +104,7 @@ O `.env.example` da raiz lista todas as variáveis do projeto (dev local e stack
 | `MLFLOW_ARTIFACTS_BUCKET` | Opcional. Bucket GCS dos artefatos (`ppgcc-bucket`); vazio = volume local |
 | `POSTGRES_PASSWORD` | Senha do superusuário do Postgres local; em dev, também a dos usuários `mlflow` e `airflow` |
 | `AIRFLOW_ADMIN_PASSWORD` | Senha do usuário `admin` do Airflow local |
-| `JUPYTER_TOKEN` | Token do JupyterLab (padrão `atlas`) |
+| `JUPYTER_TOKEN` | Token do JupyterLab. Obrigatório, sem valor padrão: sem ele o Jupyter não sobe |
 | `EXTRA_CA_PATH` | Opcional. CA da inspeção TLS da rede corporativa |
 
 As chaves de service account ficam em `platform/secrets/`, que é ignorado pelo git:

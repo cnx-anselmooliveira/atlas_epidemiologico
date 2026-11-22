@@ -1,4 +1,7 @@
-# Publica a imagem do Airflow: embute as DAGs, o projeto dbt e o atlas_ml, então muda com airflow/** ou ml/**. dev e hml por push, X.Y por tag, ou à mão.
+# Publica a imagem do Airflow: venvs (atlas_ml e dbt), pacote atlas_ml, Cosmos e testes. As DAGs e o notebook do
+# pipeline NÃO disparam o build: em hml e prod o Airflow os lê do clone do git-sync, então o merge basta.
+# O venv do dbt sai do pyproject.toml/uv.lock de utfpr_dengue, que por isso continuam disparando.
+# dev e hml por push, X.Y por tag, ou à mão.
 name: airflow
 
 on:
@@ -7,6 +10,11 @@ on:
     paths:
       - "airflow/**"
       - "ml/**"
+      # a ordem importa: as exclusões vêm depois dos padrões amplos e a reinclusão, por último
+      - "!airflow/dags/**"
+      - "!ml/notebooks/**"
+      - "airflow/dags/utfpr_dengue/pyproject.toml"
+      - "airflow/dags/utfpr_dengue/uv.lock"
       - ".github/workflows/airflow.yml"
       - ".github/workflows/_image.yml"
     tags: ["v*"]

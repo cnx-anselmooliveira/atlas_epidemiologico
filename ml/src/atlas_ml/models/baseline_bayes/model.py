@@ -176,7 +176,7 @@ class BayesBaseline:
         )
 
     def params(self) -> dict[str, object]:
-        return {**self.hp, "interval": "95% preditiva posterior"}
+        return {**self.hp, "interval": "95% preditiva posterior", "inputs": "só a incidência da UF"}
 
     def log_model(self, example: Batch) -> str:
         import json

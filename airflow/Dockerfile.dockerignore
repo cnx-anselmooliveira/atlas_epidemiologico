@@ -4,6 +4,7 @@
 !ml/uv.lock
 !ml/README.md
 !ml/src/**
+!ml/notebooks/**
 !airflow/dags/**
 !airflow/config/**
 !airflow/tests/**

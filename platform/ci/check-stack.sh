@@ -7,8 +7,8 @@
 # Confere: (a) o stack, o .env.example e o script do Postgres existem, e todo arquivo do
 # repositório que o stack referencia (configs.file) também; (b) `docker stack config` valida com
 # as variáveis do .env.example para hml (tag hml) e prod (tag 1.0); (c) na saída resolvida, sem
-# tag latest, sem porta publicada no host, secrets externos, só imagens do projeto, postgres e
-# redis, e nenhuma tag móvel (hml, dev) quando a tag é de versão.
+# tag latest, sem porta publicada no host, secrets externos, só imagens do projeto, postgres,
+# redis e o git-sync (tag fixa), e o serviço jupyter isolado e contido (sem secrets, sem rede interna, sem credenciais, cap_drop, read_only, ratelimit), e nenhuma tag móvel (hml, dev) quando a tag é de versão.
 # Variável STACK_FILE troca o arquivo (testes); o padrão é docker-compose.yml.
 set -euo pipefail
 
@@ -79,7 +79,7 @@ import yaml
 arquivo, ambiente, tag, prefixo = sys.argv[1:5]
 d = yaml.safe_load(open(arquivo, encoding="utf-8"))
 erros = []
-oficiais = {"postgres:16-alpine", "redis:7-alpine"}
+oficiais = {"postgres:16-alpine", "redis:7-alpine", "registry.k8s.io/git-sync/git-sync:v4.4.0"}
 for nome, s in (d.get("services") or {}).items():
     img = s.get("image") or ""
     if not img:
@@ -101,6 +101,56 @@ for nome, s in (d.get("services") or {}).items():
 for nome, sec in (d.get("secrets") or {}).items():
     if not (sec or {}).get("external"):
         erros.append(f"secret {nome} não é externo (valor ou arquivo no repositório)")
+
+
+# Jupyter de exploração: caderno ISOLADO (sem secrets, sem rede interna, sem credenciais de nenhum serviço) e contido
+j = (d.get("services") or {}).get("jupyter")
+if j is None:
+    erros.append("serviço jupyter ausente")
+else:
+    segredos = sorted({x["source"] if isinstance(x, dict) else x for x in (j.get("secrets") or [])})
+    if segredos:
+        erros.append(f"serviço jupyter não pode ter secrets (isolado dos dados do projeto): {', '.join(segredos)}")
+    redes = j.get("networks") or []
+    redes = sorted(redes if isinstance(redes, list) else redes.keys())
+    if "atlas_internal" in redes:
+        erros.append("serviço jupyter está na rede interna atlas_internal (alcançaria MLflow, Airflow, banco e Redis)")
+    ambiente = j.get("environment") or {}
+    nomes = set(ambiente) if isinstance(ambiente, dict) else {str(e).split("=", 1)[0] for e in ambiente}
+    credenciais = sorted(
+        n for n in nomes if n in ("GOOGLE_APPLICATION_CREDENTIALS", "GCP_PROJECT") or n.startswith("MLFLOW_TRACKING")
+    )
+    if credenciais:
+        erros.append(f"serviço jupyter com variáveis de credencial de outros serviços: {', '.join(credenciais)}")
+    if "JUPYTER_PASSWORD_HASH" not in nomes:
+        erros.append("serviço jupyter sem JUPYTER_PASSWORD_HASH (a senha, só como hash)")
+    if "ALL" not in [str(c).upper() for c in (j.get("cap_drop") or [])]:
+        erros.append("serviço jupyter sem cap_drop: [ALL]")
+    if not j.get("read_only"):
+        erros.append("serviço jupyter sem read_only: true")
+    if str(j.get("user", "")).split(":")[0] in ("", "0", "root"):
+        erros.append("serviço jupyter roda como root (defina user não-root)")
+    if j.get("privileged"):
+        erros.append("serviço jupyter privilegiado")
+    montagens = [str(v.get("source", "")) if isinstance(v, dict) else str(v) for v in (j.get("volumes") or [])]
+    if any("docker.sock" in m for m in montagens):
+        erros.append("serviço jupyter monta o socket do Docker")
+    if any(m.startswith("airflow_dags") or "airflow" in m for m in montagens):
+        erros.append("serviço jupyter monta o volume do Airflow (clone das DAGs)")
+    rotulos = (j.get("deploy") or {}).get("labels") or {}
+    if isinstance(rotulos, list):
+        rotulos = dict(r.split("=", 1) for r in rotulos if "=" in r)
+    limitadores = {
+        k.split(".")[3] for k in rotulos if k.startswith("traefik.http.middlewares.") and ".ratelimit." in k
+    }
+    usados = {
+        m
+        for k, v in rotulos.items()
+        if k.startswith("traefik.http.routers.") and k.endswith(".middlewares")
+        for m in str(v).split(",")
+    }
+    if not limitadores & {m.split("@")[0] for m in usados}:
+        erros.append("roteador do jupyter sem o middleware de limite de tentativas (ratelimit)")
 for e in erros:
     print(f"::error::{ambiente}: {e}")
 sys.exit(1 if erros else 0)
