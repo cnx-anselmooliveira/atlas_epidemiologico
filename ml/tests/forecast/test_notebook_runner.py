@@ -3,7 +3,6 @@
 import os
 
 import mlflow
-import nbformat
 import pytest
 
 from atlas_ml.forecast import NOTEBOOK_API
@@ -17,6 +16,8 @@ from atlas_ml.forecast.notebook import (
     run_dir,
     run_notebook,
 )
+
+nbformat = pytest.importorskip("nbformat")  # vem com o grupo `models` (papermill)
 
 pytestmark = pytest.mark.models
 

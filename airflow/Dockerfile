@@ -57,7 +57,9 @@ ENV AIRFLOW__CORE__EXECUTOR=LocalExecutor \
     DBT_PARTIAL_PARSE=false \
     DBT_SEND_ANONYMOUS_USAGE_STATS=false \
     HF_HOME=/opt/airflow/hf-cache \
-    NUMBA_CACHE_DIR=/tmp/numba-cache \n    ATLAS_NOTEBOOKS_DIR=/opt/atlas/notebooks \n    ATLAS_PIPELINE_DIR=/tmp/atlas
+    NUMBA_CACHE_DIR=/tmp/numba-cache \
+    ATLAS_NOTEBOOKS_DIR=/opt/atlas/notebooks \
+    ATLAS_PIPELINE_DIR=/tmp/atlas
 
 # Diretório compartilhado entre componentes (ex.: senha do Simple Auth Manager em dev) e
 # cache do Hugging Face (checkpoint do Chronos)

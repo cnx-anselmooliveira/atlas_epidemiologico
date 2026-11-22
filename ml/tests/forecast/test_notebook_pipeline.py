@@ -7,7 +7,6 @@ modelo e `compare`, como as tarefas do Airflow os chamam.
 from pathlib import Path
 
 import mlflow
-import nbformat
 import pytest
 
 from atlas_ml.forecast import EXPERIMENT
@@ -22,6 +21,9 @@ NOTEBOOK = Path(__file__).resolve().parents[2] / "notebooks" / "forecast_pipelin
 def _runs() -> int:
     exp = mlflow.get_experiment_by_name(f"atlas/{EXPERIMENT}")
     return 0 if exp is None else len(mlflow.search_runs(experiment_ids=[exp.experiment_id]))
+
+
+nbformat = pytest.importorskip("nbformat")  # vem com o grupo `models` (papermill)
 
 
 @pytest.fixture
