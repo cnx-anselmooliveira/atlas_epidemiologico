@@ -184,6 +184,73 @@ def test_sql_carga_completa_colunas_e_linhagem():
     assert sql.count("ano_arquivo") == 1  # linhagem não é copiada da staging
 
 
+def test_formatadores():
+    from atlas_ingest.sinan import fmt_bytes, fmt_delta, fmt_int
+
+    assert fmt_int(1234567) == "1.234.567" and fmt_int(None) == "-" and fmt_int("12") == "12"
+    assert fmt_delta(1000, 1050) == "+50 (+5,0%)" and fmt_delta(1000, 900) == "-100 (-10,0%)"
+    assert (
+        fmt_delta(None, 5) == "novo"
+        and fmt_delta(5, None) == "removido"
+        and fmt_delta(3, 3) == "sem variação"
+    )
+    assert fmt_bytes(512) == "512 B" and fmt_bytes(123456789) == "117,7 MB" and fmt_bytes(None) == "-"
+
+
+def test_explicar_plano_da_o_motivo_de_cada_arquivo():
+    from atlas_ingest.sinan import explicar_plano, tabela_plano
+
+    outra = "Sun, 15 Nov 2026 08:00:00 GMT"
+    origem = _origem(
+        (2023, "a", LM), (2024, "novo", outra), (2025, "c", LM), (2026, "d", LM), ausentes=[2022]
+    )
+    landing = {
+        "DENGBR22.csv.zip": _meta("x", bronze="x"),  # saiu da origem
+        "DENGBR23.csv.zip": _meta("a", bronze="a"),  # em dia
+        "DENGBR24.csv.zip": _meta("velho", bronze="velho"),  # alterado
+        "DENGBR25.csv.zip": _meta("c", bronze="antigo"),  # bronze atrasada
+        "DENGBR21.csv.zip": _meta("y", bronze="y"),  # consulta falhou hoje (nem 200 nem 404)
+    }
+    plano = planejar_sync(origem, landing)
+    por_ano = {x["ano"]: x for x in explicar_plano(origem, landing, plano)}
+    assert por_ano[2026]["acao"] == "baixar + carregar" and "novo na origem" in por_ano[2026]["motivo"]
+    assert "alterado" in por_ano[2024]["motivo"] and "ETag velho → novo" in por_ano[2024]["motivo"]
+    assert outra in por_ano[2024]["motivo"]
+    assert por_ano[2025]["acao"] == "carregar (sem baixar)" and "bronze atrás" in por_ano[2025]["motivo"]
+    assert por_ano[2022]["acao"].startswith("apagar") and "404" in por_ano[2022]["motivo"]
+    assert por_ano[2023]["acao"] == "nada" and "em dia" in por_ano[2023]["motivo"]
+    assert por_ano[2021]["acao"] == "nada" and "falhou" in por_ano[2021]["motivo"]
+    texto = tabela_plano(origem, landing, plano)
+    assert "DENGBR24.csv.zip" in texto and "Plano: baixar 2" in texto and "em dia 2" in texto
+
+
+def test_perfil_e_comparacao_da_particao():
+    from atlas_ingest.sinan import comparar_perfis, perfil_de_linhas
+
+    antes = perfil_de_linhas(
+        [("35", 100, "2026-01-02", "2026-11-01", "e1"), ("33", 50, "2026-01-01", "2026-10-30", "e1")]
+    )
+    assert antes["total"] == 150 and antes["dt_notific_min"] == "2026-01-01" and antes["etags"] == ["e1"]
+    depois = perfil_de_linhas(
+        [("35", 120, "2026-01-01", "2026-11-14", "e2"), ("33", 50, "2026-01-01", "2026-11-10", "e2"),
+         ("53", 7, "2026-02-01", "2026-11-12", "e2")]
+    )  # fmt: skip
+    texto = comparar_perfis(2026, antes, depois)
+    assert "150 → 177 linhas (+27 (+18,0%))" in texto
+    assert "35 SP" in texto and "+20 (+20,0%)" in texto and "53 DF" in texto
+    assert "UFs que não existiam antes: 53 DF" in texto
+    assert "2026-11-01 → 2026-11-14" in texto
+    assert "não existia" in comparar_perfis(2026, None, depois)
+
+
+def test_formatar_tabela_alinha_colunas():
+    from atlas_ingest.sinan import formatar_tabela
+
+    t = formatar_tabela(["a", "coluna"], [["xxx", 1], ["y", 22]]).splitlines()
+    assert t[0] == "a    coluna" and t[1] == "---  ------" and t[2] == "xxx  1"
+    assert "(nenhuma linha)" in formatar_tabela(["a"], [])
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in list(globals().items()):
