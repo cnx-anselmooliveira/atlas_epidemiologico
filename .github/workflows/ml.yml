@@ -7,6 +7,8 @@ on:
     branches: [dev, hml]
     paths:
       - "ml/**"
+      # notebooks chegam ao Airflow pelo git-sync; o Jupyter de hml os recebe no próximo build da imagem
+      - "!ml/notebooks/**"
       - ".github/workflows/ml.yml"
       - ".github/workflows/_image.yml"
     tags: ["v*"]

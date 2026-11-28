@@ -6,23 +6,24 @@ Airflow 3.3.2 (Python 3.12) com LocalExecutor. Ele dispara os treinos do pacote 
 
 - As DAGs vivem em `airflow/dags/`. **Nunca edite uma DAG direto no servidor.**
 - **Dev:** a pasta é montada no container, e o Airflow local relê os arquivos em cerca de 30 s, sem rebuild.
-- **hml e prod:** as DAGs vão **dentro da imagem**. Uma DAG nova só chega a hml quando o commit é promovido para a branch `hml` e a imagem `:hml` é publicada e implantada. Para prod, o caminho é `main` + tag `vX.Y`.
+- **hml e prod:** as DAGs e os notebooks chegam pelo **git-sync** (clone da branch do ambiente, `hml` ou `main`, relido a cada 60 s), sem imagem nova. Uma DAG nova chega a hml quando o PR `dev` → `hml` é mesclado. A imagem só é reconstruída quando mudam o pacote `atlas_ml`, os venvs, o Dockerfile ou a configuração.
 
-## Como adicionar uma DAG
+## Como adicionar ou mudar uma DAG
 
-1. Crie `airflow/dags/<nome>.py`. Use `from airflow.sdk import DAG` e os operadores de `airflow.providers.standard`.
-   - Tarefas de ML chamam o CLI (`BashOperator` com `atlas-ml …`). Não importe `atlas_ml` dentro da DAG: ele vive em outro venv.
-   - Prefira `schedule=None` até a DAG estar validada. As DAGs nascem pausadas.
-2. Valide a integridade, sem banco e sem subir o Airflow:
+1. Crie ou edite `airflow/dags/<nome>.py`. Use `from airflow.sdk import DAG` e os operadores de `airflow.providers.standard`.
+   - Tarefas de ML usam `@task.external_python` no venv `/opt/atlas-ml/bin/python`, com o corpo autocontido. Não importe `atlas_ml` no topo da DAG: ele vive em outro venv.
+   - Código comum entre DAGs fica em `airflow/dags/atlas_ingest/`. O Airflow põe a pasta das DAGs no `sys.path`, então `from atlas_ingest... import ...` funciona no topo do arquivo.
+   - Prefira `schedule=None` até a DAG estar validada. As DAGs nascem pausadas (as de modelo de previsão são a exceção).
+2. Se a DAG tiver regras importantes (agendamento, retentativas, pools, regras de disparo), acrescente uma função `test_*` em `airflow/tests/test_dags.py`.
+3. Rode os testes das DAGs, sem banco e sem subir o Airflow. São os mesmos do job `dags` do CI e levam menos de 1 minuto:
    ```sh
-   docker build -f airflow/Dockerfile -t atlas-epidemiologia-airflow:local --build-arg ATLAS_GIT_SHA=$(git rev-parse HEAD) .
-   docker run --rm -v "$PWD/airflow/dags:/opt/airflow/dags" --entrypoint python \
-     atlas-epidemiologia-airflow:local /opt/atlas/tests/test_dags.py
+   bash platform/ci/testar-dags.sh               # imagem local atlas-epidemiologia-airflow:local
+   bash platform/ci/testar-dags.sh --publicada   # imagem :hml do DockerHub (a da via rápida do CI)
+   bash platform/ci/testar-dags.sh test_dags.py  # só um arquivo
    ```
-   No Git Bash do Windows, prefixe o comando com `MSYS_NO_PATHCONV=1`.
-3. Se a DAG tiver regras importantes (agendamento, retentativas, comando), acrescente uma função `test_*` em `airflow/tests/test_dags.py`.
+   O script monta as DAGs, os testes e os notebooks do disco sobre a imagem: uma imagem local de dias atrás serve, desde que as dependências não tenham mudado.
 4. Teste no Airflow local (`platform/compose.dev.yml`): despause e dispare pela UI em <http://127.0.0.1:8080>.
-5. Faça um commit em `dev` ao concluir o módulo. A promoção segue `dev → hml → main`.
+5. Faça um commit em `dev` ao concluir o módulo e abra o PR para `hml`. Um PR que muda só DAGs (e os testes delas), notebooks, docs ou OpenSpec roda o CI na **via rápida**, em poucos minutos (ver `deploy/README.md`).
 
 ## Configuração
 
@@ -44,7 +45,8 @@ As tarefas herdam o ambiente do container (`MLFLOW_TRACKING_URI`, `ATLAS_ENV`, `
 | `ingestao_sinan_brasil` | disparada (ou manual) | Sync do SINAN: OpenDataSUS → landing no bucket → tabela bronze. Parâmetro `janela_horas` (0 = verifica uma vez; a `etl_brasil` usa 3) |
 | `dbt_brasil` | disparada (ou manual) | Modelagem dbt pelo **Cosmos**, `seed → bronze → silver → gold`, uma tarefa por model com os testes logo depois, só se a bronze do SINAN for mais nova que a gold (ou com `forcar_dbt`) |
 | `process_dbt_docs_atlas` | manual | Gera o dbt docs (`index.html`, `manifest.json`, `catalog.json`) e publica em `gs://ppgcc-bucket/dbt_docs/<ATLAS_ENV>/`; o Airflow mostra no menu de dbt docs |
-| `atlas_dengue_forecast_br` | disparada pela `etl_brasil` (ou manual) | Previsão de dengue por UF em 4 horizontes: `iniciar_execucao → 5 modelos-base (baseline bayesiano, Chronos, CatBoost, SVR, LSTM) → ensemble → compare → exportar`, com `limpar` no fim. Cada tarefa de modelo **executa o notebook do modelo** (`ml/notebooks/<modelo>/<modelo>.ipynb`, papermill, lido de `ATLAS_NOTEBOOKS_DIR`), que lê a gold direto; a `iniciar_execucao` registra a versão da gold e a do notebook, e os notebooks falham se mudarem no meio; a comparação é código da própria DAG; os arquivos de cada execução ficam em `ATLAS_PIPELINE_DIR/<run_id>/` (padrão `/tmp/atlas`) e o notebook executado vira artefato da run. Treinos no pool `atlas_treino` (um pesado por vez), no máximo 2 tarefas em paralelo, até 3 h por treino. Parâmetros opcionais `window`, `horizons`, `seed` e `fonte` (vazio = gold completa). Modelos registrados como `atlas-br-<modelo>-h<H>` |
+| `atlas_dengue_forecast_br` | disparada pela `etl_brasil` (ou manual) | **Orquestrador** da previsão de dengue por UF em 4 horizontes: `iniciar_execucao → 5 DAGs de modelo-base (baseline bayesiano, Chronos, CatBoost, SVR, LSTM) → DAG do ensemble → comparar por horizonte → exportar`. Fixa a versão da gold e a dos notebooks e dispara cada DAG de modelo individualmente, esperando no triggerer (sem vaga de worker). A comparação é código desta DAG, e a exportação só é disparada se algum horizonte teve modelo. Parâmetros opcionais `window`, `horizons`, `seed` e `fonte` (vazio = gold completa). Detalhes em [DAGs de previsão](#dags-de-previsão-uma-por-modelo) |
+| `atlas_forecast_<modelo>` (seis) | disparada pelo orquestrador (ou manual) | Treina **um** modelo (`baseline_bayes`, `chronos`, `catboost`, `svr`, `lstm` ou `ensemble`) nos horizontes pedidos e registra no MLflow como `atlas-br-<modelo>-h<H>`. Sozinha, não compara nem exporta. Nasce despausada |
 
 ### etl_brasil (fluxo diário do Brasil)
 
@@ -100,3 +102,31 @@ dbt_brasil:            decidir_dbt ─► [seed] ─► [bronze] ─► [silver]
 - **Credencial:** bucket e plugin usam a Connection `google_cloud_default`.
   - Em dev, ela vem por variável de ambiente com o caminho da chave montada (`key_path`), sem o conteúdo.
   - Em hml/prod, cadastre pela UI (Admin → Connections, tipo Google Cloud, campo Keyfile JSON) e ajuste o sufixo do `DBT_DOCS_PROJECTS` na stack.
+
+### DAGs de previsão (uma por modelo)
+
+Cada modelo treina na própria DAG, `atlas_forecast_<modelo>`, montada por `dags/atlas_ingest/forecast_modelo.py` (um arquivo `dags/atlas_forecast_<modelo>.py` por modelo, que só chama a fábrica). O orquestrador `atlas_dengue_forecast_br` dispara as seis no processo completo.
+
+```
+atlas_dengue_forecast_br (orquestrador)
+  configuracao → lista_de_horizontes → iniciar_execucao → conf_dos_modelos
+    → modelo_baseline_bayes, modelo_chronos, modelo_catboost, modelo_svr, modelo_lstm (em paralelo)
+    → modelo_ensemble (depois das cinco, com sucesso ou falha)
+    → comparar[h] (all_done) → algum_resultado → exportar (process_forecast_export_atlas)
+
+atlas_forecast_<modelo>
+  configuracao → lista_de_horizontes → iniciar
+    → horizonte[h]: [bases →] treinar        (um grupo por horizonte; um que falha não para os outros)
+    → concluir (falha se algum horizonte falhou) e limpar (sempre)
+```
+
+- **Treino:** cada `horizonte.treinar` executa o notebook do modelo (`ml/notebooks/<modelo>/<modelo>.ipynb`, papermill, lido de `ATLAS_NOTEBOOKS_DIR`), no pool `atlas_treino`: LSTM, bayesiano e Chronos ocupam as 2 vagas (um pesado por vez), os demais 1, até 3 h por treino. Os arquivos ficam em `ATLAS_PIPELINE_DIR/<pipeline_run>/<modelo>/` (padrão `/tmp/atlas`), e o notebook executado vira artefato da run.
+- **Parâmetros (todos opcionais):** `horizons` (1 a 4, padrão todos), `window` (12), `seed` (42), `fonte` (vazio = gold do ambiente) e, preenchidos pelo orquestrador, `pipeline_run`, `data_version` e `notebook_sha`.
+- **Disparo pelo orquestrador:** run `<run_id do orquestrador>__<modelo>`, com a conf da execução. Todas as runs do MLflow levam o mesmo `atlas.pipeline_run`, e os notebooks falham se a gold ou o notebook mudarem no meio.
+- **Disparo isolado (à mão):** treina e registra, **sem comparar nem exportar**. O `pipeline_run` é o `run_id` da própria DAG, e as versões são as atuais. Serve para repetir ou depurar um modelo; por exemplo, o SVR só no horizonte 1:
+  ```json
+  {"horizons": [1]}
+  ```
+- **Ensemble:** a tarefa `horizonte.bases` busca no MLflow as runs concluídas de CatBoost, SVR e LSTM daquele horizonte: as do mesmo `pipeline_run` quando vem do orquestrador; sozinha, as mais recentes com a mesma versão da gold. Se faltar alguma, o horizonte falha dizendo qual modelo treinar antes.
+- **Despausadas ao nascer:** as seis nascem despausadas (`is_paused_upon_creation=False`), porque o orquestrador esperaria até 8 h por uma run parada na fila. **Não as pause.**
+- **Logs:** `iniciar` mostra as versões (recebidas ou lidas agora) e o notebook; `horizonte.treinar[h]` mostra os parâmetros, a duração, as métricas de teste, a run e a versão registrada; `horizonte.bases[h]` mostra as runs escolhidas, com janela e semente.

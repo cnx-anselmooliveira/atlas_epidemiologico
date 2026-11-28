@@ -23,6 +23,10 @@ def _dagbag():
         from airflow.dag_processing.dagbag import DagBag
     except ImportError:  # versões anteriores do Airflow 3
         from airflow.models.dagbag import DagBag
+    # como o BundleDagBag do dag-processor e do task runner: a pasta das DAGs no sys.path, para os
+    # arquivos importarem atlas_ingest (as DAGs de modelo de previsão usam a fábrica de lá)
+    if DAGS_FOLDER not in sys.path:
+        sys.path.append(DAGS_FOLDER)
     # exemplos já desligados por AIRFLOW__CORE__LOAD_EXAMPLES=False na imagem
     return DagBag(dag_folder=DAGS_FOLDER)
 
@@ -213,6 +217,7 @@ def test_so_a_etl_brasil_tem_agenda():
         "ingestao_sinan_brasil",
         "dbt_brasil",
         "atlas_dengue_forecast_br",
+        *(f"atlas_forecast_{m}" for m in FORECAST_MODELOS),
         "process_forecast_export_atlas",
         "process_dbt_docs_atlas",
     ):
@@ -232,93 +237,165 @@ def test_docs_dag():
 
 
 FORECAST_BASES = ["baseline_bayes", "chronos", "catboost", "svr", "lstm"]
-FORECAST_STACKED = ["catboost", "svr", "lstm"]
+FORECAST_MODELOS = FORECAST_BASES + ["ensemble"]
+PESADOS = ("lstm", "baseline_bayes", "chronos")
+VENV_ML = "/opt/atlas-ml/bin/python"
 
 
 def _forecast():
     return _dagbag().dags["atlas_dengue_forecast_br"]
 
 
-def test_forecast_estrutura_e_regras():
-    dag = _forecast()
-    assert dag.schedule is None or str(dag.timetable.summary) in ("None", "Never"), "não pode ter agendamento"
-    assert dag.max_active_runs == 1 and dag.max_active_tasks == 2
-    assert dag.dagrun_timeout is not None and dag.dagrun_timeout.total_seconds() == 12 * 3600
-    # pool dos treinos: pesados ocupam as 2 vagas (um por vez), leves 1; todos com tempo máximo
-    for nome in FORECAST_BASES + ["ensemble"]:
-        t = dag.get_task(f"horizonte.train_{nome}")
-        assert t.pool == "atlas_treino", nome
-        assert t.pool_slots == (2 if nome in ("lstm", "baseline_bayes", "chronos") else 1), nome
-        assert t.execution_timeout.total_seconds() == 3 * 3600, nome
-    por_horizonte = {f"horizonte.train_{b}" for b in FORECAST_BASES}
-    esperado = {
-        "configuracao",
-        "iniciar_execucao",
-        "lista_de_horizontes",
-        *por_horizonte,
-        "horizonte.train_ensemble",
-        "horizonte.comparar",
-        "exportar",
-        "limpar",
-    }
-    assert set(dag.task_ids) == esperado
-    # o ensemble depende só dos modelos empilhados
-    ensemble = dag.get_task("horizonte.train_ensemble")
-    do_grupo = lambda t: {u for u in t.upstream_task_ids if u.startswith("horizonte.")}  # noqa: E731
-    assert do_grupo(ensemble) == {f"horizonte.train_{b}" for b in FORECAST_STACKED}
-    # snapshot, janela e semente, e o diretório e a versão do notebook da execução
-    assert {"configuracao", "iniciar_execucao"} <= ensemble.upstream_task_ids
-    comparar = dag.get_task("horizonte.comparar")
-    assert do_grupo(comparar) == {
-        "horizonte.train_baseline_bayes",
-        "horizonte.train_chronos",
-        "horizonte.train_ensemble",
-    }
-    assert comparar.trigger_rule == "all_done" and comparar.retries == 0
-    for t in por_horizonte | {"horizonte.train_ensemble"}:
-        assert dag.get_task(t).retries == 1, t
-    # um grupo por horizonte (mapeado) e a exportação depois dele
+def _modelo(nome):
+    return _dagbag().dags[f"atlas_forecast_{nome}"]
+
+
+def test_forecast_uma_dag_por_modelo():
     from airflow.sdk.definitions.mappedoperator import MappedOperator
 
-    for t in por_horizonte | {"horizonte.train_ensemble", "horizonte.comparar"}:
-        assert dag.get_task(t).get_closest_mapped_task_group() is not None, t
-    assert isinstance(dag.get_task("exportar"), MappedOperator) is False
-    exportar = dag.get_task("exportar")
-    assert exportar.trigger_dag_id == "process_forecast_export_atlas"
-    assert exportar.trigger_rule == "none_failed_min_one_success" and exportar.retries == 0
-    assert "horizonte.comparar" in exportar.upstream_task_ids
+    for nome in FORECAST_MODELOS:
+        dag = _modelo(nome)
+        assert _sem_agenda(dag), f"{nome}: só por disparo (orquestrador ou à mão)"
+        # despausada ao nascer: senão o orquestrador esperaria para sempre por uma run na fila
+        assert dag.is_paused_upon_creation is False, nome
+        assert dag.max_active_runs == 1 and dag.max_active_tasks == 2, nome
+        assert dag.dagrun_timeout.total_seconds() == 8 * 3600, nome
+        esperado = {
+            "configuracao",
+            "lista_de_horizontes",
+            "iniciar",
+            "horizonte.treinar",
+            "concluir",
+            "limpar",
+        }
+        if nome == "ensemble":
+            esperado.add("horizonte.bases")
+        assert set(dag.task_ids) == esperado, (nome, dag.task_ids)
+        # pool dos treinos: pesados ocupam as 2 vagas (um por vez), leves 1; todos com tempo máximo
+        treinar = dag.get_task("horizonte.treinar")
+        assert treinar.pool == "atlas_treino", nome
+        assert treinar.pool_slots == (2 if nome in PESADOS else 1), nome
+        assert treinar.execution_timeout.total_seconds() == 3 * 3600, nome
+        assert treinar.retries == 1, nome
+        # um grupo por horizonte (mapeado): um horizonte que falha não para os outros
+        assert treinar.get_closest_mapped_task_group() is not None, nome
+        assert "iniciar" in treinar.upstream_task_ids, nome
+        for t in ("iniciar", "horizonte.treinar", "limpar"):
+            assert dag.get_task(t).python == VENV_ML, (nome, t)
+        # concluir (all_success) marca a run como falha se algum horizonte falhou; limpar roda sempre
+        concluir = dag.get_task("concluir")
+        assert concluir.trigger_rule == "all_success" and "horizonte.treinar" in concluir.upstream_task_ids
+        limpar = dag.get_task("limpar")
+        assert limpar.trigger_rule == "all_done" and limpar.retries == 0
+        assert "horizonte.treinar" in limpar.upstream_task_ids
+        assert not isinstance(concluir, MappedOperator) and not isinstance(limpar, MappedOperator)
+        # sozinha não compara nem exporta
+        assert not any("compar" in t or "export" in t for t in dag.task_ids), nome
+        for t in dag.tasks:
+            assert type(t).__name__ not in ("BashOperator", "TriggerDagRunOperator"), (nome, t.task_id)
 
 
-def test_forecast_executa_o_notebook_e_limpa_a_execucao():
+def test_forecast_ensemble_busca_as_bases():
+    dag = _modelo("ensemble")
+    bases = dag.get_task("horizonte.bases")
+    assert bases.python == VENV_ML
+    assert bases.get_closest_mapped_task_group() is not None
+    assert "horizonte.bases" in dag.get_task("horizonte.treinar").upstream_task_ids
+    for nome in FORECAST_BASES:
+        assert "horizonte.bases" not in _modelo(nome).task_ids, nome
+
+
+def test_forecast_parametros_das_dags_de_modelo():
+    for nome in FORECAST_MODELOS:
+        dag = _modelo(nome)
+        assert dag.params["window"] == 12 and dag.params["seed"] == 42, nome
+        assert dag.params["horizons"] == [1, 2, 3, 4], nome
+        # preenchidos pelo orquestrador; vazios no disparo isolado
+        for p in ("fonte", "pipeline_run", "data_version", "notebook_sha"):
+            param = dag.params.get_param(p)
+            assert param.resolve(None) is None and param.resolve("") == "", (nome, p)
+
+
+def test_forecast_horizontes_validados():
+    sys.path.insert(0, DAGS_FOLDER)
+    from atlas_ingest.forecast_modelo import validar_horizontes
+
+    assert validar_horizontes([3, 1, 3]) == [1, 3]
+    for invalido in ([5], [0, 1], []):
+        try:
+            validar_horizontes(invalido)
+        except ValueError as exc:
+            assert "1 a 4" in str(exc)
+        else:
+            raise AssertionError(f"horizontes {invalido} aceitos")
+
+
+def test_forecast_orquestrador():
     dag = _forecast()
-    inicio = dag.get_task("iniciar_execucao")
-    assert inicio.python == "/opt/atlas-ml/bin/python"
+    assert _sem_agenda(dag), "não pode ter agendamento"
+    assert dag.max_active_runs == 1
+    assert dag.dagrun_timeout is not None and dag.dagrun_timeout.total_seconds() == 12 * 3600
+    disparos = {f"modelo_{m}" for m in FORECAST_MODELOS}
+    esperado = {
+        "configuracao",
+        "lista_de_horizontes",
+        "iniciar_execucao",
+        "conf_dos_modelos",
+        *disparos,
+        "comparar",
+        "algum_resultado",
+        "exportar",
+    }
+    assert set(dag.task_ids) == esperado, dag.task_ids
+    # os treinos saíram desta DAG: cada modelo treina na sua
+    assert not any(t.startswith("horizonte.") or "train_" in t for t in dag.task_ids)
+    assert "prepare" not in dag.task_ids and "limpar" not in dag.task_ids
+    for m in FORECAST_MODELOS:
+        t = dag.get_task(f"modelo_{m}")
+        assert type(t).__name__ == "TriggerDagRunOperator", m
+        assert t.trigger_dag_id == f"atlas_forecast_{m}" and t.trigger_dag_id in _dagbag().dags, m
+        assert t.wait_for_completion is True and t.deferrable is True, m
+        assert list(t.failed_states) == ["failed"] and list(t.allowed_states) == ["success"], m
+        assert t.reset_dag_run is True and t.retries == 0, m
+        assert t.execution_timeout.total_seconds() == 8 * 3600, m
+        assert t.trigger_run_id == "{{ run_id }}__" + m, m
+        # a conf (pipeline_run, horizontes, janela, semente, fonte e versões) vem de uma tarefa só
+        assert "conf_dos_modelos" in t.upstream_task_ids, m
+    # bases em paralelo; o ensemble depois das cinco, com sucesso ou falha
+    ensemble = dag.get_task("modelo_ensemble")
+    assert ensemble.trigger_rule == "all_done"
+    assert {f"modelo_{b}" for b in FORECAST_BASES} <= ensemble.upstream_task_ids
+    for b in FORECAST_BASES:
+        assert dag.get_task(f"modelo_{b}").upstream_task_ids == {"conf_dos_modelos"}, b
+    # comparação por horizonte (mapeada) depois do ensemble; exportação só com algum resultado
+    from airflow.sdk.definitions.mappedoperator import MappedOperator
 
-    def ancestrais(task_id):
-        vistos, pendentes = set(), [task_id]
-        while pendentes:
-            for pai in dag.get_task(pendentes.pop()).upstream_task_ids:
-                if pai not in vistos:
-                    vistos.add(pai)
-                    pendentes.append(pai)
-        return vistos
+    comparar = dag.get_task("comparar")
+    assert isinstance(comparar, MappedOperator)
+    assert comparar.trigger_rule == "all_done" and comparar.retries == 0
+    assert comparar.partial_kwargs.get("python") == VENV_ML  # mapeada: os kwargs ficam no partial
+    assert "modelo_ensemble" in comparar.upstream_task_ids
+    algum = dag.get_task("algum_resultado")
+    assert algum.trigger_rule == "all_done" and algum.upstream_task_ids == {"comparar"}
+    exportar = dag.get_task("exportar")
+    assert (
+        exportar.trigger_dag_id == "process_forecast_export_atlas" and exportar.wait_for_completion is False
+    )
+    assert exportar.trigger_rule == "all_success" and exportar.retries == 0
+    assert exportar.upstream_task_ids == {"algum_resultado"}
 
-    # os treinos dependem direto do início; o comparar, pelos treinos (transitivo)
-    for t in ["horizonte.train_catboost", "horizonte.train_ensemble"]:
-        assert "iniciar_execucao" in dag.get_task(t).upstream_task_ids, t
-    assert "iniciar_execucao" in ancestrais("horizonte.comparar")
-    assert "horizonte.train_ensemble" in dag.get_task("horizonte.comparar").upstream_task_ids
-    # o diretório da execução some no fim, com sucesso ou falha
-    limpar = dag.get_task("limpar")
-    assert limpar.trigger_rule == "all_done" and limpar.retries == 0
-    assert "horizonte.comparar" in limpar.upstream_task_ids
-    assert limpar.python == "/opt/atlas-ml/bin/python"
-    # sem snapshot; as tarefas executam o notebook do modelo; o pipeline antigo e o CLI saíram
-    with open(os.path.join(DAGS_FOLDER, "atlas_dengue_forecast_br.py"), encoding="utf-8") as f:
-        fonte = f.read()
-    assert "run_model_notebook" in fonte and "run_step" not in fonte
-    assert "forecast.pipeline" not in fonte and "atlas-ml forecast" not in fonte
-    assert "prepare" not in dag.task_ids
+
+def test_forecast_executa_o_notebook_nas_dags_de_modelo():
+    inicio = _forecast().get_task("iniciar_execucao")
+    assert inicio.python == VENV_ML
+    with open(os.path.join(DAGS_FOLDER, "atlas_ingest", "forecast_modelo.py"), encoding="utf-8") as f:
+        fabrica = f.read()
+    assert "run_model_notebook" in fabrica and "run_step" not in fabrica
+    for nome in ["atlas_dengue_forecast_br.py"] + [f"atlas_forecast_{m}.py" for m in FORECAST_MODELOS]:
+        with open(os.path.join(DAGS_FOLDER, nome), encoding="utf-8") as f:
+            fonte = f.read()
+        assert "forecast.pipeline" not in fonte and "atlas-ml forecast" not in fonte, nome
+        assert "run_step" not in fonte, nome
 
 
 def test_forecast_parametros_e_ambiente():
@@ -329,17 +406,9 @@ def test_forecast_parametros_e_ambiente():
     # o disparo da etl_brasil com fonte "" chega como None: precisa ser aceito (gold inteira)
     fonte = dag.params.get_param("fonte")
     assert fonte.resolve(None) is None and fonte.resolve("") == ""
-    # tudo roda em Python no venv do atlas_ml, sem scripts de shell
+    # tudo em Python, sem scripts de shell
     for t in dag.tasks:
         assert type(t).__name__ != "BashOperator", t.task_id
-    for t in [
-        "iniciar_execucao",
-        "horizonte.train_catboost",
-        "horizonte.train_ensemble",
-        "horizonte.comparar",
-        "limpar",
-    ]:
-        assert dag.get_task(t).python == "/opt/atlas-ml/bin/python", t
 
 
 def test_exportacao_das_previsoes():

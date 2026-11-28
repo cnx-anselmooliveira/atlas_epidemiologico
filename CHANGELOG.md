@@ -7,6 +7,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 ## [Não lançado]
 
 ### Adicionado
+- **Uma DAG por modelo de previsão** (`atlas_forecast_baseline_bayes`, `_chronos`, `_catboost`, `_svr`, `_lstm` e `_ensemble`): cada modelo treina e registra sozinho, sem rodar os outros. A `atlas_dengue_forecast_br` vira o orquestrador do processo completo (dispara as seis, compara e exporta), com o mesmo `dag_id` e os mesmos parâmetros.
+- **Via rápida do CI:** PR só de DAGs, notebooks, docs ou OpenSpec pula o build das imagens, o e2e, o frontend, o backend e os testes do pacote `ml`; os testes das DAGs rodam na imagem `:hml` publicada. `platform/ci/testar-dags.sh` roda os mesmos testes localmente, em menos de 1 minuto. Notebooks deixam de disparar o build das imagens `ml` e `ml-notebook`.
 - **Esteira de imagens para hml:** publicação no DockerHub de `airflow`, `mlflow` e `ml` (além de `frontend` e `backend`), disparo manual, verificação de secrets antes dos testes e deploy no Portainer por GitHub Environment (`hml` e `prod`). Passo a passo em `deploy/README.md`.
 - **Plataforma de ML local** (`platform/`): Postgres, MLflow 3.18 e Airflow 3.3 em compose, com artefatos no GCS (`gs://ppgcc-bucket/mlflow/dev/`) ou em volume local, e Jupyter opcional.
 - **Pacote `atlas_ml`** com o CLI `atlas-ml`:
