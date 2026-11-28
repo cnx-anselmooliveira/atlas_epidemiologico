@@ -1,4 +1,7 @@
-"""Tarefas da DAG `atlas_dengue_forecast_br` que rodam no venv do atlas_ml: a comparação e o treino.
+"""Tarefas das DAGs de previsão que rodam no venv do atlas_ml: a comparação e o treino.
+
+A comparação é do orquestrador (`atlas_dengue_forecast_br`); o treino, das DAGs de modelo
+(`atlas_forecast_<modelo>`, montadas por `atlas_ingest/forecast_modelo.py`).
 
 O Airflow copia o corpo de cada `@task.external_python` para o venv do atlas_ml, então o corpo é
 autocontido. Aqui as funções são extraídas do arquivo da DAG (sem importar o Airflow) e executadas
@@ -14,12 +17,15 @@ import pytest
 from atlas_ml.config import load_settings
 from atlas_ml.tracking import atlas_run
 
-DAG = Path(__file__).resolve().parents[3] / "airflow" / "dags" / "atlas_dengue_forecast_br.py"
+DAGS = Path(__file__).resolve().parents[3] / "airflow" / "dags"
+ORQUESTRADOR = DAGS / "atlas_dengue_forecast_br.py"
+FABRICA = DAGS / "atlas_ingest" / "forecast_modelo.py"
 EXPERIMENTO = "dengue-forecast-br"
 
 
-def tarefa(nome):
+def tarefa(nome, arquivo=ORQUESTRADOR):
     """A função de uma tarefa da DAG sem o decorador (como o Airflow a copia para o venv)."""
+    DAG = arquivo
     modulo = ast.parse(DAG.read_text(encoding="utf-8"))
     no = next(n for n in modulo.body if isinstance(n, ast.FunctionDef) and n.name == nome)
     no.decorator_list = []
@@ -91,7 +97,7 @@ def test_treinar_executa_o_notebook_do_modelo_com_os_parametros_da_tarefa(monkey
         return {"run_id": f"run-{model}"}
 
     monkeypatch.setattr("atlas_ml.forecast.notebook.run_model_notebook", falso)
-    treinar = tarefa("treinar")
+    treinar = tarefa("treinar", FABRICA)
     assert treinar("catboost", 2, "exec1", 12, 42, "/tmp/atlas/exec1", "sha1", "gold@x", "") == "run-catboost"
     modelo, params, out_dir, nome, sha = chamadas[-1]
     assert (modelo, nome, out_dir, sha) == ("catboost", "train-catboost-h2", "/tmp/atlas/exec1", "sha1")

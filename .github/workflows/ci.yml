@@ -10,6 +10,14 @@ on:
     branches: [hml, main]
   workflow_dispatch:
   workflow_call: # publicação de imagens e releases só seguem depois deste pipeline
+    inputs:
+      completo:
+        # numa chamada o github.event_name é o do chamador (push): sem este input, uma publicação de
+        # imagem poderia cair na via rápida. Só existe na chamada; em push e PR fica vazio.
+        description: Força o pipeline completo (padrão nas chamadas pela publicação de imagens)
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -25,6 +33,43 @@ env:
   GITLEAKS_VERSION: "8.21.2"
 
 jobs:
+  escopo:
+    # Via rápida (add-forecast-model-dags): mudança só em DAGs (e seus testes), notebooks, docs ou
+    # OpenSpec dispensa imagens, e2e, frontend, backend e testes do pacote ml. A decisão está em
+    # platform/ci/escopo.sh (casos em test-escopo.sh). Chamada, disparo manual ou diff sem base
+    # confiável: pipeline completo.
+    name: escopo
+    runs-on: ubuntu-latest
+    outputs:
+      rapido: ${{ steps.escopo.outputs.rapido }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: arquivos alterados → via rápida ou completa
+        id: escopo
+        env:
+          EVENTO: ${{ github.event_name }}
+          COMPLETO: ${{ inputs.completo }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          ANTES: ${{ github.event.before }}
+          DEPOIS: ${{ github.sha }}
+        run: |
+          if [ "${COMPLETO}" = "true" ]; then
+            echo "escopo: completo (chamado pela publicação de imagens)"
+            echo "rapido=false" >> "$GITHUB_OUTPUT"
+          elif [ "${EVENTO}" = "pull_request" ]; then
+            git diff --name-only "${BASE}...${HEAD}" | tee /dev/stderr | bash platform/ci/escopo.sh >> "$GITHUB_OUTPUT"
+          elif [ "${EVENTO}" = "push" ] && [ -n "${ANTES}" ] && [ "${ANTES}" != "0000000000000000000000000000000000000000" ] \
+            && git cat-file -e "${ANTES}^{commit}" 2>/dev/null; then
+            git diff --name-only "${ANTES}" "${DEPOIS}" | tee /dev/stderr | bash platform/ci/escopo.sh >> "$GITHUB_OUTPUT"
+          else
+            echo "escopo: completo (evento ${EVENTO} sem diff confiável)"
+            echo "rapido=false" >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
+
   lint:
     name: lint
     runs-on: ubuntu-latest
@@ -44,7 +89,9 @@ jobs:
       - name: notebooks versionados sem saídas (o repositório é público)
         run: python3 ml/notebooks/_ferramentas/verificar_sem_saidas.py
       - name: shellcheck
-        run: shellcheck infra/mlflow/entrypoint.sh airflow/config/init.sh airflow/config/aguardar-clone.sh platform/postgres/init-databases.sh platform/ci/e2e.sh platform/ci/check-secrets.sh platform/ci/test-check-stack-jupyter.sh .githooks/pre-commit
+        run: shellcheck infra/mlflow/entrypoint.sh airflow/config/init.sh airflow/config/aguardar-clone.sh platform/postgres/init-databases.sh platform/ci/e2e.sh platform/ci/check-secrets.sh platform/ci/test-check-stack-jupyter.sh platform/ci/escopo.sh platform/ci/test-escopo.sh platform/ci/testar-dags.sh .githooks/pre-commit
+      - name: casos da via rápida (escopo.sh)
+        run: bash platform/ci/test-escopo.sh
       - name: actionlint
         run: |
           bash <(curl -fsSL "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash") "${ACTIONLINT_VERSION}"
@@ -58,6 +105,8 @@ jobs:
 
   ml-tests:
     name: ml-tests
+    needs: escopo
+    if: needs.escopo.outputs.rapido != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +122,9 @@ jobs:
           uv run --frozen pytest -m "not models"
 
   ml-models-tests:
+    # na via rápida só a verificação dos notebooks; o pytest -m models é teste do pacote ml
     name: ml-models-tests
+    needs: escopo
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -89,6 +140,7 @@ jobs:
           uv run --frozen --all-extras python notebooks/_ferramentas/verificar_comum.py
           uv run --frozen --all-extras python notebooks/_ferramentas/verificar_requirements.py
       - name: pytest -m models (grupo de dependências pesadas)
+        if: needs.escopo.outputs.rapido != 'true'
         working-directory: ml
         run: |
           uv sync --frozen --all-extras
@@ -105,6 +157,8 @@ jobs:
 
   images:
     name: images (${{ matrix.name }})
+    needs: escopo
+    if: needs.escopo.outputs.rapido != 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -133,13 +187,22 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
   dags:
+    # Via completa: a imagem do commit (cache do job images). Via rápida: a imagem :hml publicada, que é
+    # válida porque nenhum insumo dela mudou; em ambas, DAGs, testes e notebooks montados do commit.
     name: dags
-    needs: images
+    needs: [escopo, images]
+    if: >-
+      ${{ !cancelled() && needs.escopo.result == 'success' && (needs.images.result == 'success'
+      || (needs.images.result == 'skipped' && needs.escopo.outputs.rapido == 'true')) }}
     runs-on: ubuntu-latest
+    env:
+      RAPIDO: ${{ needs.escopo.outputs.rapido }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+        if: env.RAPIDO != 'true'
       - name: imagem do Airflow (cache do job images)
+        if: env.RAPIDO != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -150,25 +213,36 @@ jobs:
             ATLAS_GIT_SHA=${{ github.sha }}
             ATLAS_IMAGE_TAG=ci
           cache-from: type=gha,scope=airflow
-      - name: integridade das DAGs
+      - name: imagem do Airflow publicada (via rápida)
+        if: env.RAPIDO == 'true'
+        run: |
+          docker pull anselmomendes/atlas-epidemiologia-airflow:hml
+          docker tag anselmomendes/atlas-epidemiologia-airflow:hml atlas-epidemiologia-airflow:ci
+      - name: testes de DAG (DAGs, testes e notebooks do commit)
         # DAGs do Cosmos rodam `dbt ls` na leitura: profile com chave fictícia (não conecta) e sem cache (sem banco)
-        run: >-
-          docker run --rm --entrypoint python
-          -e DBT_BQ_KEYFILE=/tmp/chave-ficticia.json
-          -e AIRFLOW__COSMOS__ENABLE_CACHE_DBT_LS=False
-          atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_dags.py
-      - name: plano de sync do SINAN (sem rede)
-        run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_sinan_ingest.py
-      - name: exportação das previsões (funções puras, sem rede)
-        run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_forecast_export.py
-      - name: decisões do fluxo etl_brasil (funções puras, sem rede)
-        run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_etl_brasil.py
-      - name: ingestão de arquivos do notebook no BigQuery (cliente simulado, sem rede)
-        run: docker run --rm --entrypoint python atlas-epidemiologia-airflow:ci /opt/atlas/tests/test_ingestao_arquivo.py
+        run: |
+          testar() {
+            echo "::group::$1"
+            docker run --rm --entrypoint python \
+              -e DBT_BQ_KEYFILE=/tmp/chave-ficticia.json \
+              -e AIRFLOW__COSMOS__ENABLE_CACHE_DBT_LS=False \
+              -v "${PWD}/airflow/dags:/opt/airflow/dags" \
+              -v "${PWD}/airflow/tests:/opt/atlas/tests:ro" \
+              -v "${PWD}/ml/notebooks:/opt/atlas/notebooks:ro" \
+              atlas-epidemiologia-airflow:ci "/opt/atlas/tests/$1"
+            echo "::endgroup::"
+          }
+          testar test_dags.py                # integridade das DAGs
+          testar test_forecast_modelo.py     # runs de base do ensemble (MLflow simulado)
+          testar test_sinan_ingest.py        # plano de sync do SINAN (sem rede)
+          testar test_forecast_export.py     # exportação das previsões (funções puras)
+          testar test_etl_brasil.py          # decisões do fluxo etl_brasil (funções puras)
+          testar test_ingestao_arquivo.py    # ingestão de arquivos do notebook (cliente simulado)
 
   platform-e2e:
     name: platform-e2e
-    needs: images
+    needs: [escopo, images]
+    if: needs.escopo.outputs.rapido != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -209,6 +283,8 @@ jobs:
 
   frontend:
     name: frontend
+    needs: escopo
+    if: needs.escopo.outputs.rapido != 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -239,6 +315,8 @@ jobs:
 
   backend:
     name: backend
+    needs: escopo
+    if: needs.escopo.outputs.rapido != 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -325,20 +403,30 @@ jobs:
   ci-ok:
     # Check único exigido na proteção de hml e main. Passa só se TODOS os jobs passaram:
     # failure, cancelled ou skipped em qualquer job → falha (um job pulado não pode
-    # liberar o merge, p.ex. dags/platform-e2e pulados porque images falhou).
+    # liberar o merge, p.ex. dags/platform-e2e pulados porque images falhou). Exceções: o promocao
+    # fora de PR e, só na via rápida, os jobs que ela dispensa.
     name: ci-ok
     if: always()
-    needs: [lint, ml-tests, ml-models-tests, images, dags, platform-e2e, frontend, backend, secrets, openspec, stack, promocao]
+    needs: [escopo, lint, ml-tests, ml-models-tests, images, dags, platform-e2e, frontend, backend, secrets, openspec, stack, promocao]
     runs-on: ubuntu-latest
     steps:
       - name: resultado agregado
         env:
           NEEDS: ${{ toJSON(needs) }}
           EVENTO: ${{ github.event_name }}
+          RAPIDO: ${{ needs.escopo.outputs.rapido }}
         run: |
+          echo "via rápida: ${RAPIDO:-false}"
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          # promocao só roda em PR: pulado fora de PR é o esperado; pulado dentro de PR falha
-          bad="$(echo "$NEEDS" | jq -r --arg ev "$EVENTO" '[to_entries[] | select(.value.result != "success") | select((.key == "promocao" and .value.result == "skipped" and $ev != "pull_request") | not) | .key] | join(", ")')"
+          # promocao só roda em PR: pulado fora de PR é o esperado; pulado dentro de PR falha.
+          # Na via rápida, images, platform-e2e, frontend, backend e ml-tests pulados são o esperado.
+          bad="$(echo "$NEEDS" | jq -r --arg ev "$EVENTO" --arg rapido "${RAPIDO:-false}" '
+            ["images", "platform-e2e", "frontend", "backend", "ml-tests"] as $dispensados
+            | [to_entries[]
+              | select(.value.result != "success")
+              | select((.key == "promocao" and .value.result == "skipped" and $ev != "pull_request") | not)
+              | select(($rapido == "true" and .value.result == "skipped" and (.key as $k | $dispensados | index($k))) | not)
+              | .key] | join(", ")')"
           if [ -n "$bad" ]; then
             echo "::error::Jobs sem sucesso: ${bad}"
             exit 1

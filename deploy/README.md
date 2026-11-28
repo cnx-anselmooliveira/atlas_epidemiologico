@@ -257,7 +257,19 @@ A produção é a **`main`** (não existe branch `prod`): `atlas-hml` lê a bran
 | `promocao` | `hml` só recebe PR de `dev`; `main` só recebe PR de `hml`. Qualquer outra origem falha explicando o fluxo. |
 | `stack` | `docker-compose.yml`, `.env.example` e `platform/postgres/init-databases.sh` existem; `docker stack config` valida para hml (tag `hml`) e prod (tag de versão); sem `latest`, sem porta publicada, sem `build`, secrets externos, só imagens do projeto, `postgres` e `redis`. Roda também com `bash platform/ci/check-stack.sh`. |
 | `secrets` | nenhum valor literal de credencial no `docker-compose.yml` e em `deploy/`, nenhuma variável do stack fora do `.env.example`. |
-| `ci-ok` | passa só se todos os jobs passaram (`promocao` pulado só é aceito fora de PR). É o único check exigido na proteção. |
+| `escopo` | decide entre a via rápida e o pipeline completo pelos arquivos alterados (ver abaixo). |
+| `ci-ok` | passa só se todos os jobs que deviam rodar passaram (`promocao` pulado só é aceito fora de PR; os jobs dispensados, só na via rápida). É o único check exigido na proteção. |
+
+### Via rápida do CI (DAGs, notebooks e docs)
+
+Um PR ou push em que **todos** os arquivos alterados são de `airflow/dags/` (exceto `utfpr_dengue/pyproject.toml` e `uv.lock`), `airflow/tests/`, `ml/notebooks/`, `openspec/`, `docs/` ou `*.md` roda na via rápida:
+
+- **Roda:** lint, verificação dos notebooks, testes das DAGs (na imagem `:hml` publicada, com as DAGs, os testes e os notebooks do commit montados), segredos, OpenSpec, stack e promoção.
+- **Não roda:** o build das imagens, o e2e da plataforma, o frontend, o backend e os testes do pacote `ml`.
+- **Por que é seguro:** DAGs e notebooks chegam a hml pelo git-sync, sem imagem nova, então nada do que a via rápida pula mudou. Qualquer arquivo fora da lista (`ml/src`, Dockerfile, workflow, dependência) leva ao pipeline completo. A chamada pela publicação de imagens é sempre completa.
+- **Decisão:** `platform/ci/escopo.sh` (casos em `platform/ci/test-escopo.sh`). Para ver o que um diff faria: `git diff --name-only origin/hml...dev | bash platform/ci/escopo.sh`.
+- **Antes do PR:** `bash platform/ci/testar-dags.sh` roda os mesmos testes de DAG localmente, em menos de 1 minuto.
+- **Imagens:** mudar só notebooks também não dispara o `ml.yml`. O Jupyter de hml recebe os notebooks novos no próximo build da imagem `ml-notebook`.
 
 ### Proteção das branches `hml` e `main` (Settings › Branches)
 
